@@ -8,6 +8,10 @@ import {
 import {
   signIn,
   signOut,
+  signUp,
+  confirmSignUp,
+  resetPassword,
+  confirmResetPassword,
   getCurrentUser,
   fetchAuthSession,
 } from 'aws-amplify/auth';
@@ -22,6 +26,10 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  signup: (email: string, password: string, name: string) => Promise<void>;
+  confirmAccount: (email: string, code: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  confirmForgotPassword: (email: string, code: string, newPassword: string) => Promise<void>;
 }
 
 const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
@@ -95,6 +103,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function signup(email: string, password: string, name: string) {
+    await signUp({
+      username: email,
+      password,
+      options: {
+        userAttributes: { email, name },
+      },
+    });
+  }
+
+  async function confirmAccount(email: string, code: string) {
+    await confirmSignUp({ username: email, confirmationCode: code });
+  }
+
+  async function forgotPassword(email: string) {
+    await resetPassword({ username: email });
+  }
+
+  async function confirmForgotPassword(email: string, code: string, newPassword: string) {
+    await confirmResetPassword({ username: email, confirmationCode: code, newPassword });
+  }
+
   async function logout() {
     if (DEV_MODE) {
       setUser(null);
@@ -105,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, signup, confirmAccount, forgotPassword, confirmForgotPassword }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import './Login.css';
 
@@ -8,11 +8,16 @@ export function Login() {
   const DEMO_PASSWORD = 'ResumeApp123!?';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [demoSelected, setDemoSelected] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as { signupSuccess?: boolean; resetSuccess?: boolean } | null;
+  const signupSuccess = locationState?.signupSuccess;
+  const resetSuccess = locationState?.resetSuccess;
 
   useEffect(() => {
     if (user) {
@@ -57,8 +62,20 @@ export function Login() {
             </svg>
           </div>
           <h1>ResumeMatch</h1>
-          <p>Sign in to analyze your resume against job descriptions</p>
+          <p>Instantly analyze how well your resume matches a job description</p>
         </div>
+
+        {signupSuccess && (
+          <div className="login-card__success animate-in">
+            Account created! Sign in with your credentials.
+          </div>
+        )}
+
+        {resetSuccess && (
+          <div className="login-card__success animate-in">
+            Password reset! Sign in with your new password.
+          </div>
+        )}
 
         {error && (
           <div className="login-card__error animate-in">
@@ -78,12 +95,7 @@ export function Login() {
               name="email"
               type="email"
               value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (demoSelected) {
-                  setDemoSelected(false);
-                }
-              }}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
               required
               autoComplete="email"
@@ -92,28 +104,77 @@ export function Login() {
           </div>
 
           <div className="login-card__field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (demoSelected) {
-                  setDemoSelected(false);
+            <div className="login-card__label-row">
+              <label htmlFor="password">Password</label>
+              <Link to="/forgot-password" className={`login-card__forgot${demoLoading || loading ? ' login-card__forgot--disabled' : ''}`} tabIndex={demoLoading || loading ? -1 : undefined}>Forgot password?</Link>
+            </div>
+            <div className="login-card__password-wrapper">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                required
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="login-card__password-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="login-card__demo">
+            <button
+              type="button"
+              className="login-card__demo-btn"
+              disabled={demoLoading || loading}
+              onClick={async () => {
+                setError('');
+                setDemoLoading(true);
+                try {
+                  await login(DEMO_EMAIL, DEMO_PASSWORD);
+                  navigate('/upload');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Demo login failed');
+                } finally {
+                  setDemoLoading(false);
                 }
               }}
-              placeholder="Enter your password"
-              required
-              autoComplete="current-password"
-            />
+            >
+              {demoLoading ? (
+                <>
+                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  Signing in...
+                </>
+              ) : (
+                'Try Demo'
+              )}
+            </button>
+            <span className="login-card__demo-hint">No signup required for demo</span>
           </div>
 
           <button
             type="submit"
             className="btn btn-primary login-card__submit"
-            disabled={loading}
+            disabled={loading || demoLoading}
           >
             {loading ? (
               <>
@@ -126,29 +187,10 @@ export function Login() {
           </button>
         </form>
 
-        <div className="login-card__demo">
-          <button
-            type="button"
-            className="login-card__demo-btn"
-            aria-pressed={demoSelected}
-            onClick={() => {
-              setDemoSelected((isSelected) => {
-                const nextSelected = !isSelected;
-
-                if (nextSelected) {
-                  setEmail(DEMO_EMAIL);
-                  setPassword(DEMO_PASSWORD);
-                } else if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-                  setEmail('');
-                  setPassword('');
-                }
-
-                return nextSelected;
-              });
-            }}
-          >
-            Try Demo
-          </button>
+        <div className={`login-card__footer${demoLoading || loading ? ' login-card__footer--disabled' : ''}`}>
+          <p className="login-card__link">
+            Don&apos;t have an account? <Link to="/signup" tabIndex={demoLoading || loading ? -1 : undefined}>Create one</Link>
+          </p>
         </div>
       </div>
     </div>

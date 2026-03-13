@@ -1,6 +1,8 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import './Layout.css';
+
+const DEMO_EMAIL = 'demo123@resumeapp.com';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -56,6 +58,21 @@ export function Layout() {
           </button>
         </div>
       </nav>
+
+      {user?.email === DEMO_EMAIL && (
+        <div className="demo-banner">
+          <span>You are viewing a demo workspace.</span>
+          <button
+            className="demo-banner__cta"
+            onClick={() => {
+              navigate('/signup');
+              logout();
+            }}
+          >
+            Create an account to save your analysis
+          </button>
+        </div>
+      )}
 
       <main className="main">
         <Outlet />
