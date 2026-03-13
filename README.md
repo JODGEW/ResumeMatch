@@ -1,6 +1,36 @@
 # ResumeMatch
 
-A production-grade, fully serverless AI resume analyzer deployed on AWS — live at https://dgmqki2zr9mzh.cloudfront.net.
+ResumeMatch is a production-grade, fully serverless AI resume analyzer deployed on AWS that helps job seekers evaluate how well their resume matches a job description and identify gaps before applying.
+
+## Screenshots
+
+### Login
+
+![Login Page](screenshots/login.png)
+
+### Resume Analysis
+
+![Results Page](screenshots/results.png)
+
+### Outreach Tracker
+
+![Tracker](screenshots/tracker.png)
+
+## Live Demo
+
+Try the app here:
+
+https://dgmqki2zr9mzh.cloudfront.net
+
+Demo account is available via the **Try Demo** button on the login page.
+
+## System Design Highlights
+
+- Fully serverless architecture with automatic scaling
+- Multi-pass AI analysis pipeline using Amazon Bedrock
+- Cost tracking dashboard for AI inference monitoring
+- Resume history stored in DynamoDB for fast retrieval
+- Secure authentication and password recovery with AWS Cognito
 
 ## How It Works
 
@@ -16,22 +46,38 @@ Upload Resume (PDF) + Paste JD → Textract OCR → Bedrock 4-Pass Analysis → 
 
 ## Features
 
-- **Match scoring with breakdown** — overall score ring with 5-tier color system, plus per-category bars (Technical Skills, Tools, Soft Skills, Experience)
-- **Keyword gap analysis** — matched and missing keywords displayed as badges, with top priority missing keywords ranked by importance
-- **Experience mismatch detection** — warns when resume experience doesn't meet JD requirements, showing required vs. stated vs. calculated years
-- **Suggestions** — actionable recommendations for each missing keyword, including where to add it and why
-- **AI-powered resume rewriting** — side-by-side diff view comparing original and suggested resume text
-- **Resume viewer** — in-app PDF modal with download and open-in-new-tab options
-- **Collapsible job description** — view the original JD alongside results
-- **Cost dashboard** — cost trend sparkline chart with hover tooltips showing per-analysis cost, filename, and date
-- **Analysis history** — track past submissions with score mini-rings
-- **Authenticated access** — Cognito-based login with demo account support
-- **Outreach tracker** — track job applications with outreach status pipeline (Not Started, Researching, Drafted, Sent, Followed Up, Replied) and application pipeline (Not Applied, Applied, Screening, Interviewing, Offer, Rejected)
-- **Tracker search** — real-time search across company name, role title, and contact name with instant case-insensitive substring matching; combined with active filter for refined results
-- **Outreach scoring** — weighted 0–100 score per application determining whether cold outreach is worth pursuing, based on skill match, company size, contact availability, posting age, and seniority fit
-- **Follow-up reminders** — banner notifications for overdue and upcoming follow-ups with one-click "Sent" and "Skip" actions
-- **Contact management** — store recruiter/hiring manager name, role, email, LinkedIn, and source per application
-- **Duplicate detection** — warns before adding an application with the same company and role title
+### AI Resume Analysis
+- **Match scoring with breakdown** — overall score with category scores (Technical Skills, Tools, Soft Skills, Experience)
+- **Keyword gap analysis** — highlights missing keywords from the job description
+- **Experience mismatch detection** — compares resume experience against job requirements
+- **AI resume rewriting** — suggests improved resume phrasing based on the JD
+
+### Application Tracking
+- **Outreach tracker** — manage job applications with outreach and application pipelines
+- **Outreach scoring** — 0–100 score indicating whether outreach is worth pursuing
+- **Follow-up reminders** — notifications for overdue or upcoming follow-ups
+- **Contact management** — store recruiter or hiring manager information
+
+### Platform Features
+- **Analysis history** — view past resume analyses and results
+- **Secure authentication** — Cognito login, signup, verification, and password reset
+- **Demo mode** — explore the app instantly without creating an account
+- **Cost dashboard (demo workspace)** — visualize estimated AI inference cost per analysis
+
+## Authentication Flow
+
+ResumeMatch uses AWS Cognito for user authentication.
+
+Supported flows:
+
+1. **Login** — email + password authentication
+2. **Signup** — create account with email and password
+3. **Email verification** — Cognito sends a confirmation code
+4. **Password reset** — request reset code via email
+5. **Verification code** — enter 6-digit code to set a new password
+6. **Demo mode** — instant access using a demo account (no signup required)
+
+Verification and password reset emails are automatically delivered by AWS Cognito.
 
 ## Scoring Rubric
 
@@ -82,9 +128,29 @@ Built and deployed as a fully serverless stack:
 - **Storage:** S3, DynamoDB
 - **AI/ML:** Amazon Textract (OCR), Amazon Bedrock (Claude Haiku)
 - **API:** API Gateway
-- **Auth:** Cognito
+- **Auth:** AWS Cognito (email/password authentication, signup verification, password reset flow, session management)
 - **CDN:** CloudFront
 - **Frontend:** React 18, TypeScript, Vite
+
+## Tech Stack
+
+Frontend:
+- React 18
+- TypeScript
+- Vite
+
+Backend:
+- AWS Lambda
+- API Gateway
+
+AI:
+- Amazon Bedrock (Claude Haiku)
+
+Infrastructure:
+- S3
+- DynamoDB
+- CloudFront
+- Cognito
 
 ## Getting Started
 
@@ -109,7 +175,14 @@ npm run build
 npm run preview
 ```
 
-### Demo Credentials
+
+### Demo Access
+
+You can explore the app without creating an account.
+
+Click **Try Demo** on the login page to automatically access a demo workspace.
+
+Demo credentials (for manual login):
 
 ```
 Email:    demo123@resumeapp.com
@@ -121,10 +194,10 @@ Password: ResumeApp123!?
 ```
 src/
   api/          # API client and endpoint functions
-  auth/         # Auth context and protected route
+  auth/         # Authentication context and route guards
   components/   # Reusable UI components
   config/       # AWS Amplify configuration
   hooks/        # Custom React hooks
-  pages/        # Page components (Login, Upload, Results, History)
+  pages/        # Page components (Login, Signup, ForgotPassword, ResetPassword, Upload, Results, History)
   types/        # TypeScript type definitions
 ```

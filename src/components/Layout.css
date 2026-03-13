@@ -35,12 +35,15 @@
 }
 
 /* ── Navigation ─────────────────────────────────────── */
-.nav {
+.header-sticky {
   position: sticky;
   top: 0;
   z-index: 100;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
+}
+
+.nav {
   border-bottom: 1px solid var(--border);
 }
 
@@ -143,9 +146,23 @@
     font-size: 1rem;
   }
 
+  .nav__links {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .nav__links::-webkit-scrollbar {
+    display: none;
+  }
+
   .nav__link {
     font-size: 0.75rem;
     padding: 0.375rem 0.625rem;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .nav__user {
@@ -170,5 +187,12 @@
   .nav__mobile-user .nav__logout {
     font-size: 0.6875rem;
     padding: 0.25rem 0.5rem;
+  }
+
+  .demo-banner {
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.375rem 1rem;
+    font-size: 0.75rem;
   }
 }
