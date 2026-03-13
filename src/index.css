@@ -173,8 +173,12 @@ label {
   background: var(--accent);
   color: var(--text-inverse);
 }
+.btn-primary:visited {
+  color: var(--text-inverse);
+}
 .btn-primary:not(:disabled):hover {
   background: var(--accent-hover);
+  color: var(--text-inverse);
   box-shadow: var(--shadow-glow);
 }
 
@@ -241,12 +245,14 @@ label {
 }
 
 .loading-spinner {
+  display: inline-block;
   width: 32px;
   height: 32px;
   border: 3px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
