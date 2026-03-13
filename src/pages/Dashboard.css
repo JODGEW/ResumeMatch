@@ -1,0 +1,324 @@
+/* ── Dashboard Header ────────────────────────────────── */
+.dash-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dash-header__badge {
+  flex-shrink: 0;
+  padding-top: 0.375rem;
+}
+
+.dash-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  padding: 0.25rem 0.75rem;
+  border-radius: 100px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid rgba(67, 56, 202, 0.15);
+}
+
+/* ── Stat Cards ──────────────────────────────────────── */
+.dash-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dash-stat {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dash-stat__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.dash-stat__value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.dash-stat__sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ── Chart ───────────────────────────────────────────── */
+.dash-chart {
+  margin-bottom: 1.5rem;
+}
+
+.dash-chart__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.dash-chart__header h3 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.dash-chart__range {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+.dash-chart__container {
+  position: relative;
+}
+
+.dash-chart__svg {
+  width: 100%;
+  height: auto;
+  max-height: 180px;
+  display: block;
+}
+
+.dash-chart__tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  z-index: 10;
+  animation: tooltipFadeIn 0.15s ease;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translate(12px, -50%) scale(0.95); }
+  to { opacity: 1; }
+}
+
+.dash-chart__tooltip-cost {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.dash-chart__tooltip-name {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  margin-top: 2px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-chart__tooltip-date {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Ledger ──────────────────────────────────────────── */
+.dash-ledger {
+  margin-bottom: 1rem;
+}
+
+.dash-ledger__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.dash-ledger__header h3 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.dash-table-wrap {
+  overflow-x: auto;
+  margin: 0 -1.75rem;
+  padding: 0 1.75rem;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.dash-table__th {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+}
+
+.dash-table__th--right {
+  text-align: right;
+}
+
+.dash-table__row {
+  animation: fadeIn 0.3s ease both;
+}
+
+.dash-table__row:hover {
+  background: var(--bg-secondary);
+}
+
+.dash-table__td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.dash-table__td--idx {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 2rem;
+}
+
+.dash-table__td--date {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.dash-table__td--file {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.dash-table__td--right {
+  text-align: right;
+}
+
+.dash-table__td--cost {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.dash-table__td--total {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.dash-table__score {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.75rem;
+  min-width: 2rem;
+  text-align: center;
+}
+
+.dash-table__score[data-level="high"] { color: var(--success); }
+.dash-table__score[data-level="mid"]  { color: #ca8a04; }
+.dash-table__score[data-level="low"]  { color: var(--danger); }
+
+.dash-table__foot {
+  border-top: 2px solid var(--border);
+}
+
+.dash-table__td--foot-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: none;
+}
+
+.dash-table__td--foot-val {
+  font-weight: 700;
+  color: var(--accent);
+  border-bottom: none;
+}
+
+.dash-table__est {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-left: 0.125rem;
+  cursor: help;
+}
+
+/* ── Disclaimer ──────────────────────────────────────── */
+.dash-disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 1rem 0 0.5rem;
+  font-style: italic;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .dash-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-stat__value {
+    font-size: 1.25rem;
+  }
+
+  .dash-table-wrap {
+    margin: 0 -1.25rem;
+    padding: 0 1.25rem;
+  }
+
+  .dash-table {
+    font-size: 0.75rem;
+  }
+
+  .dash-table__th,
+  .dash-table__td {
+    padding: 0.5rem;
+  }
+
+  .dash-table__td--file {
+    max-width: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dash-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}

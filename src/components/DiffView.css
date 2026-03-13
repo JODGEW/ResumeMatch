@@ -1,0 +1,103 @@
+.diff-view {
+  animation: fadeIn 0.5s ease both;
+  animation-delay: 0.3s;
+}
+
+.diff-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.diff-view__header h3 {
+  font-size: 1rem;
+}
+
+.diff-view__legend {
+  display: flex;
+  gap: 1rem;
+}
+
+.diff-view__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.diff-view__legend-item::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.diff-view__legend-item--original::before {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.diff-view__legend-item--added::before {
+  background: rgba(67, 56, 202, 0.12);
+  border: 1px solid rgba(67, 56, 202, 0.25);
+}
+
+.diff-view__legend-item--removed::before {
+  background: var(--danger-dim);
+  border: 1px solid var(--danger-border);
+}
+
+.diff-view__body {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.diff-view__content {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+}
+
+.diff-view__added {
+  background: rgba(67, 56, 202, 0.10);
+  border-bottom: 2px solid rgba(67, 56, 202, 0.4);
+  color: #3730A3;
+  padding: 0.1em 0.15em;
+  border-radius: 2px;
+}
+
+.diff-view__removed {
+  background: var(--danger-dim);
+  color: var(--danger);
+  text-decoration: line-through;
+  text-decoration-color: rgba(197, 52, 52, 0.4);
+  padding: 0.1em 0.15em;
+  border-radius: 2px;
+  opacity: 0.75;
+}
+
+/* ── Mobile ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .diff-view__body {
+    padding: 1rem;
+    max-height: 400px;
+  }
+
+  .diff-view__content {
+    font-size: 0.75rem;
+    line-height: 1.7;
+  }
+}

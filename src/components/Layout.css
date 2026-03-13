@@ -1,0 +1,144 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Navigation ─────────────────────────────────────── */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav__inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-shrink: 0;
+}
+
+.nav__logo {
+  display: flex;
+  align-items: center;
+}
+
+.nav__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.125rem;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.nav__link {
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+}
+
+.nav__link:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+.nav__link--active {
+  color: var(--accent) !important;
+  background: var(--accent-dim);
+}
+
+.nav__user {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.nav__email {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.nav__logout {
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.875rem;
+}
+
+.nav__mobile-user {
+  display: none;
+}
+
+/* ── Main Content ───────────────────────────────────── */
+.main {
+  flex: 1;
+}
+
+/* ── Mobile ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .nav__inner {
+    padding: 0 1rem;
+    gap: 1rem;
+    height: 48px;
+  }
+
+  .nav__title {
+    font-size: 1rem;
+  }
+
+  .nav__link {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.625rem;
+  }
+
+  .nav__user {
+    display: none;
+  }
+
+  .nav__mobile-user {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0.375rem 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav__mobile-user .nav__email {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+  }
+
+  .nav__mobile-user .nav__logout {
+    font-size: 0.6875rem;
+    padding: 0.25rem 0.5rem;
+  }
+}

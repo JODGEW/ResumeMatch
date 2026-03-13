@@ -1,0 +1,167 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+
+/* ── Background ─────────────────────────────────────── */
+.login-page__bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.login-page__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.5;
+  mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, black 20%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, black 20%, transparent 100%);
+}
+
+.login-page__glow {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 400px;
+  background: radial-gradient(ellipse, rgba(67, 56, 202, 0.06) 0%, transparent 70%);
+  opacity: 1;
+}
+
+/* ── Card ───────────────────────────────────────────── */
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 2.5rem;
+  position: relative;
+  z-index: 1;
+  box-shadow: var(--shadow-lg);
+}
+
+.login-card__header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-card__logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.login-card__header h1 {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-card__header p {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+
+/* ── Error ──────────────────────────────────────────── */
+.login-card__error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--danger);
+  background: var(--danger-dim);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ── Form ───────────────────────────────────────────── */
+.login-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.login-card__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-card__submit {
+  width: 100%;
+  padding: 0.875rem;
+  font-size: 0.9375rem;
+  margin-top: 0.5rem;
+}
+
+/* ── Demo credentials ──────────────────────────────── */
+.login-card__demo {
+  margin-top: 1.5rem;
+}
+
+.login-card__demo-btn {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.login-card__demo-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.login-card__demo-btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── Mobile ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .login-page {
+    padding: 1rem;
+  }
+
+  .login-page__glow {
+    display: none;
+  }
+
+  .login-card {
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+  }
+
+  .login-card__header {
+    margin-bottom: 1.5rem;
+  }
+
+  .login-card__header h1 {
+    font-size: 1.5rem;
+  }
+
+  .login-card__header p {
+    font-size: 0.875rem;
+  }
+}

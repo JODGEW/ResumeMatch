@@ -1,0 +1,115 @@
+/* ── Grid Layout ─────────────────────────────────────── */
+.upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .upload-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.upload-grid__col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── Panel ───────────────────────────────────────────── */
+.upload-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.upload-panel__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.upload-panel__step {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(67, 56, 202, 0.25);
+}
+
+.upload-panel__header h3 {
+  margin-bottom: 0.125rem;
+}
+
+.upload-panel__header p {
+  font-size: 0.8125rem;
+}
+
+.upload-panel__textarea {
+  min-height: 320px;
+  font-size: 0.875rem;
+}
+
+.upload-panel__count {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.75rem;
+  min-height: 1rem;
+}
+
+/* ── Submit Button ───────────────────────────────────── */
+.upload-submit {
+  width: 100%;
+  padding: 1rem;
+  font-size: 0.9375rem;
+}
+
+/* ── Progress Bar ────────────────────────────────────── */
+.upload-progress {
+  margin-top: -0.5rem;
+}
+
+.upload-progress__track {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.upload-progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* ── Error ───────────────────────────────────────────── */
+.upload-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--danger);
+  background: var(--danger-dim);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Mobile ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .upload-panel__textarea {
+    min-height: 200px;
+  }
+}
