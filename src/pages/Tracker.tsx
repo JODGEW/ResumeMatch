@@ -555,6 +555,8 @@ export function Tracker() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<{ open: boolean; editId?: string }>({ open: false });
   const [bannerExpanded, setBannerExpanded] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Handle prefill from History page
@@ -594,6 +596,9 @@ export function Tracker() {
       .sort((a, b) => a.due.daysUntil - b.due.daysUntil);
   }, [applications]);
 
+  // Reset page when filter/search changes
+  useEffect(() => { setCurrentPage(1); }, [filter, search]);
+
   // Filter
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -616,6 +621,10 @@ export function Tracker() {
       return calculateOutreachScore(b).score - calculateOutreachScore(a).score;
     });
   }, [filtered, sort]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
+  const paginatedItems = sorted.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   function handleSave(data: ReturnType<typeof emptyForm>) {
     if (modalState.editId) {
@@ -801,78 +810,110 @@ export function Tracker() {
           </p>
         </div>
       ) : (
-        <div className="tracker-list">
-          {sorted.map((app, i) => {
-            const scoring = calculateOutreachScore(app);
-            const followUp = getFollowUpDue(app);
-            const isExpanded = expandedId === app.id;
+        <>
+          <div className="tracker-list">
+            {paginatedItems.map((app, i) => {
+              const scoring = calculateOutreachScore(app);
+              const followUp = getFollowUpDue(app);
+              const isExpanded = expandedId === app.id;
 
-            return (
-              <div
-                key={app.id}
-                className="tracker-card card animate-in"
-                style={{ animationDelay: `${0.14 + i * 0.04}s` }}
-              >
-                <div onClick={() => setExpandedId(isExpanded ? null : app.id)}>
-                  <div className="tracker-card__top">
-                    <div className="tracker-card__info">
-                      <div>
-                        <span className="tracker-card__company">{app.companyName}</span>
-                        <span className="tracker-card__role">— {app.roleTitle}</span>
+              return (
+                <div
+                  key={app.id}
+                  className="tracker-card card animate-in"
+                  style={{ animationDelay: `${0.14 + i * 0.04}s` }}
+                >
+                  <div onClick={() => setExpandedId(isExpanded ? null : app.id)}>
+                    <div className="tracker-card__top">
+                      <div className="tracker-card__info">
+                        <div>
+                          <span className="tracker-card__company">{app.companyName}</span>
+                          <span className="tracker-card__role">— {app.roleTitle}</span>
+                        </div>
+                        <div className="tracker-card__meta">
+                          <span>{app.companySize}</span>
+                          <span className="tracker-card__meta-divider" />
+                          <span>Applied {formatDate(app.dateApplied)}</span>
+                          {app.postingAgeWeeks != null && (
+                            <>
+                              <span className="tracker-card__meta-divider" />
+                              <span>Posted {app.postingAgeWeeks}w ago</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="tracker-card__meta">
-                        <span>{app.companySize}</span>
-                        <span className="tracker-card__meta-divider" />
-                        <span>Applied {formatDate(app.dateApplied)}</span>
-                        {app.postingAgeWeeks != null && (
-                          <>
-                            <span className="tracker-card__meta-divider" />
-                            <span>Posted {app.postingAgeWeeks}w ago</span>
-                          </>
-                        )}
+                      <div className="tracker-card__right">
+                        <span className="tracker-card__match" style={{ color: getScoreColor(app.skillMatch.matchPercentage) }}>
+                          {app.skillMatch.matchPercentage}%
+                        </span>
+                        <span className={`app-status-badge app-status-badge--${app.applicationStatus}`}>
+                          {APP_STATUS_LABELS[app.applicationStatus]}
+                        </span>
+                        <span className={`outreach-badge outreach-badge--${app.outreachStatus}`}>
+                          {STATUS_LABELS[app.outreachStatus]}
+                        </span>
                       </div>
                     </div>
-                    <div className="tracker-card__right">
-                      <span className="tracker-card__match" style={{ color: getScoreColor(app.skillMatch.matchPercentage) }}>
-                        {app.skillMatch.matchPercentage}%
+                    <div className="tracker-card__bottom">
+                      <span className={`tracker-card__score ${scoring.worth ? 'tracker-card__score--worth' : 'tracker-card__score--not-worth'}`}>
+                        {scoring.score}/100 — {scoring.worth ? 'Worth Outreach' : 'Low Priority'}
                       </span>
-                      <span className={`app-status-badge app-status-badge--${app.applicationStatus}`}>
-                        {APP_STATUS_LABELS[app.applicationStatus]}
-                      </span>
-                      <span className={`outreach-badge outreach-badge--${app.outreachStatus}`}>
-                        {STATUS_LABELS[app.outreachStatus]}
-                      </span>
+                      {app.contact && (
+                        <span className="tracker-card__contact">
+                          {app.contact.name} ({app.contact.role}){app.contact.email ? ` · ${app.contact.email}` : ''}
+                        </span>
+                      )}
+                      {followUp && (
+                        <span className={`tracker-card__followup ${followUp.overdue ? 'tracker-card__followup--overdue' : 'tracker-card__followup--upcoming'}`}>
+                          Follow-up {followUp.label.toLowerCase()}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="tracker-card__bottom">
-                    <span className={`tracker-card__score ${scoring.worth ? 'tracker-card__score--worth' : 'tracker-card__score--not-worth'}`}>
-                      {scoring.score}/100 — {scoring.worth ? 'Worth Outreach' : 'Low Priority'}
-                    </span>
-                    {app.contact && (
-                      <span className="tracker-card__contact">
-                        {app.contact.name} ({app.contact.role}){app.contact.email ? ` · ${app.contact.email}` : ''}
-                      </span>
-                    )}
-                    {followUp && (
-                      <span className={`tracker-card__followup ${followUp.overdue ? 'tracker-card__followup--overdue' : 'tracker-card__followup--upcoming'}`}>
-                        Follow-up {followUp.label.toLowerCase()}
-                      </span>
-                    )}
-                  </div>
+
+                  {isExpanded && (
+                    <DetailView
+                      app={app}
+                      isReadOnly={isReadOnly}
+                      onEdit={() => setModalState({ open: true, editId: app.id })}
+                      onDelete={() => { deleteApplication(app.id); setExpandedId(null); }}
+                    />
+                  )}
                 </div>
+              );
+            })}
+          </div>
 
-                {isExpanded && (
-                  <DetailView
-                    app={app}
-                    isReadOnly={isReadOnly}
-                    onEdit={() => setModalState({ open: true, editId: app.id })}
-                    onDelete={() => { deleteApplication(app.id); setExpandedId(null); }}
-                  />
-                )}
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                className="pagination__btn"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+              >
+                Previous
+              </button>
+              <div className="pagination__pages">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    className={`pagination__page ${page === currentPage ? 'pagination__page--active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
               </div>
-            );
-          })}
-        </div>
+              <button
+                className="pagination__btn"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal */}

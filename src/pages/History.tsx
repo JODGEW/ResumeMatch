@@ -9,6 +9,8 @@ export function History() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const navigate = useNavigate();
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
@@ -109,95 +111,131 @@ export function History() {
         </div>
       )}
 
-      {!loading && analyses.length > 0 && (
-        <div className="history-list">
-          {analyses.map((a, i) => (
-            <Link
-              key={a.analysisId}
-              to={`/results/${a.analysisId}`}
-              className="history-item card animate-in"
-              style={{ animationDelay: `${0.05 + i * 0.04}s` }}
-            >
-              <div className="history-item__left">
-                {/* Mini score ring */}
-                {a.status === 'completed' && a.matchScore != null ? (
-                  <div className="history-item__score" style={{ color: getScoreColor(a.matchScore) }}>
-                    <svg width="44" height="44" viewBox="0 0 44 44">
-                      <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="2.5" />
-                      <circle
-                        cx="22" cy="22" r="18"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeDasharray={`${(a.matchScore / 100) * 113.1} 113.1`}
-                        transform="rotate(-90 22 22)"
-                      />
-                    </svg>
-                    <span className="history-item__score-value">{a.matchScore}</span>
-                  </div>
-                ) : (
-                  <div className={`status-badge status-badge--${a.status}`}>
-                    {a.status}
-                  </div>
-                )}
-              </div>
+      {!loading && analyses.length > 0 && (() => {
+        const totalPages = Math.max(1, Math.ceil(analyses.length / ITEMS_PER_PAGE));
+        const paginatedItems = analyses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-              <div className="history-item__body">
-                <div className="history-item__meta">
-                  {a.fileName && (
-                    <span className="history-item__file">{a.fileName}</span>
-                  )}
-                  <span className="history-item__date">{formatDate(a.timestamp ?? a.createdAt)}</span>
-                </div>
-                {a.jobDescription && (
-                  <p className="history-item__jd">
-                    {a.jobDescription.substring(0, 140)}
-                    {a.jobDescription.length > 140 ? '...' : ''}
-                  </p>
-                )}
-                {a.presentKeywords && a.missingKeywords && (
-                  <div className="history-item__stats">
-                    <span className="text-success">
-                      {a.presentKeywords.length} matched
-                    </span>
-                    <span className="history-item__stats-divider" />
-                    <span className="text-danger">
-                      {a.missingKeywords.length} missing
-                    </span>
-                  </div>
-                )}
-                {a.missingKeywords && a.missingKeywords.length > 0 && (
-                  <p className="history-item__missing">
-                    <span className="history-item__missing-label">Missing: </span>
-                    <span className="history-item__missing-keywords">{a.missingKeywords.slice(0, 3).join(', ')}</span>
-                    {a.missingKeywords.length > 3 && (
-                      <span className="history-item__missing-more"> +{a.missingKeywords.length - 3} more</span>
-                    )}
-                  </p>
-                )}
-              </div>
-
-              {a.status === 'completed' && a.matchScore != null && (
-                <button
-                  className="btn btn-secondary history-item__tracker-btn"
-                  disabled={isDemo}
-                  title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}
+        return (
+          <>
+            <div className="history-list">
+              {paginatedItems.map((a, i) => (
+                <Link
+                  key={a.analysisId}
+                  to={`/results/${a.analysisId}`}
+                  className="history-item card animate-in"
+                  style={{ animationDelay: `${0.05 + i * 0.04}s` }}
                 >
-                  Add to Tracker
-                </button>
-              )}
+                  <div className="history-item__left">
+                    {a.status === 'completed' && a.matchScore != null ? (
+                      <div className="history-item__score" style={{ color: getScoreColor(a.matchScore) }}>
+                        <svg width="44" height="44" viewBox="0 0 44 44">
+                          <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="2.5" />
+                          <circle
+                            cx="22" cy="22" r="18"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeDasharray={`${(a.matchScore / 100) * 113.1} 113.1`}
+                            transform="rotate(-90 22 22)"
+                          />
+                        </svg>
+                        <span className="history-item__score-value">{a.matchScore}</span>
+                      </div>
+                    ) : (
+                      <div className={`status-badge status-badge--${a.status}`}>
+                        {a.status}
+                      </div>
+                    )}
+                  </div>
 
-              <div className="history-item__arrow">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M6 4l4 4-4 4" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                  <div className="history-item__body">
+                    <div className="history-item__meta">
+                      {a.fileName && (
+                        <span className="history-item__file">{a.fileName}</span>
+                      )}
+                      <span className="history-item__date">{formatDate(a.timestamp ?? a.createdAt)}</span>
+                    </div>
+                    {a.jobDescription && (
+                      <p className="history-item__jd">
+                        {a.jobDescription.substring(0, 140)}
+                        {a.jobDescription.length > 140 ? '...' : ''}
+                      </p>
+                    )}
+                    {a.presentKeywords && a.missingKeywords && (
+                      <div className="history-item__stats">
+                        <span className="text-success">
+                          {a.presentKeywords.length} matched
+                        </span>
+                        <span className="history-item__stats-divider" />
+                        <span className="text-danger">
+                          {a.missingKeywords.length} missing
+                        </span>
+                      </div>
+                    )}
+                    {a.missingKeywords && a.missingKeywords.length > 0 && (
+                      <p className="history-item__missing">
+                        <span className="history-item__missing-label">Missing: </span>
+                        <span className="history-item__missing-keywords">{a.missingKeywords.slice(0, 3).join(', ')}</span>
+                        {a.missingKeywords.length > 3 && (
+                          <span className="history-item__missing-more"> +{a.missingKeywords.length - 3} more</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+
+                  {a.status === 'completed' && a.matchScore != null && (
+                    <button
+                      className="btn btn-secondary history-item__tracker-btn"
+                      disabled={isDemo}
+                      title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}
+                    >
+                      Add to Tracker
+                    </button>
+                  )}
+
+                  <div className="history-item__arrow">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M6 4l4 4-4 4" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="pagination">
+                <button
+                  className="pagination__btn"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                >
+                  Previous
+                </button>
+                <div className="pagination__pages">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      className={`pagination__page ${page === currentPage ? 'pagination__page--active' : ''}`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="pagination__btn"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                >
+                  Next
+                </button>
               </div>
-            </Link>
-          ))}
-        </div>
-      )}
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
