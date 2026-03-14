@@ -18,7 +18,7 @@ function getScoreInterpretation(score: number) {
 
 export function Results() {
   const { analysisId } = useParams<{ analysisId: string }>();
-  const { analysis, loading, error } = usePolling(analysisId ?? null);
+  const { analysis, loading, error, timedOut } = usePolling(analysisId ?? null);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -108,39 +108,57 @@ export function Results() {
     return (
       <div className="page-container">
         <div className="results-loading">
-          <div className="results-loading__ring">
-            <svg width="80" height="80" viewBox="0 0 80 80">
-              <circle
-                cx="40" cy="40" r="34"
-                fill="none"
-                stroke="var(--border)"
-                strokeWidth="6"
-              />
-              <circle
-                cx="40" cy="40" r="34"
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth="6"
-                strokeLinecap="round"
-                strokeDasharray="60 154"
-                className="results-loading__arc"
-              />
-            </svg>
-          </div>
-          <h2>Analyzing your resume</h2>
-          <p className="text-secondary">
-            Comparing keywords, skills, and qualifications...
-          </p>
-          <div className="results-loading__steps">
-            <div className={`results-loading__step ${analysis?.status === 'processing' ? 'results-loading__step--active' : 'results-loading__step--done'}`}>
-              <span className="results-loading__dot" />
-              Upload received
-            </div>
-            <div className={`results-loading__step ${analysis?.status === 'processing' ? 'results-loading__step--active' : ''}`}>
-              <span className="results-loading__dot" />
-              Processing analysis
-            </div>
-          </div>
+          {timedOut ? (
+            <>
+              <h2>Still processing</h2>
+              <p className="text-secondary">
+                This is taking longer than expected. Refresh the page to check status.
+              </p>
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: '1rem' }}
+                onClick={() => window.location.reload()}
+              >
+                Refresh
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="results-loading__ring">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                  <circle
+                    cx="40" cy="40" r="34"
+                    fill="none"
+                    stroke="var(--border)"
+                    strokeWidth="6"
+                  />
+                  <circle
+                    cx="40" cy="40" r="34"
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeDasharray="60 154"
+                    className="results-loading__arc"
+                  />
+                </svg>
+              </div>
+              <h2>Analyzing your resume</h2>
+              <p className="text-secondary">
+                Comparing keywords, skills, and qualifications...
+              </p>
+              <div className="results-loading__steps">
+                <div className={`results-loading__step ${analysis?.status === 'processing' ? 'results-loading__step--active' : 'results-loading__step--done'}`}>
+                  <span className="results-loading__dot" />
+                  Upload received
+                </div>
+                <div className={`results-loading__step ${analysis?.status === 'processing' ? 'results-loading__step--active' : ''}`}>
+                  <span className="results-loading__dot" />
+                  Processing analysis
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
