@@ -50,6 +50,33 @@ function getFollowUpDue(app: Application): { label: string; overdue: boolean; da
   return { label: `Due in ${diff} day${diff === 1 ? '' : 's'}`, overdue: false, daysUntil: diff };
 }
 
+// ── Action-needed detection ─────────────────────────────
+// Application pipeline: flag current stage if it's been too long without progress
+function getAppStageAction(app: Application, step: Application['applicationStatus'], isCurrent: boolean): string | null {
+  if (!isCurrent) return null;
+  const stageStart = step === 'applied' ? app.dateApplied : (app.statusChangedAt || app.dateApplied);
+  const age = Math.max(0, Math.round((Date.now() - new Date(stageStart).getTime()) / 86400000));
+  switch (step) {
+    case 'applied':     return age >= 14 ? 'No update in 2w — follow up?' : null;
+    case 'screening':   return age >= 7  ? 'Screening for 1w+ — check in?' : null;
+    case 'interviewing': return age >= 10 ? 'No update in 10d — follow up?' : null;
+    default: return null;
+  }
+}
+
+// Outreach pipeline: flag the current step when user should take action
+function getOutreachStageAction(app: Application, step: Application['outreachStatus'], isCurrent: boolean, followUp: ReturnType<typeof getFollowUpDue>): string | null {
+  if (!isCurrent) return null;
+  switch (step) {
+    case 'not_started':  return app.outreachWorth ? 'Worth outreach — start now' : null;
+    case 'researching':  return 'Finish research & draft message';
+    case 'drafted':      return 'Ready to send';
+    case 'sent':         return followUp?.overdue ? 'Follow-up overdue' : followUp ? `Follow-up ${followUp.label.toLowerCase()}` : null;
+    case 'followed_up':  return !app.followUpSent ? 'Follow-up not sent yet' : null;
+    default: return null;
+  }
+}
+
 function getScoreColor(score: number) {
   if (score >= 86) return '#16a34a';
   if (score >= 76) return '#3b82f6';
@@ -106,6 +133,7 @@ function emptyForm(): Omit<Application, 'id' | 'createdAt' | 'updatedAt' | 'outr
     dateApplied: new Date().toISOString().split('T')[0],
     resumeVersion: 'fullstack',
     applicationStatus: 'applied',
+    statusChangedAt: new Date().toISOString(),
     skillMatch: { matchedSkills: [], missingSkills: [], matchPercentage: 0 },
     companySize: 'startup',
     postingAgeWeeks: undefined,
@@ -143,7 +171,7 @@ function ApplicationModal({
 
     // Clear empty contact/response
     if (data.contact && !data.contact.name && !data.contact.email) data.contact = undefined;
-    if (data.response && !data.response.date && !data.response.notes) data.response = undefined;
+    if (data.response && !data.response.date && !data.response.type && !data.response.notes && !data.response.nextStep) data.response = undefined;
 
     // Auto-calc match percentage if skills provided and percentage is 0
     if (data.skillMatch.matchPercentage === 0 && data.skillMatch.matchedSkills.length > 0) {
@@ -183,7 +211,7 @@ function ApplicationModal({
             <div className="tracker-modal__row">
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Job Posting URL</label>
-                <input className="tracker-modal__input" value={form.jobPostingUrl || ''} onChange={e => set('jobPostingUrl', e.target.value)} />
+                <input className="tracker-modal__input" value={form.jobPostingUrl || ''} onChange={e => set('jobPostingUrl', e.target.value)} placeholder="https://..." />
               </div>
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Date Applied</label>
@@ -202,7 +230,7 @@ function ApplicationModal({
               </div>
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Application Status</label>
-                <select className="tracker-modal__select" value={form.applicationStatus} onChange={e => set('applicationStatus', e.target.value as Application['applicationStatus'])}>
+                <select className="tracker-modal__select" value={form.applicationStatus} onChange={e => { set('applicationStatus', e.target.value as Application['applicationStatus']); set('statusChangedAt', new Date().toISOString()); }}>
                   {Object.entries(APP_STATUS_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
@@ -284,7 +312,7 @@ function ApplicationModal({
               </div>
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">LinkedIn URL</label>
-                <input className="tracker-modal__input" value={form.contact?.linkedinUrl || ''} onChange={e => set('contact', { ...form.contact!, linkedinUrl: e.target.value || undefined })} />
+                <input className="tracker-modal__input" value={form.contact?.linkedinUrl || ''} onChange={e => set('contact', { ...form.contact!, linkedinUrl: e.target.value || undefined })} placeholder="https://linkedin.com/in/..." />
               </div>
             </div>
             <div className="tracker-modal__row">
@@ -352,11 +380,11 @@ function ApplicationModal({
             <div className="tracker-modal__row">
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Response Date</label>
-                <input className="tracker-modal__input" type="date" value={form.response?.date || ''} onChange={e => set('response', { date: e.target.value, type: form.response?.type || 'positive', notes: form.response?.notes || '', nextStep: form.response?.nextStep })} />
+                <input className="tracker-modal__input" type="date" value={form.response?.date || ''} onChange={e => set('response', { date: e.target.value, type: form.response?.type || 'positive', notes: form.response?.notes || '', nextStep: form.response?.nextStep || '' })} />
               </div>
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Response Type</label>
-                <select className="tracker-modal__select" value={form.response?.type || 'positive'} onChange={e => set('response', { ...form.response!, type: e.target.value as 'positive' | 'negative' | 'referral' | 'no_response' })}>
+                <select className="tracker-modal__select" value={form.response?.type || 'positive'} onChange={e => set('response', { date: form.response?.date || '', type: e.target.value as 'positive' | 'negative' | 'referral' | 'no_response', notes: form.response?.notes || '', nextStep: form.response?.nextStep || '' })}>
                   <option value="positive">Positive</option>
                   <option value="negative">Negative</option>
                   <option value="referral">Referral</option>
@@ -366,11 +394,11 @@ function ApplicationModal({
             </div>
             <div className="tracker-modal__field">
               <label className="tracker-modal__label">Notes</label>
-              <textarea className="tracker-modal__textarea" value={form.response?.notes || ''} onChange={e => set('response', { ...form.response!, notes: e.target.value })} />
+              <textarea className="tracker-modal__textarea" value={form.response?.notes || ''} onChange={e => set('response', { date: form.response?.date || '', type: form.response?.type || 'positive', notes: e.target.value, nextStep: form.response?.nextStep || '' })} placeholder="What did they say?" />
             </div>
             <div className="tracker-modal__field">
               <label className="tracker-modal__label">Next Step</label>
-              <input className="tracker-modal__input" value={form.response?.nextStep || ''} onChange={e => set('response', { ...form.response!, nextStep: e.target.value || undefined })} />
+              <input className="tracker-modal__input" value={form.response?.nextStep || ''} onChange={e => set('response', { date: form.response?.date || '', type: form.response?.type || 'positive', notes: form.response?.notes || '', nextStep: e.target.value })} placeholder="e.g. Schedule interview, send portfolio" />
             </div>
           </div>
 
@@ -378,7 +406,7 @@ function ApplicationModal({
           <div className="tracker-modal__section">
             <div className="tracker-modal__section-title">Notes</div>
             <div className="tracker-modal__field">
-              <textarea className="tracker-modal__textarea" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Free text notes..." />
+              <textarea className="tracker-modal__textarea" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Personal notes about this application..." />
             </div>
           </div>
 
@@ -393,7 +421,7 @@ function ApplicationModal({
 }
 
 // ── Detail View (inline expand) ────────────────────────
-function DetailView({ app, isReadOnly, onEdit, onDelete }: { app: Application; isReadOnly: boolean; onEdit: () => void; onDelete: () => void }) {
+function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Application; isReadOnly: boolean; onEdit: () => void; onDelete: () => void; onUpdate: (id: string, updates: Partial<Application>) => void }) {
   const scoring = calculateOutreachScore(app);
   const followUp = getFollowUpDue(app);
 
@@ -437,23 +465,41 @@ function DetailView({ app, isReadOnly, onEdit, onDelete }: { app: Application; i
             const currentIdx = steps.indexOf(app.applicationStatus as typeof steps[number]);
             const isRejected = app.applicationStatus === 'rejected';
             const isActive = !isRejected && i <= currentIdx;
+            const isCurrent = !isRejected && step === app.applicationStatus;
+            const stageStart = app.applicationStatus === 'applied' ? app.dateApplied : (app.statusChangedAt || app.dateApplied);
+            const stageAge = isCurrent ? Math.max(0, Math.round((Date.now() - new Date(stageStart).getTime()) / 86400000)) : null;
+            const action = getAppStageAction(app, step, isCurrent);
+            const canClick = !isReadOnly && !isCurrent && !isRejected;
             return (
               <span key={step}>
                 {i > 0 && <span className="tracker-detail__timeline-arrow"> &rarr; </span>}
-                <span className={`tracker-detail__timeline-step ${isActive ? 'tracker-detail__timeline-step--active' : ''}`}>
-                  {APP_STATUS_LABELS[step]}
+                <span className="tracker-detail__step-wrap">
+                  <span
+                    className={`tracker-detail__timeline-step ${isActive ? 'tracker-detail__timeline-step--active' : ''} ${action ? 'tracker-detail__timeline-step--action' : ''} ${canClick ? 'tracker-detail__timeline-step--clickable' : ''}`}
+                    title={action || (canClick ? `Set status to ${APP_STATUS_LABELS[step]}` : undefined)}
+                    onClick={canClick ? () => onUpdate(app.id, { applicationStatus: step }) : undefined}
+                    role={canClick ? 'button' : undefined}
+                  >
+                    {APP_STATUS_LABELS[step]}{stageAge !== null && <span className="tracker-detail__stage-age"> ({stageAge}d)</span>}
+                  </span>
+                  {action && <span className="tracker-detail__action-hint">{action}</span>}
                 </span>
               </span>
             );
           })}
-          {app.applicationStatus === 'rejected' && (
-            <>
-              <span className="tracker-detail__timeline-arrow"> &rarr; </span>
-              <span className="tracker-detail__timeline-step tracker-detail__timeline-step--rejected">
-                Rejected
-              </span>
-            </>
-          )}
+          {app.applicationStatus === 'rejected' && (() => {
+            const rejectedAge = Math.max(0, Math.round((Date.now() - new Date(app.statusChangedAt || app.dateApplied).getTime()) / 86400000));
+            return (
+              <>
+                <span className="tracker-detail__timeline-arrow"> &rarr; </span>
+                <span className="tracker-detail__step-wrap">
+                  <span className="tracker-detail__timeline-step tracker-detail__timeline-step--rejected">
+                    Rejected<span className="tracker-detail__stage-age"> ({rejectedAge}d)</span>
+                  </span>
+                </span>
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -461,18 +507,53 @@ function DetailView({ app, isReadOnly, onEdit, onDelete }: { app: Application; i
       <div className="tracker-detail__section">
         <div className="tracker-detail__section-title">Outreach Timeline</div>
         <div className="tracker-detail__timeline">
-          {TIMELINE_STEPS.map((step, i) => (
-            <span key={step}>
-              {i > 0 && <span className="tracker-detail__timeline-arrow"> &rarr; </span>}
-              <span className={`tracker-detail__timeline-step ${i <= statusIndex ? 'tracker-detail__timeline-step--active' : ''}`}>
-                {STATUS_LABELS[step]}
-                {step === 'drafted' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
-                  : step === 'sent' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
-                  : step === 'followed_up' && i <= statusIndex && app.followUpDate ? ` ${formatDate(app.followUpDate)}`
-                  : ''}
+          {TIMELINE_STEPS.map((step, i) => {
+            const isCurrent = i === statusIndex;
+            const outreachAction = getOutreachStageAction(app, step, isCurrent, followUp);
+            const canClick = !isReadOnly && !isCurrent;
+            function handleOutreachClick() {
+              const updates: Partial<Application> = { outreachStatus: step };
+              const stepIdx = TIMELINE_STEPS.indexOf(step);
+              const sentIdx = TIMELINE_STEPS.indexOf('sent');
+
+              if (step === 'sent') {
+                // A: Only auto-fill dates if not already set
+                if (!app.outreachDate) updates.outreachDate = new Date().toISOString().slice(0, 10);
+                if (!app.followUpDate) updates.followUpDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+                // B: Reset followUpSent when going back to sent
+                updates.followUpSent = false;
+              } else if (step === 'followed_up') {
+                updates.followUpSent = true;
+                if (!app.followUpDate) updates.followUpDate = new Date().toISOString().slice(0, 10);
+              } else if (stepIdx < sentIdx) {
+                // C: Going backward before sent — clear timeline fields, keep contact
+                updates.outreachDate = '';
+                updates.followUpDate = '';
+                updates.followUpSent = false;
+              }
+              onUpdate(app.id, updates);
+            }
+            return (
+              <span key={step}>
+                {i > 0 && <span className="tracker-detail__timeline-arrow"> &rarr; </span>}
+                <span className="tracker-detail__step-wrap">
+                  <span
+                    className={`tracker-detail__timeline-step ${i <= statusIndex ? 'tracker-detail__timeline-step--active' : ''} ${outreachAction ? 'tracker-detail__timeline-step--action' : ''} ${canClick ? 'tracker-detail__timeline-step--clickable' : ''}`}
+                    title={outreachAction || (canClick ? `Set to ${STATUS_LABELS[step]}` : undefined)}
+                    onClick={canClick ? handleOutreachClick : undefined}
+                    role={canClick ? 'button' : undefined}
+                  >
+                    {STATUS_LABELS[step]}
+                    {step === 'drafted' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
+                      : step === 'sent' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
+                      : step === 'followed_up' && i <= statusIndex && app.followUpDate ? ` ${formatDate(app.followUpDate)}`
+                      : ''}
+                  </span>
+                  {outreachAction && <span className="tracker-detail__action-hint">{outreachAction}</span>}
+                </span>
               </span>
-            </span>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -548,7 +629,7 @@ function DetailView({ app, isReadOnly, onEdit, onDelete }: { app: Application; i
 
 // ── Main Tracker Page ──────────────────────────────────
 export function Tracker() {
-  const { applications, isReadOnly, addApplication, updateApplication, deleteApplication } = useApplications();
+  const { applications, isReadOnly, isLoading, error, addApplication, updateApplication, deleteApplication } = useApplications();
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<SortKey>('dateApplied');
   const [search, setSearch] = useState('');
@@ -628,6 +709,7 @@ export function Tracker() {
 
   function handleSave(data: ReturnType<typeof emptyForm>) {
     if (modalState.editId) {
+      // Optimistic update — close modal immediately, API call runs in background
       updateApplication(modalState.editId, data);
     } else {
       // Duplicate detection: check by company name + role title
@@ -697,6 +779,20 @@ export function Tracker() {
       {isReadOnly && (
         <div className="tracker-demo-banner animate-in" style={{ animationDelay: '0.05s' }}>
           Demo mode — you're viewing sample data.
+        </div>
+      )}
+
+      {/* Loading state */}
+      {isLoading && (
+        <div className="tracker-demo-banner animate-in" style={{ animationDelay: '0.05s' }}>
+          Loading applications…
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="tracker-demo-banner animate-in" style={{ animationDelay: '0.05s', borderColor: '#dc2626', color: '#dc2626' }}>
+          {error}
         </div>
       )}
 
@@ -828,6 +924,14 @@ export function Tracker() {
                       <div className="tracker-card__info">
                         <div>
                           <span className="tracker-card__company">{app.companyName}</span>
+                          {app.jobPostingUrl && (
+                            <a className="tracker-card__link" href={app.jobPostingUrl} target="_blank" rel="noopener noreferrer" title="Open job posting" onClick={e => e.stopPropagation()}>
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M4.5 2H2.5C1.95 2 1.5 2.45 1.5 3v6.5c0 .55.45 1 1 1H9c.55 0 1-.45 1-1V7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M7 1.5h3.5V5M6 6l4.5-4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </a>
+                          )}
                           <span className="tracker-card__role">— {app.roleTitle}</span>
                         </div>
                         <div className="tracker-card__meta">
@@ -843,8 +947,8 @@ export function Tracker() {
                         </div>
                       </div>
                       <div className="tracker-card__right">
-                        <span className="tracker-card__match" style={{ color: getScoreColor(app.skillMatch.matchPercentage) }}>
-                          {app.skillMatch.matchPercentage}%
+                        <span className="tracker-card__match" style={{ color: getScoreColor(app.skillMatch.matchPercentage), background: getScoreColor(app.skillMatch.matchPercentage) + '18' }}>
+                          {app.skillMatch.matchPercentage}% match
                         </span>
                         <span className={`app-status-badge app-status-badge--${app.applicationStatus}`}>
                           {APP_STATUS_LABELS[app.applicationStatus]}
@@ -852,6 +956,11 @@ export function Tracker() {
                         <span className={`outreach-badge outreach-badge--${app.outreachStatus}`}>
                           {STATUS_LABELS[app.outreachStatus]}
                         </span>
+                        {app.response && (
+                          <span className={`response-badge response-badge--${app.response.type}`}>
+                            {app.response.type === 'positive' ? 'Positive' : app.response.type === 'negative' ? 'Negative' : app.response.type === 'referral' ? 'Referral' : 'No Response'}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="tracker-card__bottom">
@@ -876,7 +985,8 @@ export function Tracker() {
                       app={app}
                       isReadOnly={isReadOnly}
                       onEdit={() => setModalState({ open: true, editId: app.id })}
-                      onDelete={() => { deleteApplication(app.id); setExpandedId(null); }}
+                      onDelete={() => { if (window.confirm(`Delete "${app.roleTitle}" at "${app.companyName}"?`)) { deleteApplication(app.id); setExpandedId(null); } }}
+                      onUpdate={(id, updates) => updateApplication(id, updates)}
                     />
                   )}
                 </div>

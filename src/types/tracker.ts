@@ -13,6 +13,7 @@ export interface Application {
   };
 
   applicationStatus: 'not_applied' | 'applied' | 'screening' | 'interviewing' | 'offer' | 'rejected';
+  statusChangedAt?: string;
 
   outreachWorth: boolean;
   outreachOverride?: boolean;
