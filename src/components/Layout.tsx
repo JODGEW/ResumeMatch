@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { ThemeToggle } from './ThemeToggle';
 import './Layout.css';
 
 const DEMO_EMAIL = 'demo123@resumeapp.com';
@@ -46,6 +47,7 @@ export function Layout() {
             </div>
 
             <div className="nav__user">
+              <ThemeToggle />
               <span className="nav__email">{user?.email}</span>
               <button onClick={handleLogout} className="btn btn-ghost nav__logout">
                 Sign out
