@@ -6,7 +6,7 @@ type ConfirmVariant = 'destructive' | 'warning';
 interface ConfirmModalProps {
   title: string;
   body: React.ReactNode;
-  warning?: string;
+  warning?: React.ReactNode;
   confirmLabel: string;
   variant?: ConfirmVariant;
   onConfirm: () => void;

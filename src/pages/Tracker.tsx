@@ -78,6 +78,93 @@ function getOutreachStageAction(app: Application, step: Application['outreachSta
   }
 }
 
+// ── Context-aware quick actions ─────────────────────────
+interface QuickAction {
+  label: string;
+  variant: 'accent' | 'success' | 'danger' | 'warning';
+  updates: Partial<Application>;
+  hint?: string;  // "next step" guidance shown on the primary button
+}
+
+interface QuickActionSet {
+  primary: QuickAction | null;
+  secondary: QuickAction | null;
+  overflow: QuickAction[];
+}
+
+function getQuickActions(app: Application): QuickActionSet {
+  const appStatus = app.applicationStatus;
+  const outStatus = app.outreachStatus;
+  const today = new Date().toISOString().slice(0, 10);
+  const followUpDateVal = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const followUp = getFollowUpDue(app);
+
+  let primary: QuickAction | null = null;
+  let secondary: QuickAction | null = null;
+  const overflow: QuickAction[] = [];
+
+  // Terminal states — no actions
+  if (appStatus === 'rejected' || appStatus === 'offer') {
+    return { primary, secondary, overflow };
+  }
+
+  // ── Determine primary + secondary based on combined state ──
+
+  // Outreach: not yet sent → primary is Send Outreach (clean single CTA)
+  if (outStatus === 'not_started' || outStatus === 'researching' || outStatus === 'drafted') {
+    primary = {
+      label: 'Send Outreach',
+      variant: 'accent',
+      hint: app.outreachWorth ? 'Worth outreach' : undefined,
+      updates: {
+        outreachStatus: 'sent',
+        outreachDate: app.outreachDate || today,
+        followUpDate: app.followUpDate || followUpDateVal,
+      },
+    };
+    // Pipeline jumps go to overflow — not common enough for inline
+  }
+
+  // Outreach: sent → primary is Follow Up (especially if due/overdue)
+  else if (outStatus === 'sent') {
+    const hint = followUp?.overdue ? 'Overdue!' : followUp?.daysUntil === 0 ? 'Due today' : followUp ? followUp.label : undefined;
+    primary = {
+      label: 'Follow Up',
+      variant: followUp?.overdue ? 'danger' : 'warning',
+      hint,
+      updates: {
+        outreachStatus: 'followed_up',
+        followUpSent: true,
+        followUpDate: app.followUpDate || today,
+      },
+    };
+    secondary = { label: 'Replied', variant: 'success', updates: { outreachStatus: 'replied' } };
+  }
+
+  // Outreach: followed up → primary is Replied
+  else if (outStatus === 'followed_up') {
+    primary = { label: 'Replied', variant: 'success', updates: { outreachStatus: 'replied' } };
+  }
+
+  // Outreach: replied/no_response/skipped → focus on app pipeline
+  else {
+    if (appStatus === 'applied' || appStatus === 'screening') {
+      primary = { label: 'Interviewing', variant: 'accent', updates: { applicationStatus: 'interviewing' } };
+    } else if (appStatus === 'interviewing') {
+      primary = { label: 'Offer', variant: 'success', updates: { applicationStatus: 'offer' } };
+    }
+  }
+
+  // Reject always goes to overflow (destructive, less common)
+  overflow.push({
+    label: 'Reject',
+    variant: 'danger',
+    updates: { applicationStatus: 'rejected' },
+  });
+
+  return { primary, secondary, overflow };
+}
+
 function getScoreColor(score: number) {
   if (score >= 86) return '#16a34a';
   if (score >= 76) return '#3b82f6';
@@ -439,6 +526,74 @@ function ApplicationModal({
   );
 }
 
+// ── Quick Action Buttons ────────────────────────────────
+function QuickActionButtons({ primary, secondary, overflow, onAction }: {
+  primary: QuickAction | null;
+  secondary: QuickAction | null;
+  overflow: QuickAction[];
+  onAction: (updates: Partial<Application>, label: string) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener('click', handleClick, true);
+    return () => document.removeEventListener('click', handleClick, true);
+  }, [menuOpen]);
+
+  return (
+    <span className="tracker-card__quick-actions" onClick={e => e.stopPropagation()}>
+      {primary && (
+        <button
+          className={`tracker-quick-btn tracker-quick-btn--primary tracker-quick-btn--${primary.variant}`}
+          onClick={() => onAction(primary.updates, primary.label)}
+          title={primary.hint || primary.label}
+        >
+          {primary.label}
+          {primary.hint && <span className="tracker-quick-btn__hint">{primary.hint}</span>}
+        </button>
+      )}
+      {secondary && (
+        <button
+          className={`tracker-quick-btn tracker-quick-btn--secondary`}
+          onClick={() => onAction(secondary.updates, secondary.label)}
+          title={secondary.label}
+        >
+          {secondary.label}
+        </button>
+      )}
+      {overflow.length > 0 && (
+        <div className="tracker-quick-overflow" ref={menuRef}>
+          <button
+            className="tracker-quick-btn tracker-quick-btn--more"
+            onClick={() => setMenuOpen(!menuOpen)}
+            title="More actions"
+          >
+            ···
+          </button>
+          {menuOpen && (
+            <div className="tracker-quick-overflow__menu">
+              {overflow.map(a => (
+                <button
+                  key={a.label}
+                  className={`tracker-quick-overflow__item tracker-quick-overflow__item--${a.variant}`}
+                  onClick={() => { onAction(a.updates, a.label); setMenuOpen(false); }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ── Detail View (inline expand) ────────────────────────
 function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Application; isReadOnly: boolean; onEdit: () => void; onDelete: () => void; onUpdate: (id: string, updates: Partial<Application>) => void }) {
   const scoring = calculateOutreachScore(app);
@@ -641,6 +796,120 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
   );
 }
 
+// ── CSV Export ──────────────────────────────────────────
+function exportToCsv(apps: Application[], filename: string) {
+  const headers = [
+    'Company', 'Role', 'Date Applied', 'Application Status', 'Match %',
+    'Outreach Score', 'Worth Outreach', 'Outreach Status', 'Outreach Date',
+    'Follow-up Date', 'Follow-up Sent', 'Contact Name', 'Contact Role',
+    'Contact Email', 'Response Type', 'Response Date', 'Resume Version',
+    'Company Size', 'Job Posting URL', 'Notes',
+  ];
+
+  const rows = apps.map(app => {
+    const scoring = calculateOutreachScore(app);
+    return [
+      app.companyName,
+      app.roleTitle,
+      app.dateApplied,
+      APP_STATUS_LABELS[app.applicationStatus],
+      app.skillMatch.matchPercentage,
+      scoring.score,
+      scoring.worth ? 'Yes' : 'No',
+      STATUS_LABELS[app.outreachStatus],
+      app.outreachDate || '',
+      app.followUpDate || '',
+      app.followUpSent ? 'Yes' : 'No',
+      app.contact?.name || '',
+      app.contact?.role || '',
+      app.contact?.email || '',
+      app.response?.type || '',
+      app.response?.date || '',
+      app.resumeVersion,
+      app.companySize,
+      app.jobPostingUrl || '',
+      app.notes,
+    ];
+  });
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Bulk Delete Body (progressive disclosure) ──────────
+const PREVIEW_COUNT = 3;
+
+function BulkDeleteBody({ apps }: { apps: Application[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const count = apps.length;
+
+  if (count <= PREVIEW_COUNT) {
+    return (
+      <>
+        This will permanently delete:
+        <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem', fontSize: '0.8125rem', lineHeight: 1.6 }}>
+          {apps.map(a => (
+            <li key={a.id}><strong>{a.roleTitle}</strong> @ {a.companyName}</li>
+          ))}
+        </ul>
+      </>
+    );
+  }
+
+  const preview = apps.slice(0, PREVIEW_COUNT);
+  const remaining = count - PREVIEW_COUNT;
+
+  return (
+    <>
+      This will permanently delete {count} selected applications.
+      <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem', fontSize: '0.8125rem', lineHeight: 1.6 }}>
+        {preview.map(a => (
+          <li key={a.id}><strong>{a.roleTitle}</strong> @ {a.companyName}</li>
+        ))}
+      </ul>
+      {!expanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          style={{
+            background: 'none', border: 'none', padding: '0.25rem 0', marginTop: '0.125rem',
+            fontSize: '0.75rem', color: 'var(--accent)', cursor: 'pointer', fontWeight: 500,
+          }}
+        >
+          +{remaining} more — show all ▼
+        </button>
+      ) : (
+        <>
+          <ul style={{ margin: '0', paddingLeft: '1.25rem', fontSize: '0.8125rem', lineHeight: 1.6 }}>
+            {apps.slice(PREVIEW_COUNT).map(a => (
+              <li key={a.id}><strong>{a.roleTitle}</strong> @ {a.companyName}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            style={{
+              background: 'none', border: 'none', padding: '0.25rem 0', marginTop: '0.125rem',
+              fontSize: '0.75rem', color: 'var(--accent)', cursor: 'pointer', fontWeight: 500,
+            }}
+          >
+            show less ▲
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
 // ── Main Tracker Page ──────────────────────────────────
 export function Tracker() {
   const { applications, isReadOnly, isLoading, error, addApplication, updateApplication, deleteApplication } = useApplications();
@@ -654,6 +923,24 @@ export function Tracker() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  function showToast(message: string) {
+    clearTimeout(toastTimer.current);
+    setToast({ message, key: Date.now() });
+    toastTimer.current = setTimeout(() => setToast(null), 2200);
+  }
+
+  function flashCard(id: string) {
+    clearTimeout(flashTimer.current);
+    setFlashId(id);
+    flashTimer.current = setTimeout(() => setFlashId(null), 600);
+  }
 
   // Handle prefill from History page
   useEffect(() => {
@@ -692,8 +979,8 @@ export function Tracker() {
       .sort((a, b) => a.due.daysUntil - b.due.daysUntil);
   }, [applications]);
 
-  // Reset page when filter/search changes
-  useEffect(() => { setCurrentPage(1); }, [filter, search]);
+  // Clear selection when filter/search changes
+  useEffect(() => { setCurrentPage(1); setSelectedIds(new Set()); }, [filter, search]);
 
   // Filter
   const filtered = useMemo(() => {
@@ -757,6 +1044,54 @@ export function Tracker() {
       return { ...emptyForm(), ...prefillData };
     }
     return emptyForm();
+  }
+
+  // Bulk selection helpers
+  const allPageIds = paginatedItems.map(a => a.id);
+  const allPageSelected = allPageIds.length > 0 && allPageIds.every(id => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+  const selectedOnPage = allPageIds.filter(id => selectedIds.has(id)).length;
+  const selectedOnOtherPages = selectedIds.size - selectedOnPage;
+  const isMultiPage = selectedOnOtherPages > 0;
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allPageSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        allPageIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        allPageIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  }
+
+  function handleBulkDelete() {
+    selectedIds.forEach(id => deleteApplication(id));
+    setSelectedIds(new Set());
+    setExpandedId(null);
+    setConfirmBulkDelete(false);
+  }
+
+  function handleExportSelected() {
+    const apps = applications.filter(a => selectedIds.has(a.id));
+    exportToCsv(apps, `applications-selected-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
+  function handleExportAll() {
+    exportToCsv(sorted, `applications-${filter}-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
   const filters: { key: Filter; label: string }[] = [
@@ -905,8 +1240,59 @@ export function Tracker() {
             <option value="matchPercentage">Match %</option>
             <option value="outreachScore">Outreach Score</option>
           </select>
+          {sorted.length > 0 && (
+            <button className="btn btn-ghost tracker-export-btn" onClick={handleExportAll} title={`Export ${sorted.length} ${filter === 'all' ? '' : filter + ' '}applications as CSV`}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 9v2.5a1 1 0 001 1h8a1 1 0 001-1V9M4.5 6L7 8.5 9.5 6M7 2v6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              CSV
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Bulk action bar */}
+      {someSelected && (
+        <div className="tracker-bulk-bar animate-in">
+          <label className="tracker-bulk-bar__select-all">
+            <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} />
+            {allPageSelected ? 'Deselect page' : 'Select page'}
+          </label>
+          <span className="tracker-bulk-bar__sep">·</span>
+          <div className="tracker-bulk-bar__info">
+            <span className="tracker-bulk-bar__count">
+              {selectedIds.size} selected{isMultiPage ? ' across pages' : ''}
+            </span>
+            {isMultiPage && (
+              <span className="tracker-bulk-bar__breakdown">
+                {selectedOnPage} on this page · +{selectedOnOtherPages} from other pages
+              </span>
+            )}
+            <button className="tracker-bulk-bar__clear" onClick={() => setSelectedIds(new Set())}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Clear
+            </button>
+          </div>
+          <div className="tracker-bulk-bar__actions">
+            <button className="tracker-bulk-bar__export" onClick={handleExportSelected}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 9v2.5a1 1 0 001 1h8a1 1 0 001-1V9M4.5 6L7 8.5 9.5 6M7 2v6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Export Selected
+            </button>
+            {!isReadOnly && (
+              <button className="tracker-bulk-bar__delete" onClick={() => setConfirmBulkDelete(true)}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M2.5 4h9M5 4V2.5h4V4M3.5 4v7.5a1 1 0 001 1h5a1 1 0 001-1V4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Delete ({selectedIds.size})
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Application List */}
       {sorted.length === 0 ? (
@@ -931,11 +1317,14 @@ export function Tracker() {
               return (
                 <div
                   key={app.id}
-                  className="tracker-card card animate-in"
+                  className={`tracker-card card animate-in${flashId === app.id ? ' tracker-card--flash' : ''}`}
                   style={{ animationDelay: `${0.14 + i * 0.04}s` }}
                 >
                   <div className="tracker-card__collapse-toggle" onClick={() => setExpandedId(isExpanded ? null : app.id)}>
                     <div className="tracker-card__top">
+                      <label className="tracker-card__checkbox" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(app.id)} onChange={() => toggleSelect(app.id)} />
+                      </label>
                       <div className="tracker-card__info">
                         <div>
                           <span className="tracker-card__company">{app.companyName}</span>
@@ -992,6 +1381,22 @@ export function Tracker() {
                           Follow-up {followUp.label.toLowerCase()}
                         </span>
                       )}
+                      {!isReadOnly && (() => {
+                        const { primary, secondary, overflow } = getQuickActions(app);
+                        if (!primary && !secondary && overflow.length === 0) return null;
+                        return (
+                          <QuickActionButtons
+                            primary={primary}
+                            secondary={secondary}
+                            overflow={overflow}
+                            onAction={(updates, label) => {
+                              updateApplication(app.id, updates);
+                              showToast(`${app.companyName}: ${label}`);
+                              flashCard(app.id);
+                            }}
+                          />
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1061,6 +1466,36 @@ export function Tracker() {
           onConfirm={() => { deleteApplication(confirmDelete.appId); setExpandedId(null); setConfirmDelete({ open: false, appId: '', appTitle: '', appCompany: '' }); }}
           onCancel={() => setConfirmDelete({ open: false, appId: '', appTitle: '', appCompany: '' })}
         />
+      )}
+
+      {confirmBulkDelete && (() => {
+        const selectedApps = applications.filter(a => selectedIds.has(a.id));
+        const count = selectedApps.length;
+        const acrossPages = selectedOnOtherPages > 0;
+        return (
+          <ConfirmModal
+            title={`Delete ${count} application${count === 1 ? '' : 's'}${acrossPages ? ' (across multiple pages)' : ''}?`}
+            body={<BulkDeleteBody apps={selectedApps} />}
+            warning={acrossPages
+              ? <><strong>This includes selections from other pages.</strong><br />This action cannot be undone.</>
+              : "This action cannot be undone."}
+            confirmLabel={`Delete ${count}`}
+            variant="destructive"
+            onConfirm={handleBulkDelete}
+            onCancel={() => setConfirmBulkDelete(false)}
+          />
+        );
+      })()}
+
+      {/* Toast */}
+      {toast && (
+        <div key={toast.key} className="tracker-toast animate-toast">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M4.5 7l2 2 3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {toast.message}
+        </div>
       )}
     </div>
   );

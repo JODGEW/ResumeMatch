@@ -237,6 +237,174 @@
   cursor: pointer;
 }
 
+/* ── Export Button ──────────────────────────────────── */
+.tracker-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.75rem;
+  white-space: nowrap;
+}
+
+/* ── Bulk Action Bar ───────────────────────────────── */
+.tracker-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* Match .tracker-card horizontal padding (1.5rem) so checkbox + content align */
+  padding: 0.625rem 1.5rem;
+  margin-bottom: 0.75rem;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-glow);
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  min-height: 40px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+}
+
+.tracker-bulk-bar__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;
+  /* Override global label styles from index.css */
+  text-transform: none;
+  letter-spacing: normal;
+  margin-bottom: 0;
+}
+
+.tracker-bulk-bar__select-all input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+
+.tracker-bulk-bar__sep {
+  color: var(--text-muted);
+  opacity: 0.4;
+  font-size: 0.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tracker-bulk-bar__info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tracker-bulk-bar__count {
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.tracker-bulk-bar__breakdown {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tracker-bulk-bar__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 0.125rem 0.25rem;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
+  margin-left: 0.5rem;
+}
+
+.tracker-bulk-bar__clear:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+.tracker-bulk-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.tracker-bulk-bar__export,
+.tracker-bulk-bar__delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-display);
+  padding: 0.25rem 0.75rem;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tracker-bulk-bar__export:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.tracker-bulk-bar__delete {
+  color: var(--danger);
+}
+
+.tracker-bulk-bar__delete:hover {
+  background: var(--danger-dim);
+}
+
+/* ── Card Checkbox ─────────────────────────────────── */
+.tracker-card__checkbox {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  margin-right: 0.25rem;
+  margin-bottom: 0;
+}
+
+.tracker-card__checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* ── Application List ───────────────────────────────── */
 .tracker-list {
   display: flex;
@@ -271,6 +439,16 @@
   border-color: var(--border-light);
   background: var(--bg-secondary);
   box-shadow: var(--shadow-sm);
+}
+
+@keyframes card-flash {
+  0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  30% { box-shadow: 0 0 0 4px var(--accent-glow); }
+  100% { box-shadow: none; }
+}
+
+.tracker-card--flash {
+  animation: card-flash 0.6s ease-out;
 }
 
 .tracker-card__top {
@@ -333,9 +511,9 @@
 .tracker-card__bottom {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   margin-top: 0.75rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .tracker-card__score {
@@ -371,6 +549,197 @@
 
 .tracker-card__followup--upcoming {
   color: var(--accent);
+}
+
+/* ── Quick Action Buttons ──────────────────────────── */
+.tracker-card__quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.tracker-quick-btn {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 100px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  line-height: 1.3;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── Primary button: filled, prominent ── */
+.tracker-quick-btn--primary.tracker-quick-btn--accent {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.tracker-quick-btn--primary.tracker-quick-btn--accent:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.tracker-quick-btn--primary.tracker-quick-btn--success {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+}
+.tracker-quick-btn--primary.tracker-quick-btn--success:hover {
+  filter: brightness(1.1);
+}
+
+.tracker-quick-btn--primary.tracker-quick-btn--warning {
+  background: #ca8a04;
+  color: #fff;
+  border-color: #ca8a04;
+}
+.tracker-quick-btn--primary.tracker-quick-btn--warning:hover {
+  filter: brightness(1.1);
+}
+
+.tracker-quick-btn--primary.tracker-quick-btn--danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+.tracker-quick-btn--primary.tracker-quick-btn--danger:hover {
+  filter: brightness(1.1);
+}
+
+/* Overdue: pulsing glow to reinforce urgency */
+.tracker-quick-btn--primary.tracker-quick-btn--danger {
+  animation: overdue-pulse 2s ease-in-out infinite;
+}
+
+@keyframes overdue-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1); }
+}
+
+/* Hint badge on primary */
+.tracker-quick-btn__hint {
+  display: inline-block;
+  font-size: 0.5625rem;
+  font-weight: 500;
+  opacity: 0.85;
+  margin-left: 0.25rem;
+  padding-left: 0.375rem;
+  border-left: 1px solid rgba(255,255,255,0.35);
+}
+
+/* ── Secondary button: ghost/outline, subdued ── */
+.tracker-quick-btn--secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+.tracker-quick-btn--secondary:hover {
+  color: var(--text-primary);
+  border-color: var(--border-light);
+  background: var(--bg-elevated);
+}
+
+/* ── More (overflow) button ── */
+.tracker-quick-overflow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+}
+
+.tracker-quick-btn--more {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  height: 24px;
+}
+.tracker-quick-btn--more:hover {
+  color: var(--text-primary);
+  border-color: var(--border-light);
+  background: var(--bg-elevated);
+}
+
+.tracker-quick-overflow__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  min-width: 120px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,0.04);
+  z-index: 50;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.tracker-quick-overflow__item {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.375rem 0.75rem;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.tracker-quick-overflow__item:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+.tracker-quick-overflow__item--danger {
+  color: var(--danger);
+}
+.tracker-quick-overflow__item--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* ── Toast ─────────────────────────────────────────── */
+.tracker-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--bg-elevated);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+  border-radius: 100px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  z-index: 300;
+  pointer-events: none;
+}
+
+@keyframes toast-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+}
+
+.animate-toast {
+  animation: toast-in 2.2s ease forwards;
 }
 
 /* ── Application Status Badge ──────────────────────── */
@@ -885,5 +1254,28 @@
 
   .tracker-detail__timeline-arrow {
     transform: rotate(90deg);
+  }
+
+  .tracker-bulk-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .tracker-bulk-bar__info {
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .tracker-bulk-bar__actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .tracker-card__quick-actions {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 0.25rem;
+    flex-wrap: wrap;
   }
 }
