@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useApplications } from '../hooks/useApplications';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
+import { ConfirmModal } from '../components/ConfirmModal';
 import './Tracker.css';
 
 type Filter = 'all' | 'worth' | 'follow_up' | 'awaiting' | 'completed' | 'rejected';
@@ -158,6 +159,7 @@ function ApplicationModal({
   isEdit: boolean;
 }) {
   const [form, setForm] = useState(initial);
+  const [showDiscard, setShowDiscard] = useState(false);
   const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
@@ -165,9 +167,8 @@ function ApplicationModal({
   }
 
   function handleOverlayClick() {
-    if (!isDirty || window.confirm('Discard unsaved changes?')) {
-      onClose();
-    }
+    if (!isDirty) { onClose(); return; }
+    setShowDiscard(true);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -423,6 +424,17 @@ function ApplicationModal({
           </div>
         </form>
       </div>
+
+      {showDiscard && (
+        <ConfirmModal
+          title="Discard changes?"
+          body="You have unsaved changes to this application."
+          confirmLabel="Discard"
+          variant="warning"
+          onConfirm={onClose}
+          onCancel={() => setShowDiscard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -638,6 +650,7 @@ export function Tracker() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<{ open: boolean; editId?: string }>({ open: false });
   const [bannerExpanded, setBannerExpanded] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; appId: string; appTitle: string; appCompany: string }>({ open: false, appId: '', appTitle: '', appCompany: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -987,7 +1000,7 @@ export function Tracker() {
                       app={app}
                       isReadOnly={isReadOnly}
                       onEdit={() => setModalState({ open: true, editId: app.id })}
-                      onDelete={() => { if (window.confirm(`Delete "${app.roleTitle}" at "${app.companyName}"?`)) { deleteApplication(app.id); setExpandedId(null); } }}
+                      onDelete={() => setConfirmDelete({ open: true, appId: app.id, appTitle: app.roleTitle, appCompany: app.companyName })}
                       onUpdate={(id, updates) => updateApplication(id, updates)}
                     />
                   )}
@@ -1035,6 +1048,18 @@ export function Tracker() {
           isEdit={!!modalState.editId}
           onSave={handleSave}
           onClose={() => { setModalState({ open: false }); setPrefillData(null); }}
+        />
+      )}
+
+      {confirmDelete.open && (
+        <ConfirmModal
+          title="Delete application?"
+          body={<>This will permanently delete<br /><strong>{confirmDelete.appTitle} @ {confirmDelete.appCompany}</strong></>}
+          warning="This action cannot be undone."
+          confirmLabel="Delete"
+          variant="destructive"
+          onConfirm={() => { deleteApplication(confirmDelete.appId); setExpandedId(null); setConfirmDelete({ open: false, appId: '', appTitle: '', appCompany: '' }); }}
+          onCancel={() => setConfirmDelete({ open: false, appId: '', appTitle: '', appCompany: '' })}
         />
       )}
     </div>
