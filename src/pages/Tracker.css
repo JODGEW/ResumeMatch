@@ -284,10 +284,6 @@
 }
 
 .tracker-bulk-bar__select-all input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-  cursor: pointer;
   margin: 0;
 }
 
@@ -396,13 +392,31 @@
   cursor: pointer;
   margin-right: 0.25rem;
   margin-bottom: 0;
+  align-self: center;
 }
 
-.tracker-card__checkbox input[type="checkbox"] {
+.tracker-card__checkbox input[type="checkbox"],
+.tracker-bulk-bar__select-all input[type="checkbox"] {
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
   cursor: pointer;
+  flex-shrink: 0;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tracker-card__checkbox input[type="checkbox"],
+  .tracker-bulk-bar__select-all input[type="checkbox"],
+  .tracker-modal__checkbox-label input[type="checkbox"] {
+    color-scheme: dark;
+  }
+}
+
+[data-theme="dark"] .tracker-card__checkbox input[type="checkbox"],
+[data-theme="dark"] .tracker-bulk-bar__select-all input[type="checkbox"],
+[data-theme="dark"] .tracker-modal__checkbox-label input[type="checkbox"] {
+  color-scheme: dark;
 }
 
 /* ── Application List ───────────────────────────────── */
@@ -1211,6 +1225,7 @@
   height: 16px;
   accent-color: var(--accent);
   cursor: pointer;
+  color-scheme: light;
 }
 
 .tracker-modal__footer {
