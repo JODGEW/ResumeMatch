@@ -158,9 +158,16 @@ function ApplicationModal({
   isEdit: boolean;
 }) {
   const [form, setForm] = useState(initial);
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
     setForm(prev => ({ ...prev, [key]: val }));
+  }
+
+  function handleOverlayClick() {
+    if (!isDirty || window.confirm('Discard unsaved changes?')) {
+      onClose();
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -183,11 +190,11 @@ function ApplicationModal({
   }
 
   return (
-    <div className="tracker-modal-overlay" onClick={onClose}>
+    <div className="tracker-modal-overlay" onClick={handleOverlayClick}>
       <div className="tracker-modal" onClick={e => e.stopPropagation()}>
         <div className="tracker-modal__header">
           <h2>{isEdit ? 'Edit Application' : 'Add Application'}</h2>
-          <button className="tracker-modal__close" onClick={onClose}>
+          <button className="tracker-modal__close" onClick={handleOverlayClick}>
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
@@ -411,7 +418,7 @@ function ApplicationModal({
           </div>
 
           <div className="tracker-modal__footer">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-ghost" onClick={handleOverlayClick}>Cancel</button>
             <button type="submit" className="btn btn-primary">{isEdit ? 'Save Changes' : 'Add Application'}</button>
           </div>
         </form>
@@ -487,19 +494,14 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
               </span>
             );
           })}
-          {app.applicationStatus === 'rejected' && (() => {
-            const rejectedAge = Math.max(0, Math.round((Date.now() - new Date(app.statusChangedAt || app.dateApplied).getTime()) / 86400000));
-            return (
-              <>
-                <span className="tracker-detail__timeline-arrow"> &rarr; </span>
-                <span className="tracker-detail__step-wrap">
-                  <span className="tracker-detail__timeline-step tracker-detail__timeline-step--rejected">
-                    Rejected<span className="tracker-detail__stage-age"> ({rejectedAge}d)</span>
-                  </span>
-                </span>
-              </>
-            );
-          })()}
+          {app.applicationStatus === 'rejected' && (
+            <>
+              <span className="tracker-detail__timeline-arrow"> &rarr; </span>
+              <span className="tracker-detail__timeline-step tracker-detail__timeline-step--rejected">
+                Rejected
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -919,7 +921,7 @@ export function Tracker() {
                   className="tracker-card card animate-in"
                   style={{ animationDelay: `${0.14 + i * 0.04}s` }}
                 >
-                  <div onClick={() => setExpandedId(isExpanded ? null : app.id)}>
+                  <div className="tracker-card__collapse-toggle" onClick={() => setExpandedId(isExpanded ? null : app.id)}>
                     <div className="tracker-card__top">
                       <div className="tracker-card__info">
                         <div>

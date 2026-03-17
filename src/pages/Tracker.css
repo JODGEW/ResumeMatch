@@ -260,8 +260,11 @@
 /* ── Application Card ───────────────────────────────── */
 .tracker-card {
   padding: 1.25rem 1.5rem;
-  cursor: pointer;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.tracker-card__collapse-toggle {
+  cursor: pointer;
 }
 
 .tracker-card:hover {
