@@ -271,21 +271,15 @@ export function Signup() {
             </button>
 
             <p className="login-card__link">
-              {canResend ? (
-                <>
-                  Didn&apos;t receive the code?{' '}
-                  <button
-                    type="button"
-                    className="login-card__resend"
-                    onClick={handleResend}
-                    disabled={resending}
-                  >
-                    {resending ? 'Resending...' : 'Resend code'}
-                  </button>
-                </>
-              ) : (
-                <>Resend in {remaining}s</>
-              )}
+              Didn&apos;t receive the code?{' '}
+              <button
+                type="button"
+                className="login-card__resend"
+                onClick={handleResend}
+                disabled={!canResend || resending}
+              >
+                {resending ? 'Resending...' : canResend ? 'Resend code' : `Resend (${remaining}s)`}
+              </button>
             </p>
           </form>
         )}
