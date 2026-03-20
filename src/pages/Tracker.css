@@ -535,6 +535,8 @@
   font-weight: 600;
   padding: 0.25rem 0.625rem;
   border-radius: 100px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tracker-card__score--worth {
@@ -550,11 +552,29 @@
 .tracker-card__contact {
   font-size: 0.75rem;
   color: var(--text-secondary);
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  overflow: hidden;
+}
+
+.tracker-card__contact-name {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tracker-card__contact-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .tracker-card__followup {
   font-size: 0.75rem;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tracker-card__followup--overdue {
@@ -1026,6 +1046,37 @@
   color: var(--accent);
 }
 
+.tracker-detail__contact-linkedin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #0a66c2;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.8125rem;
+}
+
+.tracker-detail__contact-linkedin:hover {
+  text-decoration: underline;
+}
+
+.tracker-detail__details-row {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.8125rem;
+}
+
+.tracker-detail__detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--text-primary);
+}
+
+.tracker-detail__detail-label {
+  color: var(--text-muted);
+}
+
 .tracker-detail__actions {
   display: flex;
   gap: 0.5rem;
@@ -1272,17 +1323,30 @@
     flex-wrap: wrap;
   }
 
+  .tracker-card__contact {
+    flex-basis: 100%;
+    order: 10;
+  }
+
   .tracker-card__quick-actions {
     width: 100%;
     margin-left: 0;
     margin-top: 0.375rem;
+    order: 20;
+  }
+
+  .tracker-card__top {
+    flex-wrap: wrap;
+  }
+
+  .tracker-card__info {
+    min-width: 60%;
   }
 
   .tracker-card__right {
     flex-wrap: wrap;
     flex-shrink: 1;
     gap: 0.375rem;
-    width: 100%;
   }
 
   .tracker-detail__timeline {
@@ -1311,24 +1375,28 @@
   }
 
   .tracker-card__top {
-    flex-wrap: wrap;
-    gap: 0.375rem 0.5rem;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .tracker-card__checkbox {
-    align-self: flex-start;
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+  }
+
+  .tracker-card {
+    position: relative;
   }
 
   .tracker-card__info {
-    flex-basis: 0;
-    min-width: calc(100% - 2rem); /* checkbox + info fill row, badges wrap below */
+    padding-left: 1.75rem; /* space for checkbox */
   }
 
   .tracker-card__right {
     flex-wrap: wrap;
-    flex-shrink: 1;
     gap: 0.375rem;
-    width: 100%;
+    padding-left: 1.75rem;
   }
 
   .tracker-card__bottom {
