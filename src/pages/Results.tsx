@@ -148,13 +148,22 @@ export function Results() {
                 Comparing keywords, skills, and qualifications...
               </p>
               <div className="results-loading__steps">
-                <div className={`results-loading__step ${analysis?.status === 'processing' ? 'results-loading__step--active' : 'results-loading__step--done'}`}>
+                <div className="results-loading__step results-loading__step--done">
                   <span className="results-loading__dot" />
                   Upload received
                 </div>
-                <div className={`results-loading__step ${analysis?.status === 'processing' ? 'results-loading__step--active' : ''}`}>
+                <div className="results-loading__step results-loading__step--active">
                   <span className="results-loading__dot" />
                   Processing analysis
+                </div>
+              </div>
+              <div className="results-loading__bg-notice">
+                <p className="results-loading__bg-primary">Analysis is running in the background — you can safely leave.</p>
+                <p className="results-loading__bg-secondary">Results are saved automatically. View them anytime in <strong>History</strong>.</p>
+                <p className="results-loading__bg-tertiary">Usually takes ~30 seconds.</p>
+                <div className="results-loading__actions">
+                  <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary btn--sm">Go to History</Link>
+                  <Link to="/upload" className="btn btn-outline btn--sm">Upload another resume</Link>
                 </div>
               </div>
             </>

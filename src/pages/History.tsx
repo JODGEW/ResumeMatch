@@ -1,17 +1,25 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { getAnalysisHistory } from '../api/analysis';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { getAnalysisHistory, getAnalysis } from '../api/analysis';
 import { useAuth } from '../auth/AuthContext';
 import type { Analysis } from '../types';
 import './History.css';
+
+function hasInProgress(items: Analysis[]) {
+  return items.some(a => a.status === 'pending' || a.status === 'processing');
+}
 
 export function History() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [newlyCompleted, setNewlyCompleted] = useState<Set<string>>(new Set());
+  const prevStatusRef = useRef<Map<string, string>>(new Map());
   const ITEMS_PER_PAGE = 10;
   const navigate = useNavigate();
+  const location = useLocation();
+  const pendingAnalysisId = (location.state as { pendingAnalysisId?: string } | null)?.pendingAnalysisId;
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
 
@@ -28,20 +36,84 @@ export function History() {
 
   useEffect(() => {
     let cancelled = false;
+    const pollRef: { timer?: ReturnType<typeof setInterval> } = {};
+
+    function sortByNewest(items: Analysis[]) {
+      return [...items].sort((a, b) => {
+        const ta = new Date(a.timestamp ?? a.createdAt).getTime();
+        const tb = new Date(b.timestamp ?? b.createdAt).getTime();
+        return tb - ta;
+      });
+    }
 
     async function load() {
       try {
         const data = await getAnalysisHistory();
-        if (!cancelled) setAnalyses(data);
+        if (cancelled) return;
+
+        // If we navigated here with a pending analysis that the history API
+        // doesn't include yet (still processing), fetch it individually and merge
+        let merged = data;
+        if (pendingAnalysisId && !data.some(a => a.analysisId === pendingAnalysisId)) {
+          try {
+            const pending = await getAnalysis(pendingAnalysisId);
+            if (!cancelled) merged = [pending, ...data];
+          } catch {
+            // ignore — item may not exist yet
+          }
+        }
+
+        const sorted = sortByNewest(merged);
+
+        // Detect newly completed items
+        const prev = prevStatusRef.current;
+        const justCompleted = new Set<string>();
+        for (const a of sorted) {
+          const oldStatus = prev.get(a.analysisId);
+          if (oldStatus && (oldStatus === 'pending' || oldStatus === 'processing') && a.status === 'completed') {
+            justCompleted.add(a.analysisId);
+          }
+          prev.set(a.analysisId, a.status);
+        }
+        if (justCompleted.size > 0) {
+          setNewlyCompleted(s => {
+            const next = new Set(s);
+            justCompleted.forEach(id => next.add(id));
+            return next;
+          });
+          // Auto-clear "New" badges after 5 seconds
+          setTimeout(() => {
+            if (cancelled) return;
+            setNewlyCompleted(s => {
+              const next = new Set(s);
+              justCompleted.forEach(id => next.delete(id));
+              return next;
+            });
+          }, 5000);
+        }
+
+        setAnalyses(sorted);
+        setLoading(false);
+
+        // Start or stop polling based on in-progress items
+        if (hasInProgress(sorted) && !pollRef.timer) {
+          pollRef.timer = setInterval(load, 4000);
+        } else if (!hasInProgress(sorted) && pollRef.timer) {
+          clearInterval(pollRef.timer);
+          pollRef.timer = undefined;
+        }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load history');
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load history');
+        setLoading(false);
       }
     }
 
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (pollRef.timer) clearInterval(pollRef.timer);
+    };
   }, []);
 
   function formatDate(iso: string) {
@@ -63,6 +135,8 @@ export function History() {
     if (score >= 41) return '#dc4a20';
     return '#dc2626';
   }
+
+  const isProcessing = (status: string) => status === 'pending' || status === 'processing';
 
   return (
     <div className="page-container">
@@ -118,90 +192,99 @@ export function History() {
         return (
           <>
             <div className="history-list">
-              {paginatedItems.map((a, i) => (
-                <Link
-                  key={a.analysisId}
-                  to={`/results/${a.analysisId}`}
-                  className="history-item card animate-in"
-                  style={{ animationDelay: `${0.05 + i * 0.04}s` }}
-                >
-                  <div className="history-item__left">
-                    {a.status === 'completed' && a.matchScore != null ? (
-                      <div className="history-item__score" style={{ color: getScoreColor(a.matchScore) }}>
-                        <svg width="44" height="44" viewBox="0 0 44 44">
-                          <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="2.5" />
-                          <circle
-                            cx="22" cy="22" r="18"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeDasharray={`${(a.matchScore / 100) * 113.1} 113.1`}
-                            transform="rotate(-90 22 22)"
-                          />
-                        </svg>
-                        <span className="history-item__score-value">{a.matchScore}</span>
-                      </div>
-                    ) : (
-                      <div className={`status-badge status-badge--${a.status}`}>
-                        {a.status}
-                      </div>
-                    )}
-                  </div>
+              {paginatedItems.map((a, i) => {
+                const inProgress = isProcessing(a.status);
+                const isNew = newlyCompleted.has(a.analysisId);
 
-                  <div className="history-item__body">
-                    <div className="history-item__meta">
-                      {a.fileName && (
-                        <span className="history-item__file">{a.fileName}</span>
+                return (
+                  <Link
+                    key={a.analysisId}
+                    to={inProgress ? '#' : `/results/${a.analysisId}`}
+                    className={`history-item card animate-in${inProgress ? ' history-item--disabled' : ''}${isNew ? ' history-item--new' : ''}`}
+                    style={{ animationDelay: `${0.05 + i * 0.04}s` }}
+                    onClick={inProgress ? (e) => e.preventDefault() : undefined}
+                    title={inProgress ? 'Still processing — results aren\'t ready yet' : undefined}
+                  >
+                    <div className="history-item__left">
+                      {a.status === 'completed' && a.matchScore != null ? (
+                        <div className="history-item__score" style={{ color: getScoreColor(a.matchScore) }}>
+                          <svg width="44" height="44" viewBox="0 0 44 44">
+                            <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="2.5" />
+                            <circle
+                              cx="22" cy="22" r="18"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeDasharray={`${(a.matchScore / 100) * 113.1} 113.1`}
+                              transform="rotate(-90 22 22)"
+                            />
+                          </svg>
+                          <span className="history-item__score-value">{a.matchScore}</span>
+                        </div>
+                      ) : (
+                        <div className={`status-badge status-badge--${a.status}`}>
+                          {a.status === 'processing' && <span className="status-badge__dot" />}
+                          {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                        </div>
                       )}
-                      <span className="history-item__date">{formatDate(a.timestamp ?? a.createdAt)}</span>
                     </div>
-                    {a.jobDescription && (
-                      <p className="history-item__jd">
-                        {a.jobDescription.substring(0, 140)}
-                        {a.jobDescription.length > 140 ? '...' : ''}
-                      </p>
-                    )}
-                    {a.presentKeywords && a.missingKeywords && (
-                      <div className="history-item__stats">
-                        <span className="text-success">
-                          {a.presentKeywords.length} matched
-                        </span>
-                        <span className="history-item__stats-divider" />
-                        <span className="text-danger">
-                          {a.missingKeywords.length} missing
-                        </span>
-                      </div>
-                    )}
-                    {a.missingKeywords && a.missingKeywords.length > 0 && (
-                      <p className="history-item__missing">
-                        <span className="history-item__missing-label">Missing: </span>
-                        <span className="history-item__missing-keywords">{a.missingKeywords.slice(0, 3).join(', ')}</span>
-                        {a.missingKeywords.length > 3 && (
-                          <span className="history-item__missing-more"> +{a.missingKeywords.length - 3} more</span>
+
+                    <div className="history-item__body">
+                      <div className="history-item__meta">
+                        {a.fileName && (
+                          <span className="history-item__file">{a.fileName}</span>
                         )}
-                      </p>
+                        {isNew && <span className="history-item__new-badge">New</span>}
+                        <span className="history-item__date">{formatDate(a.timestamp ?? a.createdAt)}</span>
+                      </div>
+                      {a.jobDescription && (
+                        <p className="history-item__jd">
+                          {a.jobDescription.substring(0, 140)}
+                          {a.jobDescription.length > 140 ? '...' : ''}
+                        </p>
+                      )}
+                      {a.presentKeywords && a.missingKeywords && (
+                        <div className="history-item__stats">
+                          <span className="text-success">
+                            {a.presentKeywords.length} matched
+                          </span>
+                          <span className="history-item__stats-divider" />
+                          <span className="text-danger">
+                            {a.missingKeywords.length} missing
+                          </span>
+                        </div>
+                      )}
+                      {a.missingKeywords && a.missingKeywords.length > 0 && (
+                        <p className="history-item__missing">
+                          <span className="history-item__missing-label">Missing: </span>
+                          <span className="history-item__missing-keywords">{a.missingKeywords.slice(0, 3).join(', ')}</span>
+                          {a.missingKeywords.length > 3 && (
+                            <span className="history-item__missing-more"> +{a.missingKeywords.length - 3} more</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+
+                    {a.status === 'completed' && a.matchScore != null && (
+                      <button
+                        className="btn btn-secondary history-item__tracker-btn"
+                        disabled={isDemo}
+                        title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}
+                      >
+                        Add to Tracker
+                      </button>
                     )}
-                  </div>
 
-                  {a.status === 'completed' && a.matchScore != null && (
-                    <button
-                      className="btn btn-secondary history-item__tracker-btn"
-                      disabled={isDemo}
-                      title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}
-                    >
-                      Add to Tracker
-                    </button>
-                  )}
-
-                  <div className="history-item__arrow">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M6 4l4 4-4 4" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                </Link>
-              ))}
+                    <div className="history-item__arrow">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M6 4l4 4-4 4" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
 
             {totalPages > 1 && (

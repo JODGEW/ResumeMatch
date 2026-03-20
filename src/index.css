@@ -242,6 +242,22 @@ label {
   color: var(--text-primary);
 }
 
+.btn-outline {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.btn-outline:not(:disabled):hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.btn--sm {
+  font-size: 0.75rem;
+  padding: 0.5rem 1rem;
+}
+
 /* ── Cards ──────────────────────────────────────────── */
 .card {
   background: var(--bg-primary);
@@ -340,8 +356,8 @@ label {
 }
 
 .status-badge--pending {
-  background: var(--info-dim);
-  color: var(--info);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
 }
 
 .status-badge--processing {
@@ -357,6 +373,19 @@ label {
 .status-badge--failed {
   background: var(--danger-dim);
   color: var(--danger);
+}
+
+.status-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: statusPulse 1.5s ease infinite;
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 /* ── Utility ────────────────────────────────────────── */

@@ -170,6 +170,48 @@
   transform: translateX(3px);
 }
 
+/* ── Disabled (in-progress) item ────────────────────── */
+.history-item--disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.history-item--disabled:hover {
+  border-color: var(--border);
+  background: var(--bg-primary);
+  box-shadow: none;
+}
+
+.history-item--disabled .history-item__arrow {
+  opacity: 0.3;
+}
+
+/* ── "New" badge ────────────────────────────────────── */
+.history-item__new-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 100px;
+  background: var(--success-dim);
+  color: var(--success);
+  animation: newBadgeFadeIn 0.3s ease;
+}
+
+@keyframes newBadgeFadeIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ── Completed transition glow ──────────────────────── */
+.history-item--new {
+  border-color: var(--success);
+  transition: border-color 0.6s ease;
+}
+
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
   .history-item {
