@@ -413,6 +413,12 @@
   }
 }
 
+[data-theme="light"] .tracker-card__checkbox input[type="checkbox"],
+[data-theme="light"] .tracker-bulk-bar__select-all input[type="checkbox"],
+[data-theme="light"] .tracker-modal__checkbox-label input[type="checkbox"] {
+  color-scheme: light;
+}
+
 [data-theme="dark"] .tracker-card__checkbox input[type="checkbox"],
 [data-theme="dark"] .tracker-bulk-bar__select-all input[type="checkbox"],
 [data-theme="dark"] .tracker-modal__checkbox-label input[type="checkbox"] {

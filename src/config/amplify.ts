@@ -5,6 +5,15 @@ Amplify.configure({
     Cognito: {
       userPoolId: import.meta.env.VITE_USER_POOL_ID || '',
       userPoolClientId: import.meta.env.VITE_USER_POOL_CLIENT_ID || '',
+      loginWith: {
+        oauth: {
+          domain: import.meta.env.VITE_COGNITO_OAUTH_DOMAIN || '',
+          scopes: ['openid', 'email', 'profile'],
+          redirectSignIn: ['http://localhost:5173', import.meta.env.VITE_APP_URL || ''],
+          redirectSignOut: ['http://localhost:5173', import.meta.env.VITE_APP_URL || ''],
+          responseType: 'code',
+        },
+      },
     },
   },
 });

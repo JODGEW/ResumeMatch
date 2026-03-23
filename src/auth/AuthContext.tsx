@@ -15,6 +15,7 @@ import {
   getCurrentUser,
   fetchAuthSession,
 } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
 
 interface User {
   email: string;
@@ -40,20 +41,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(
     DEV_MODE ? { email: 'dev@example.com', name: 'Dev User' } : null,
   );
-  const [isLoading, setIsLoading] = useState(!DEV_MODE);
+  // Only show loading spinner if there might be an active session to restore.
+  // OAuth callback (?code=) always needs loading; otherwise, check if tokens exist in storage.
+  const hasOAuthCode = !DEV_MODE && new URLSearchParams(window.location.search).has('code');
+  const hasTokens = !DEV_MODE && Object.keys(localStorage).some(k => k.startsWith('CognitoIdentityServiceProvider'));
+  const [isLoading, setIsLoading] = useState(hasOAuthCode || hasTokens);
 
   useEffect(() => {
     if (DEV_MODE) return;
+
+    // Listen for OAuth redirect completion
+    const unsubscribe = Hub.listen('auth', ({ payload }) => {
+      if (payload.event === 'signInWithRedirect') {
+        // Clean up OAuth params from the URL
+        window.history.replaceState({}, '', window.location.pathname);
+        checkAuth();
+      }
+      if (payload.event === 'signInWithRedirect_failure') {
+        console.error('OAuth sign-in failed:', payload.data);
+        window.history.replaceState({}, '', window.location.pathname);
+        setIsLoading(false);
+      }
+    });
+
+    // Still check on mount for existing sessions (e.g. page refresh while already logged in)
     checkAuth();
+
+    return () => unsubscribe();
   }, []);
 
   async function getAuthenticatedUser(): Promise<User | null> {
     try {
       const currentUser = await getCurrentUser();
       const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.payload;
       return {
-        email: currentUser.signInDetails?.loginId || currentUser.username,
-        name: session.tokens?.idToken?.payload?.name as string | undefined,
+        email: (idToken?.email as string) || currentUser.signInDetails?.loginId || currentUser.username,
+        name: (idToken?.name as string) || undefined,
       };
     } catch {
       return null;
@@ -130,7 +154,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       return;
     }
-    await signOut();
+    await signOut({ global: false });
+    // For non-OAuth users, signOut resolves without redirect
+    // For OAuth users, the page redirects to Cognito's logout endpoint
+    // and we never reach here
     setUser(null);
   }
 
