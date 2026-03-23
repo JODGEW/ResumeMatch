@@ -1151,7 +1151,7 @@ export function Tracker() {
       {/* Demo banner */}
       {isReadOnly && (
         <div className="tracker-demo-banner animate-in" style={{ animationDelay: '0.05s' }}>
-          Demo mode — you're viewing sample data.
+          Demo mode — you're viewing sample data. Try bulk actions and CSV export!
         </div>
       )}
 

@@ -114,7 +114,7 @@ export function Layout() {
 
         {user?.email === DEMO_EMAIL && (
           <div className="demo-banner">
-            <span>You are viewing a demo workspace.</span>
+            <span>You're exploring with a shared demo account.</span>
             <button
               className="demo-banner__cta"
               onClick={() => {
@@ -122,7 +122,7 @@ export function Layout() {
                 logout();
               }}
             >
-              Create an account to save your analysis
+              Sign up for your own private workspace
             </button>
           </div>
         )}
