@@ -4,8 +4,10 @@ import { usePolling } from '../hooks/usePolling';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
+import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
+import { useAuth } from '../auth/AuthContext';
 import './Results.css';
 
 function getScoreInterpretation(score: number) {
@@ -24,6 +26,8 @@ export function Results() {
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [jdOpen, setJdOpen] = useState(false);
+  const { user } = useAuth();
+  const isDemo = user?.email === 'demo123@resumeapp.com';
 
   const closeModal = useCallback(() => {
     setResumeUrl(null);
@@ -179,10 +183,10 @@ export function Results() {
         <div className="results-empty">
           <h2>Analysis failed</h2>
           <p className="text-secondary">
-            We couldn't process your resume. Please try uploading again.
+            {analysis.errorMessage || 'We couldn\'t process your resume. Please try uploading again.'}
           </p>
           <Link to="/upload" className="btn btn-primary" style={{ marginTop: '1rem' }}>
-            Upload again
+            {analysis.errorMessage?.toLowerCase().includes('limit') ? 'Back to Upload' : 'Try again'}
           </Link>
         </div>
       </div>
@@ -456,6 +460,13 @@ export function Results() {
           />
         </div>
       )}
+
+      {/* Download Optimized Resume */}
+      <DownloadOptimizedButton
+        suggestedText={analysis.suggestedText}
+        status={analysis.status}
+        isDemo={isDemo}
+      />
 
       {/* Resume Modal */}
       {(resumeUrl || resumeError) && (

@@ -160,6 +160,17 @@
   white-space: nowrap;
 }
 
+/* Download button — same visual weight as tracker button */
+.history-item__download-btn {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  padding: 0.3125rem 0.625rem;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.325rem;
+}
+
 /* Arrow */
 .history-item__arrow {
   flex-shrink: 0;

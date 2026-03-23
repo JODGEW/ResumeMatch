@@ -1,6 +1,7 @@
 export interface Analysis {
   analysisId: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  errorMessage?: string;
   matchScore?: number;
   presentKeywords?: string[];
   missingKeywords?: string[];
@@ -10,6 +11,7 @@ export interface Analysis {
   matchedCount?: number;
   totalCount?: number;
   scoreSummary?: string;
+  scoreSummaryShort?: string;
   originalText?: string;
   suggestedText?: string;
   jobDescription?: string;

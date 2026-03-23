@@ -42,8 +42,13 @@ export function Upload() {
       // Step 3: Navigate to results
       setStage('done');
       navigate(`/results/${analysisId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+    } catch (err: unknown) {
+      const axiosData = (err as { response?: { data?: { errorMessage?: string; message?: string } } })?.response?.data;
+      const message = axiosData?.errorMessage
+        || axiosData?.message
+        || (err instanceof Error ? err.message : null)
+        || 'Upload failed. Please try again.';
+      setError(message);
       setStage('idle');
     }
   }

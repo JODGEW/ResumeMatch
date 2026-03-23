@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { getAnalysisHistory, getAnalysis } from '../api/analysis';
 import { useAuth } from '../auth/AuthContext';
+import { parseResume } from '../utils/resumeParser';
+import { downloadOptimizedResume } from '../utils/docxGenerator';
 import type { Analysis } from '../types';
 import './History.css';
 
@@ -136,6 +138,28 @@ export function History() {
     return '#dc2626';
   }
 
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  async function handleDownload(a: Analysis) {
+    if (downloadingId) return;
+    setDownloadingId(a.analysisId);
+    try {
+      // History endpoint may not include suggestedText — fetch full analysis if needed
+      let text = a.suggestedText;
+      if (!text) {
+        const full = await getAnalysis(a.analysisId);
+        text = full.suggestedText;
+      }
+      if (!text?.trim()) return;
+      const parsed = parseResume(text);
+      await downloadOptimizedResume(parsed);
+    } catch (err) {
+      console.error('Download failed:', err);
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   const isProcessing = (status: string) => status === 'pending' || status === 'processing';
 
   return (
@@ -238,12 +262,20 @@ export function History() {
                         {isNew && <span className="history-item__new-badge">New</span>}
                         <span className="history-item__date">{formatDate(a.timestamp ?? a.createdAt)}</span>
                       </div>
-                      {a.jobDescription && (
-                        <p className="history-item__jd">
-                          {a.jobDescription.substring(0, 140)}
-                          {a.jobDescription.length > 140 ? '...' : ''}
+                      {inProgress ? (
+                        <p className="history-item__jd" style={{ fontStyle: 'italic' }}>
+                          Analyzing match score, keyword gaps, and experience alignment…
                         </p>
-                      )}
+                      ) : a.status === 'failed' && a.errorMessage ? (
+                        <p className="history-item__jd" style={{ color: 'var(--danger)' }}>
+                          {a.errorMessage}
+                        </p>
+                      ) : (a.scoreSummaryShort || a.scoreSummary || a.jobDescription) ? (
+                        <p className="history-item__jd">
+                          {a.scoreSummaryShort ?? a.scoreSummary
+                            ?? (a.jobDescription!.substring(0, 140) + (a.jobDescription!.length > 140 ? '...' : ''))}
+                        </p>
+                      ) : null}
                       {a.presentKeywords && a.missingKeywords && (
                         <div className="history-item__stats">
                           <span className="text-success">
@@ -267,14 +299,40 @@ export function History() {
                     </div>
 
                     {a.status === 'completed' && a.matchScore != null && (
-                      <button
-                        className="btn btn-secondary history-item__tracker-btn"
-                        disabled={isDemo}
-                        title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}
-                      >
-                        Add to Tracker
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+                        <button
+                          className="btn btn-secondary history-item__tracker-btn"
+                          disabled={isDemo}
+                          title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}
+                        >
+                          Add to Tracker
+                        </button>
+                        <button
+                          className="btn btn-secondary history-item__download-btn"
+                          disabled={isDemo || downloadingId === a.analysisId}
+                          title="Download optimized resume"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDownload(a); }}
+                        >
+                          {downloadingId === a.analysisId ? (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 0.8s linear infinite' }}>
+                                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="8" strokeLinecap="round" />
+                              </svg>
+                              Downloading...
+                            </>
+                          ) : (
+                            <>
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 2v8m0 0L5 7m3 3l3-3" />
+                                <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+                              </svg>
+                              Download (DOCX)
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
 
                     <div className="history-item__arrow">
