@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import './KanbanView.css';
@@ -52,6 +52,14 @@ interface Props {
 export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardClick }: Props) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<Application['applicationStatus'] | null>(null);
+  const columnRefs = useRef<Map<Application['applicationStatus'], HTMLDivElement>>(new Map());
+  const touchState = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    ghost: HTMLDivElement | null;
+  } | null>(null);
 
   const grouped = useMemo(() => {
     const map = new Map<Application['applicationStatus'], Application[]>();
@@ -89,6 +97,90 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
     setDropTarget(null);
   }, []);
 
+  // Touch drag helpers
+  const findColumnAtPoint = useCallback((x: number, y: number): Application['applicationStatus'] | null => {
+    for (const [key, el] of columnRefs.current.entries()) {
+      const rect = el.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return key;
+      }
+    }
+    return null;
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, appId: string) => {
+    if (isReadOnly) return;
+    const touch = e.touches[0];
+    touchState.current = {
+      id: appId,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      moved: false,
+      ghost: null,
+    };
+  }, [isReadOnly]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const state = touchState.current;
+    if (!state) return;
+
+    const touch = e.touches[0];
+    const dx = touch.clientX - state.startX;
+    const dy = touch.clientY - state.startY;
+
+    // Require minimum movement to start drag (avoid blocking taps)
+    if (!state.moved && Math.abs(dx) + Math.abs(dy) < 10) return;
+
+    if (!state.moved) {
+      state.moved = true;
+      setDragId(state.id);
+
+      // Create ghost element
+      const target = e.currentTarget as HTMLElement;
+      const ghost = document.createElement('div');
+      ghost.className = 'kanban__card kanban__card--ghost';
+      ghost.textContent = target.querySelector('.kanban__card-company')?.textContent ?? '';
+      ghost.style.cssText = `
+        position: fixed; z-index: 1000; pointer-events: none;
+        width: ${target.offsetWidth}px; opacity: 0.85;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        transform: rotate(2deg);
+      `;
+      document.body.appendChild(ghost);
+      state.ghost = ghost;
+    }
+
+    e.preventDefault(); // prevent scroll while dragging
+
+    if (state.ghost) {
+      state.ghost.style.left = `${touch.clientX - 40}px`;
+      state.ghost.style.top = `${touch.clientY - 20}px`;
+    }
+
+    const col = findColumnAtPoint(touch.clientX, touch.clientY);
+    setDropTarget(col);
+  }, [findColumnAtPoint]);
+
+  const handleTouchEnd = useCallback(() => {
+    const state = touchState.current;
+    if (!state) return;
+
+    if (state.ghost) {
+      state.ghost.remove();
+    }
+
+    if (state.moved && dropTarget) {
+      const app = applications.find(a => a.id === state.id);
+      if (app && app.applicationStatus !== dropTarget) {
+        onUpdateStatus(state.id, dropTarget);
+      }
+    }
+
+    touchState.current = null;
+    setDragId(null);
+    setDropTarget(null);
+  }, [dropTarget, applications, onUpdateStatus]);
+
   return (
     <div className="kanban">
       {COLUMNS.map(col => {
@@ -98,6 +190,7 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
         return (
           <div
             key={col.key}
+            ref={el => { if (el) columnRefs.current.set(col.key, el); }}
             className={`kanban__column${isOver ? ' kanban__column--drop-target' : ''}`}
             onDragOver={(e) => handleDragOver(e, col.key)}
             onDragLeave={() => setDropTarget(null)}
@@ -122,7 +215,10 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
                   isDragging={dragId === app.id}
                   onDragStart={() => setDragId(app.id)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => onCardClick(app.id)}
+                  onClick={() => { if (!touchState.current?.moved) onCardClick(app.id); }}
+                  onTouchStart={(e) => handleTouchStart(e, app.id)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                 />
               ))}
             </div>
@@ -140,6 +236,9 @@ function KanbanCard({
   onDragStart,
   onDragEnd,
   onClick,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
 }: {
   app: Application;
   isReadOnly: boolean;
@@ -147,6 +246,9 @@ function KanbanCard({
   onDragStart: () => void;
   onDragEnd: () => void;
   onClick: () => void;
+  onTouchStart: (e: React.TouchEvent) => void;
+  onTouchMove: (e: React.TouchEvent) => void;
+  onTouchEnd: () => void;
 }) {
   const scoring = calculateOutreachScore(app);
   const matchColor = getScoreColor(app.skillMatch.matchPercentage);
@@ -164,6 +266,9 @@ function KanbanCard({
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
       <div className="kanban__card-header">
         <span className="kanban__card-company">{app.companyName}</span>

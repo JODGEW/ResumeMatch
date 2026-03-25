@@ -169,19 +169,20 @@ export function Dashboard() {
   const points = getPointCoords();
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
 
-  // Cumulative cost
+  // Cumulative cost — accumulate oldest→newest, then reverse for display
   let runningTotal = 0;
   const ledgerRows = [...analyses]
     .sort((a, b) => {
       const tA = new Date(a.timestamp ?? a.createdAt).getTime();
       const tB = new Date(b.timestamp ?? b.createdAt).getTime();
-      return tB - tA; // newest first
+      return tA - tB; // oldest first for accumulation
     })
     .map(a => {
       const cost = a.status === 'completed' ? getCost(a) : 0;
       runningTotal += cost;
       return { ...a, cost, runningTotal };
-    });
+    })
+    .reverse(); // newest first for display
 
   return (
     <div className="page-container">
@@ -190,9 +191,6 @@ export function Dashboard() {
           <div>
             <h1>Cost Dashboard</h1>
             <p>Estimated cost per analysis over time</p>
-          </div>
-          <div className="dash-header__badge">
-            <span className="dash-badge">DEMO</span>
           </div>
         </div>
       </div>
@@ -225,14 +223,14 @@ export function Dashboard() {
             <div className="dash-stat">
               <span className="dash-stat__label">Avg / analysis</span>
               <span className="dash-stat__value">{formatCost(stats.avgCost)}</span>
-              <span className="dash-stat__sub">{stats.completedCount} completed</span>
+              <span className="dash-stat__sub">{stats.completedCount} completed analyses</span>
             </div>
             <div className="dash-stat">
-              <span className="dash-stat__label">Range</span>
+              <span className="dash-stat__label">Cost range</span>
               <span className="dash-stat__value">
                 {formatCost(stats.minCost)} – {formatCost(stats.maxCost)}
               </span>
-              <span className="dash-stat__sub">min – max</span>
+              <span className="dash-stat__sub">per analysis</span>
             </div>
           </div>
 
@@ -242,7 +240,9 @@ export function Dashboard() {
               <div className="dash-chart__header">
                 <h3>Cost trend</h3>
                 <span className="dash-chart__range">
-                  {formatDateShort(chartData[0].date)} — {formatDateShort(chartData[chartData.length - 1].date)}
+                  {formatDateShort(chartData[0].date) === formatDateShort(chartData[chartData.length - 1].date)
+                    ? `${formatDateShort(chartData[0].date)}, ${chartData.length} analyses`
+                    : `${formatDateShort(chartData[0].date)} — ${formatDateShort(chartData[chartData.length - 1].date)}`}
                 </span>
               </div>
               <div className="dash-chart__container" onMouseLeave={() => setHoveredPoint(null)}>
@@ -349,23 +349,22 @@ export function Dashboard() {
                 No analyses yet
               </p>
             ) : (
+              <>
               <div className="dash-table-wrap">
                 <table className="dash-table">
                   <thead>
                     <tr>
-                      <th className="dash-table__th">#</th>
                       <th className="dash-table__th">Date</th>
                       <th className="dash-table__th">File</th>
                       <th className="dash-table__th dash-table__th--right">Score</th>
                       <th className="dash-table__th">Status</th>
                       <th className="dash-table__th dash-table__th--right">Cost</th>
-                      <th className="dash-table__th dash-table__th--right">Running total</th>
+                      <th className="dash-table__th dash-table__th--right">Cumulative total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {ledgerRows.map((row, i) => (
                       <tr key={row.analysisId} className="dash-table__row" style={{ animationDelay: `${0.08 + i * 0.03}s` }}>
-                        <td className="dash-table__td dash-table__td--idx">{ledgerRows.length - i}</td>
                         <td className="dash-table__td dash-table__td--date">
                           {formatDate(row.timestamp ?? row.createdAt)}
                         </td>
@@ -376,7 +375,9 @@ export function Dashboard() {
                           {row.status === 'completed' && row.matchScore != null ? (
                             <span className="dash-table__score" data-level={
                               row.matchScore >= 86 ? 'high' :
-                              row.matchScore >= 61 ? 'mid' : 'low'
+                              row.matchScore >= 76 ? 'good' :
+                              row.matchScore >= 61 ? 'mid' :
+                              row.matchScore >= 41 ? 'low' : 'poor'
                             }>
                               {row.matchScore}
                             </span>
@@ -395,29 +396,22 @@ export function Dashboard() {
                             </>
                           ) : '—'}
                         </td>
-                        <td className="dash-table__td dash-table__td--total dash-table__td--right">
+                        <td className={`dash-table__td dash-table__td--total dash-table__td--right${i === 0 ? ' dash-table__td--total-latest' : ''}`}>
                           {formatCost(row.runningTotal)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr className="dash-table__foot">
-                      <td colSpan={5} className="dash-table__td dash-table__td--foot-label">Total</td>
-                      <td className="dash-table__td dash-table__td--cost dash-table__td--right dash-table__td--foot-val">
-                        {formatCost(stats.totalCost)}
-                      </td>
-                      <td className="dash-table__td" />
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
+              <div className="dash-ledger__total">
+                <span className="dash-ledger__total-label">Total</span>
+                <span className="dash-ledger__total-value">{formatCost(stats.totalCost)}</span>
+              </div>
+              </>
             )}
           </div>
 
-          <p className="dash-disclaimer animate-in stagger-4">
-            Costs marked with ~ are estimates for older analyses without token tracking. Newer analyses use actual Bedrock (Claude Haiku) usage data. Estimates exclude Textract, Lambda, and DynamoDB costs.
-          </p>
         </>
       )}
     </div>

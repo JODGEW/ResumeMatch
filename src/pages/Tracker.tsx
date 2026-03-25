@@ -128,11 +128,9 @@ function getQuickActions(app: Application): QuickActionSet {
 
   // Outreach: sent → primary is Follow Up (especially if due/overdue)
   else if (outStatus === 'sent') {
-    const hint = followUp?.overdue ? 'Overdue!' : followUp?.daysUntil === 0 ? 'Due today' : followUp ? followUp.label : undefined;
     primary = {
       label: 'Follow Up',
       variant: followUp?.overdue ? 'danger' : 'warning',
-      hint,
       updates: {
         outreachStatus: 'followed_up',
         followUpSent: true,
@@ -171,7 +169,7 @@ function getScoreColor(score: number) {
   if (score >= 76) return '#3b82f6';
   if (score >= 61) return '#ca8a04';
   if (score >= 41) return '#dc4a20';
-  return '#dc2626';
+  return '#9ca3af';
 }
 
 function formatDate(iso: string) {
@@ -1403,7 +1401,7 @@ export function Tracker() {
                               </svg>
                             </a>
                           )}
-                          <span className="tracker-card__role">— {app.roleTitle}</span>
+                          <span className="tracker-card__role"><span className="tracker-card__role-dash">— </span>{app.roleTitle}</span>
                         </div>
                         <div className="tracker-card__meta">
                           <span>{app.companySize}</span>
@@ -1441,7 +1439,7 @@ export function Tracker() {
                       {app.contact && (
                         <span className="tracker-card__contact">
                           <span className="tracker-card__contact-name">{app.contact.name} ({app.contact.role})</span>
-                          {app.contact.email && <span className="tracker-card__contact-email"> · {app.contact.email}</span>}
+                          {app.contact.email && <span className="tracker-card__contact-email"><span className="tracker-card__contact-dot"> · </span>{app.contact.email}</span>}
                         </span>
                       )}
                       {followUp && (

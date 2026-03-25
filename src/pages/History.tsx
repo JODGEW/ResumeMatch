@@ -299,7 +299,7 @@ export function History() {
                     </div>
 
                     {a.status === 'completed' && a.matchScore != null && (
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+                      <div className="history-item__actions">
                         <button
                           className="btn btn-secondary history-item__tracker-btn"
                           disabled={isDemo}

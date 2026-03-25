@@ -6,24 +6,6 @@
   gap: 1rem;
 }
 
-.dash-header__badge {
-  flex-shrink: 0;
-  padding-top: 0.375rem;
-}
-
-.dash-badge {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  padding: 0.25rem 0.75rem;
-  border-radius: 100px;
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: 1px solid rgba(67, 56, 202, 0.15);
-}
-
 /* ── Stat Cards ──────────────────────────────────────── */
 .dash-stats {
   display: grid;
@@ -203,13 +185,6 @@
   white-space: nowrap;
 }
 
-.dash-table__td--idx {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  width: 2rem;
-}
-
 .dash-table__td--date {
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -239,6 +214,11 @@
   color: var(--text-muted);
 }
 
+.dash-table__td--total-latest {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .dash-table__score {
   display: inline-block;
   font-family: var(--font-mono);
@@ -248,27 +228,39 @@
   text-align: center;
 }
 
-.dash-table__score[data-level="high"] { color: var(--success); }
+.dash-table__score[data-level="high"] { color: #16a34a; }
+.dash-table__score[data-level="good"] { color: #3b82f6; }
 .dash-table__score[data-level="mid"]  { color: #ca8a04; }
-.dash-table__score[data-level="low"]  { color: var(--danger); }
+.dash-table__score[data-level="low"]  { color: #dc4a20; }
+.dash-table__score[data-level="poor"] { color: #dc2626; }
 
-.dash-table__foot {
-  border-top: 2px solid var(--border);
+.dash-table tbody tr:last-child .dash-table__td {
+  border-bottom: none;
 }
 
-.dash-table__td--foot-label {
+.dash-ledger__total {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.875rem 0.75rem 0.5rem;
+  border-top: 2px solid var(--border-light, var(--border));
+  margin-top: -1px;
+}
+
+.dash-ledger__total-label {
   font-weight: 600;
   text-transform: uppercase;
   font-size: 0.6875rem;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  border-bottom: none;
 }
 
-.dash-table__td--foot-val {
+.dash-ledger__total-value {
+  font-family: var(--font-mono);
   font-weight: 700;
+  font-size: 0.875rem;
   color: var(--accent);
-  border-bottom: none;
 }
 
 .dash-table__est {
@@ -276,15 +268,6 @@
   font-size: 0.75rem;
   margin-left: 0.125rem;
   cursor: help;
-}
-
-/* ── Disclaimer ──────────────────────────────────────── */
-.dash-disclaimer {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-align: center;
-  padding: 1rem 0 0.5rem;
-  font-style: italic;
 }
 
 /* ── Mobile ──────────────────────────────────────────── */

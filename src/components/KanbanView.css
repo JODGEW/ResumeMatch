@@ -105,6 +105,14 @@
   transform: scale(0.97);
 }
 
+.kanban__card--ghost {
+  padding: 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
 .kanban__card-header {
   display: flex;
   justify-content: space-between;
@@ -165,15 +173,9 @@
   margin-top: 2px;
 }
 
-/* Responsive: stack columns on smaller screens */
+/* Responsive: horizontal scroll on smaller screens */
 @media (max-width: 900px) {
   .kanban {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 600px) {
-  .kanban {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(6, minmax(160px, 1fr));
   }
 }
