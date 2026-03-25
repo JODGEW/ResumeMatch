@@ -20,7 +20,7 @@ ResumeMatch is a production-grade, fully serverless AI resume analyzer deployed 
 
 Try the app here:
 
-https://dgmqki2zr9mzh.cloudfront.net
+https://resumematchapp.com
 
 Demo account is available via the **Try Demo** button on the login page.
 
@@ -53,6 +53,7 @@ Upload Resume (PDF) + Paste JD → Textract OCR → Bedrock 4-Pass Analysis → 
 - **AI resume rewriting** — suggests improved resume phrasing based on the JD
 
 ### Application Tracking
+- **Kanban board view** — drag-and-drop cards across application stages (Not Applied → Applied → Screening → Interviewing → Offer / Rejected)
 - **Outreach tracker** — manage job applications with outreach and application pipelines
 - **Outreach scoring** — 0–100 score indicating whether outreach is worth pursuing
 - **Follow-up reminders** — notifications for overdue or upcoming follow-ups

@@ -4,6 +4,7 @@ import { useApplications } from '../hooks/useApplications';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { KanbanView } from '../components/KanbanView';
 import './Tracker.css';
 
 type Filter = 'all' | 'worth' | 'follow_up' | 'awaiting' | 'completed' | 'rejected';
@@ -936,6 +937,14 @@ function BulkDeleteBody({ apps }: { apps: Application[] }) {
 // ── Main Tracker Page ──────────────────────────────────
 export function Tracker() {
   const { applications, isReadOnly, isLoading, error, addApplication, updateApplication, deleteApplication } = useApplications();
+  const [view, setView] = useState<'list' | 'board'>(() => {
+    const saved = localStorage.getItem('tracker_view');
+    return saved === 'board' ? 'board' : 'list';
+  });
+  const handleSetView = (v: 'list' | 'board') => {
+    setView(v);
+    localStorage.setItem('tracker_view', v);
+  };
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<SortKey>('dateApplied');
   const [search, setSearch] = useState('');
@@ -1251,6 +1260,30 @@ export function Tracker() {
           ))}
         </div>
         <div className="tracker-controls__right">
+          <div className="tracker-view-toggle">
+            <button
+              className={`tracker-view-toggle__btn${view === 'list' ? ' tracker-view-toggle__btn--active' : ''}`}
+              onClick={() => handleSetView('list')}
+              title="List view"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 3.5h10M2 7h10M2 10.5h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              List
+            </button>
+            <button
+              className={`tracker-view-toggle__btn${view === 'board' ? ' tracker-view-toggle__btn--active' : ''}`}
+              onClick={() => handleSetView('board')}
+              title="Board view"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="1.5" y="2" width="3" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+                <rect x="5.5" y="2" width="3" height="7" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+                <rect x="9.5" y="2" width="3" height="5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+              Board
+            </button>
+          </div>
           <input
             className="tracker-search"
             type="text"
@@ -1317,7 +1350,7 @@ export function Tracker() {
         </div>
       )}
 
-      {/* Application List */}
+      {/* Application List / Board */}
       {sorted.length === 0 ? (
         <div className="tracker-empty animate-in">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
@@ -1329,6 +1362,17 @@ export function Tracker() {
             {filter === 'all' ? 'Add your first application to get started' : 'Try a different filter'}
           </p>
         </div>
+      ) : view === 'board' ? (
+        <KanbanView
+          applications={sorted}
+          isReadOnly={isReadOnly}
+          onUpdateStatus={(id, status) => {
+            updateApplication(id, { applicationStatus: status });
+            showToast(`Moved to ${APP_STATUS_LABELS[status]}`);
+            flashCard(id);
+          }}
+          onCardClick={(id) => setExpandedId(expandedId === id ? null : id)}
+        />
       ) : (
         <>
           <div className="tracker-list">
