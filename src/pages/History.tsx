@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
 import type { Analysis } from '../types';
+import { SignupPromptModal } from '../components/SignupPromptModal';
 import './History.css';
 
 function hasInProgress(items: Analysis[]) {
@@ -24,6 +25,7 @@ export function History() {
   const pendingAnalysisId = (location.state as { pendingAnalysisId?: string } | null)?.pendingAnalysisId;
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
+  const [showSignupModal, setShowSignupModal] = useState(false);
 
   function handleAddToTracker(a: Analysis) {
     const prefill = {
@@ -40,10 +42,15 @@ export function History() {
     let cancelled = false;
     const pollRef: { timer?: ReturnType<typeof setInterval> } = {};
 
+    function toUTC(iso: string) {
+      // Treat bare timestamps (no timezone suffix) as UTC
+      return iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+    }
+
     function sortByNewest(items: Analysis[]) {
       return [...items].sort((a, b) => {
-        const ta = new Date(a.timestamp ?? a.createdAt).getTime();
-        const tb = new Date(b.timestamp ?? b.createdAt).getTime();
+        const ta = new Date(toUTC(a.timestamp ?? a.createdAt)).getTime();
+        const tb = new Date(toUTC(b.timestamp ?? b.createdAt)).getTime();
         return tb - ta;
       });
     }
@@ -310,9 +317,9 @@ export function History() {
                         </button>
                         <button
                           className="btn btn-secondary history-item__download-btn"
-                          disabled={isDemo || downloadingId === a.analysisId}
-                          title="Download optimized resume"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDownload(a); }}
+                          disabled={downloadingId === a.analysisId}
+                          title={isDemo ? 'Sign up for full access' : 'Download optimized resume'}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (isDemo) { setShowSignupModal(true); } else { handleDownload(a); } }}
                         >
                           {downloadingId === a.analysisId ? (
                             <>
@@ -377,6 +384,10 @@ export function History() {
           </>
         );
       })()}
+
+      {showSignupModal && (
+        <SignupPromptModal onClose={() => setShowSignupModal(false)} />
+      )}
     </div>
   );
 }

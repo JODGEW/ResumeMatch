@@ -92,6 +92,27 @@ function buildDocument(parsed: ParsedResume): Document {
 
   // ── Sections ──
   for (const section of parsed.sections) {
+    // Contact/preamble block: 9pt, centered, muted gray
+    if (section.isContact && !section.header) {
+      for (const line of section.lines) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                size: 18, // 9pt
+                font: 'Calibri',
+                color: '666666',
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 20, after: 20 },
+          })
+        );
+      }
+      continue;
+    }
+
     // Section header (if present)
     if (section.header) {
       // Thin divider line before each section

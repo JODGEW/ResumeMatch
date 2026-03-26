@@ -43,8 +43,9 @@ export function Upload() {
       setStage('done');
       navigate(`/results/${analysisId}`);
     } catch (err: unknown) {
-      const axiosData = (err as { response?: { data?: { errorMessage?: string; message?: string } } })?.response?.data;
-      const message = axiosData?.errorMessage
+      const axiosData = (err as { response?: { data?: { error?: string; errorMessage?: string; message?: string } } })?.response?.data;
+      const message = axiosData?.error
+        || axiosData?.errorMessage
         || axiosData?.message
         || (err instanceof Error ? err.message : null)
         || 'Upload failed. Please try again.';

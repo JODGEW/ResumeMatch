@@ -14,6 +14,7 @@
 export interface ParsedSection {
   header: string | null; // null = preamble (contact + optional summary)
   lines: string[];       // non-empty lines of content under this header
+  isContact?: boolean;   // true for preamble lines detected as contact info
 }
 
 export interface ParsedResume {
@@ -42,6 +43,9 @@ const KNOWN_HEADERS = [
   'VOLUNTEER',
   'INTERESTS',
 ];
+
+// Contact pattern: emails, URLs, phone numbers, pipe-separated info
+const CONTACT_RE = /(@|linkedin\.com|github\.com|\(\d{3}\)|\d{3}[-.]?\d{3}[-.]?\d{4}|[\w.]+@[\w.]+\.[\w]+)/i;
 
 // Regex: line is ALL CAPS, 3+ chars, only letters/spaces/&/,
 const ALL_CAPS_RE = /^[A-Z][A-Z\s&,/]+$/;
@@ -191,6 +195,15 @@ export function parseResume(suggestedText: string): ParsedResume {
   // Don't forget the last section
   if (currentSection.lines.length > 0 || currentSection.header !== null) {
     sections.push(currentSection);
+  }
+
+  // Mark preamble section (header === null) as contact info
+  // Preamble lines are everything between the name and the first section header —
+  // typically title, email, phone, LinkedIn, location, pipe-separated contact blocks
+  for (const section of sections) {
+    if (section.header === null && section.lines.length > 0) {
+      section.isContact = section.lines.some(line => CONTACT_RE.test(line));
+    }
   }
 
   return { name, sections };

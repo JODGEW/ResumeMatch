@@ -59,9 +59,9 @@ function getAppStageAction(app: Application, step: Application['applicationStatu
   const stageStart = step === 'applied' ? app.dateApplied : (app.statusChangedAt || app.dateApplied);
   const age = Math.max(0, Math.round((Date.now() - new Date(stageStart).getTime()) / 86400000));
   switch (step) {
-    case 'applied':     return age >= 14 ? 'No update in 2w — follow up?' : null;
-    case 'screening':   return age >= 7  ? 'Screening for 1w+ — check in?' : null;
-    case 'interviewing': return age >= 10 ? 'No update in 10d — follow up?' : null;
+    case 'applied':     return age >= 14 ? `No update in ${age}d — follow up?` : null;
+    case 'screening':   return age >= 7  ? `Screening for ${age}d — check in?` : null;
+    case 'interviewing': return age >= 10 ? `No update in ${age}d — follow up?` : null;
     default: return null;
   }
 }

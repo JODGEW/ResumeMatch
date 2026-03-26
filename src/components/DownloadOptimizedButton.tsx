@@ -15,6 +15,7 @@
 import React, { useState, useCallback } from 'react';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
+import { SignupPromptModal } from './SignupPromptModal';
 
 interface DownloadOptimizedButtonProps {
   suggestedText?: string;
@@ -31,12 +32,13 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSignupModal, setShowSignupModal] = useState(false);
 
   const handleDownload = useCallback(async () => {
     if (isGenerating) return;
 
     if (isDemo) {
-      // TODO: trigger sign-up modal (Phase 2)
+      setShowSignupModal(true);
       return;
     }
 
@@ -64,7 +66,7 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
     <div className={className}>
       <button
         onClick={handleDownload}
-        disabled={isGenerating || isDemo}
+        disabled={isGenerating}
         title={isDemo ? 'Sign up for full access' : undefined}
         style={{
           display: 'inline-flex',
@@ -74,20 +76,19 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
           fontSize: '14px',
           fontWeight: 500,
           color: '#fff',
-          backgroundColor: isGenerating || isDemo ? '#6b7280' : '#2563eb',
+          backgroundColor: isGenerating ? '#6b7280' : '#2563eb',
           border: 'none',
           borderRadius: '6px',
-          cursor: isGenerating || isDemo ? 'not-allowed' : 'pointer',
-          opacity: isDemo ? 0.6 : 1,
+          cursor: isGenerating ? 'not-allowed' : 'pointer',
           transition: 'background-color 0.15s',
         }}
         onMouseEnter={(e) => {
-          if (!isGenerating && !isDemo) {
+          if (!isGenerating) {
             (e.target as HTMLButtonElement).style.backgroundColor = '#1d4ed8';
           }
         }}
         onMouseLeave={(e) => {
-          if (!isGenerating && !isDemo) {
+          if (!isGenerating) {
             (e.target as HTMLButtonElement).style.backgroundColor = '#2563eb';
           }
         }}
@@ -125,6 +126,10 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
         >
           {error}
         </p>
+      )}
+
+      {showSignupModal && (
+        <SignupPromptModal onClose={() => setShowSignupModal(false)} />
       )}
     </div>
   );
