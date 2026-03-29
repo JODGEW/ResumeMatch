@@ -1,5 +1,4 @@
 import client from './client';
-import { fetchAuthSession } from 'aws-amplify/auth';
 
 export async function getResumeUrl(analysisId: string, userId: string): Promise<string> {
   const { data } = await client.get(`/resume/${analysisId}?userId=${userId}`);
@@ -7,11 +6,16 @@ export async function getResumeUrl(analysisId: string, userId: string): Promise<
 }
 
 export async function requestUploadUrl(fileName: string, jobDescription: string) {
-  const session = await fetchAuthSession();
-  const userId = (session.tokens?.idToken?.payload?.email as string) || 'dev@example.com';
-
-  const { data } = await client.post('/upload', { userId, fileName, jobDescription });
+  const { data } = await client.post('/upload', { fileName, jobDescription });
   return data; // returns { presignedUrl, presignedFields, analysisId, s3Key }
+}
+
+export async function requestUploadWithReuse(
+  existingAnalysisId: string,
+  jobDescription: string
+) {
+  const { data } = await client.post('/upload', { existingAnalysisId, jobDescription });
+  return data; // returns { analysisId, reused: true, presignedUrl: null, presignedFields: null }
 }
 
 export async function uploadFileToS3(

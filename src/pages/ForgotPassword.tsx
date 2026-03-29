@@ -5,6 +5,19 @@ import { CodeInput } from '../components/CodeInput';
 import { useResendTimer } from '../hooks/useResendTimer';
 import './Login.css';
 
+function getPasswordStrength(pw: string): 'weak' | 'medium' | 'strong' {
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (/[a-z]/.test(pw)) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^a-zA-Z0-9]/.test(pw)) score++;
+  if (pw.length >= 12) score++;
+  if (score <= 2) return 'weak';
+  if (score <= 4) return 'medium';
+  return 'strong';
+}
+
 export function ForgotPassword() {
   const [step, setStep] = useState<'request' | 'reset'>('request');
   const [email, setEmail] = useState('');
@@ -199,7 +212,7 @@ export function ForgotPassword() {
                   type={showPassword ? 'text' : 'password'}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder="Create a strong password"
                   required
                   autoComplete="new-password"
                 />
@@ -212,18 +225,30 @@ export function ForgotPassword() {
                   {showPassword ? eyeClosed : eyeOpen}
                 </button>
               </div>
-              {newPassword.length > 0 && (
+              {newPassword.length === 0 ? (
+                <p className="login-card__pw-hint">Use 8+ characters with letters, numbers &amp; symbols</p>
+              ) : (
                 <ul className="login-card__pw-rules">
-                  <li data-met={newPassword.length >= 8}>At least 8 characters</li>
-                  <li data-met={/[a-z]/.test(newPassword)}>Lowercase letter</li>
-                  <li data-met={/[A-Z]/.test(newPassword)}>Uppercase letter</li>
-                  <li data-met={/\d/.test(newPassword)}>Number</li>
-                  <li data-met={/[^a-zA-Z0-9]/.test(newPassword)}>Special character</li>
+                  <li data-met={newPassword.length >= 8}>8+ chars</li>
+                  <li data-met={/[a-z]/.test(newPassword)}>lowercase</li>
+                  <li data-met={/[A-Z]/.test(newPassword)}>uppercase</li>
+                  <li data-met={/\d/.test(newPassword)}>number</li>
+                  <li data-met={/[^a-zA-Z0-9]/.test(newPassword)}>symbol</li>
                 </ul>
+              )}
+              {newPassword.length > 0 && (
+                <div className={`login-card__pw-strength login-card__pw-strength--${getPasswordStrength(newPassword)}`}>
+                  <div className="login-card__pw-strength-track">
+                    <div className="login-card__pw-strength-seg" />
+                    <div className="login-card__pw-strength-seg" />
+                    <div className="login-card__pw-strength-seg" />
+                  </div>
+                  <span className="login-card__pw-strength-label">{getPasswordStrength(newPassword)}</span>
+                </div>
               )}
             </div>
 
-            <div className="login-card__field">
+            <div className={`login-card__field${confirmPassword.length > 0 && confirmPassword !== newPassword ? ' login-card__field--error' : ''}`}>
               <label htmlFor="confirmPassword">Confirm new password</label>
               <div className="login-card__password-wrapper">
                 <input
@@ -245,8 +270,18 @@ export function ForgotPassword() {
                   {showConfirmPassword ? eyeClosed : eyeOpen}
                 </button>
               </div>
-              {confirmPassword.length > 0 && confirmPassword !== newPassword && (
-                <span className="login-card__pw-mismatch">Passwords do not match</span>
+              {confirmPassword.length > 0 && (
+                confirmPassword === newPassword ? (
+                  <span className="login-card__pw-match login-card__pw-match--yes">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Passwords match
+                  </span>
+                ) : (
+                  <span className="login-card__pw-match login-card__pw-match--no">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    Passwords do not match
+                  </span>
+                )
               )}
             </div>
 

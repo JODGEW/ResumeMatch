@@ -1,16 +1,33 @@
-import { useCallback } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useCallback, useState } from 'react';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 import './FileDropzone.css';
+
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB — matches backend presigned URL constraint
 
 interface Props {
   file: File | null;
   onFileSelect: (file: File) => void;
 }
 
+function getErrorMessage(rejection: FileRejection): string {
+  const error = rejection.file && rejection.errors[0];
+  if (!error) return 'File not accepted.';
+  if (error.code === 'file-invalid-type') return 'Only PDF files are accepted.';
+  if (error.code === 'file-too-large') return `File too large. Maximum size is 5 MB.`;
+  return error.message;
+}
+
 export function FileDropzone({ file, onFileSelect }: Props) {
+  const [error, setError] = useState<string | null>(null);
+
   const onDrop = useCallback(
-    (accepted: File[]) => {
+    (accepted: File[], rejections: FileRejection[]) => {
+      if (rejections.length > 0) {
+        setError(getErrorMessage(rejections[0]));
+        return;
+      }
       if (accepted.length > 0) {
+        setError(null);
         onFileSelect(accepted[0]);
       }
     },
@@ -21,13 +38,14 @@ export function FileDropzone({ file, onFileSelect }: Props) {
     onDrop,
     accept: { 'application/pdf': ['.pdf'] },
     maxFiles: 1,
+    maxSize: MAX_SIZE,
     multiple: false,
   });
 
   return (
     <div
       {...getRootProps()}
-      className={`dropzone ${isDragActive ? 'dropzone--active' : ''} ${file ? 'dropzone--has-file' : ''}`}
+      className={`dropzone ${isDragActive ? 'dropzone--active' : ''} ${file ? 'dropzone--has-file' : ''} ${error ? 'dropzone--error' : ''}`}
     >
       <input {...getInputProps()} />
 
@@ -70,6 +88,10 @@ export function FileDropzone({ file, onFileSelect }: Props) {
             </span>
             <span className="dropzone__hint">or click to browse files</span>
           </>
+        )}
+
+        {error && (
+          <span className="dropzone__error">{error}</span>
         )}
       </div>
     </div>

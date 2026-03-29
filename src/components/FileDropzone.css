@@ -82,6 +82,16 @@
   margin-top: 0.25rem;
 }
 
+.dropzone--error {
+  border-color: var(--danger-border);
+}
+
+.dropzone__error {
+  font-size: 0.75rem;
+  color: var(--danger);
+  margin-top: 0.5rem;
+}
+
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
   .dropzone {

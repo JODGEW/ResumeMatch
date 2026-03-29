@@ -38,7 +38,7 @@ Demo account is available via the **Try Demo** button on the login page.
 Upload Resume (PDF) + Paste JD → Textract OCR → Bedrock 4-Pass Analysis → DynamoDB → Results UI
 ```
 
-1. **Upload** — User uploads a resume PDF and pastes the target job description
+1. **Upload** — User uploads a resume PDF and pastes the target job description. Returning users can reuse their last uploaded resume without re-uploading
 2. **Extract** — Amazon Textract pulls structured text from the PDF
 3. **Analyze** — Amazon Bedrock (Claude Haiku) runs four passes: keyword extraction, match scoring, experience gap analysis, and resume rewriting
 4. **Store** — Results persist in DynamoDB for fast retrieval and history
@@ -51,6 +51,7 @@ Upload Resume (PDF) + Paste JD → Textract OCR → Bedrock 4-Pass Analysis → 
 - **Keyword gap analysis** — highlights missing keywords from the job description
 - **Experience mismatch detection** — compares resume experience against job requirements
 - **AI resume rewriting** — suggests improved resume phrasing based on the JD
+- **Resume reuse** — returning users see their last uploaded resume auto-selected, allowing instant analysis against a new JD without re-uploading
 
 ### Application Tracking
 - **Kanban board view** — drag-and-drop cards across application stages (Not Applied → Applied → Screening → Interviewing → Offer / Rejected)
@@ -61,6 +62,7 @@ Upload Resume (PDF) + Paste JD → Textract OCR → Bedrock 4-Pass Analysis → 
 
 ### Platform Features
 - **Analysis history** — view past resume analyses and results
+- **One-click resume download** — download AI-optimized resume as a Word document
 - **Secure authentication** — Cognito login, signup, verification, and password reset
 - **Demo mode** — explore the app instantly without creating an account
 - **Cost dashboard (demo workspace)** — visualize estimated AI inference cost per analysis

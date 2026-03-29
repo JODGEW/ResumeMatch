@@ -1,57 +1,145 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { FileDropzone } from '../components/FileDropzone';
-import { requestUploadUrl, uploadFileToS3 } from '../api/upload';
+import { LastResumeCard } from '../components/LastResumeCard';
+import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3 } from '../api/upload';
+import '../components/LastResumeCard.css';
 import './Upload.css';
 
-type Stage = 'idle' | 'requesting' | 'storing' | 'uploading' | 'done';
+const DEMO_EMAIL = 'demo123@resumeapp.com';
+const STORAGE_KEY = 'resumematch_last_resume';
+
+interface LastResumeMetadata {
+  analysisId: string;
+  fileName: string;
+  uploadedAt: number;
+}
+
+type Stage = 'idle' | 'requesting' | 'processing' | 'uploading' | 'done';
 
 const STAGE_LABELS: Record<Stage, string> = {
   idle: '',
   requesting: 'Getting upload URL...',
-  storing: 'Saving analysis record...',
+  processing: 'Preparing analysis...',
   uploading: 'Uploading resume to S3...',
   done: 'Redirecting to results...',
 };
 
 export function Upload() {
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState('');
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
+  const isDemo = user?.email === DEMO_EMAIL;
+
+  const [lastResume, setLastResume] = useState<LastResumeMetadata | null>(() => {
+    if (isDemo) return null;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try { return JSON.parse(saved); } catch { localStorage.removeItem(STORAGE_KEY); }
+    }
+    return null;
+  });
+  const [isChangingResume, setIsChangingResume] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const navigate = useNavigate();
 
   const isSubmitting = stage !== 'idle';
-  const canSubmit = file && jobDescription.trim().length > 0 && !isSubmitting;
+  // Resume source: either a new file or the saved last resume (auto-selected)
+  const activeResume = file || lastResume;
+  // When in change-resume mode, require a new file before enabling submit
+  const canSubmit = !!(isChangingResume ? file : activeResume) && jobDescription.trim().length > 0 && !isSubmitting;
+  // Reuse path when last resume is the active source (not changing, no new file)
+  const isReusing = !file && !!lastResume && !isChangingResume;
+
+  function saveLastResume(analysisId: string, fileName: string) {
+    if (isDemo) return;
+    const metadata: LastResumeMetadata = { analysisId, fileName, uploadedAt: Date.now() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(metadata));
+    setLastResume(metadata);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!file || !jobDescription.trim()) return;
+    if (!activeResume || !jobDescription.trim()) return;
+    if (isSubmitting) return;
 
     setError('');
 
     try {
-      // Step 1: Request presigned URL + store JD in one call
-      setStage('requesting');
-      const { presignedUrl, presignedFields, analysisId } = await requestUploadUrl(file.name, jobDescription);
+      if (isReusing && lastResume) {
+        // REUSE PATH — no S3 upload, backend copies existing object
+        setStage('requesting');
+        const { analysisId } = await requestUploadWithReuse(
+          lastResume.analysisId,
+          jobDescription
+        );
 
-      // Step 2: Upload file directly to S3
-      setStage('uploading');
-      await uploadFileToS3(presignedUrl, presignedFields, file);
+        saveLastResume(analysisId, lastResume.fileName);
 
-      // Step 3: Navigate to results
-      setStage('done');
-      navigate(`/results/${analysisId}`);
+        // Smooth progress: requesting (40%) → processing (80%) → done (100%)
+        setStage('processing');
+        await new Promise(r => setTimeout(r, 300));
+        setStage('done');
+        await new Promise(r => setTimeout(r, 200));
+        navigate(`/results/${analysisId}`);
+      } else if (file) {
+        // NORMAL PATH
+        setStage('requesting');
+        const { presignedUrl, presignedFields, analysisId } = await requestUploadUrl(file.name, jobDescription);
+
+        setStage('uploading');
+        try {
+          await uploadFileToS3(presignedUrl, presignedFields, file);
+        } catch (uploadErr) {
+          // S3 presigned POST may fail to return a readable response (CORS)
+          // but the file upload itself often succeeds. The backend already has
+          // the analysis record in 'processing' state. Navigate to results and
+          // let polling determine if the upload actually went through.
+          console.warn('S3 upload response error (file may have uploaded successfully):', uploadErr);
+        }
+
+        saveLastResume(analysisId, file.name);
+
+        setStage('done');
+        navigate(`/results/${analysisId}`);
+      }
     } catch (err: unknown) {
-      const axiosData = (err as { response?: { data?: { error?: string; errorMessage?: string; message?: string } } })?.response?.data;
-      const message = axiosData?.error
-        || axiosData?.errorMessage
-        || axiosData?.message
-        || (err instanceof Error ? err.message : null)
-        || 'Upload failed. Please try again.';
-      setError(message);
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string; errorMessage?: string; message?: string } } };
+      const status = axiosErr?.response?.status;
+
+      // If reuse fails with 404, the original resume is gone — clear and fall back to dropzone
+      if (isReusing && status === 404) {
+        localStorage.removeItem(STORAGE_KEY);
+        setLastResume(null);
+        setIsChangingResume(false);
+        setError('Previous resume is no longer available. Please upload again.');
+      } else {
+        const axiosData = axiosErr?.response?.data;
+        const message = axiosData?.error
+          || axiosData?.errorMessage
+          || axiosData?.message
+          || (err instanceof Error ? err.message : null)
+          || 'Upload failed. Please try again.';
+        setError(message);
+      }
       setStage('idle');
     }
+  }
+
+  function getProgressWidth(): string {
+    if (isReusing) {
+      if (stage === 'requesting') return '40%';
+      if (stage === 'processing') return '80%';
+      if (stage === 'done') return '100%';
+    } else {
+      if (stage === 'requesting') return '25%';
+      if (stage === 'uploading') return '75%';
+      if (stage === 'done') return '100%';
+    }
+    return '0%';
   }
 
   return (
@@ -67,7 +155,22 @@ export function Upload() {
             <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
             <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          {error}
+          <span>
+            {error}
+            {isChangingResume && lastResume && (
+              <button
+                type="button"
+                className="upload-error__revert"
+                onClick={() => {
+                  setIsChangingResume(false);
+                  setFile(null);
+                  setError('');
+                }}
+              >
+                Keep {lastResume.fileName}
+              </button>
+            )}
+          </span>
         </div>
       )}
 
@@ -110,7 +213,38 @@ export function Upload() {
                 <p className="text-secondary">Upload your resume as a PDF</p>
               </div>
             </div>
-            <FileDropzone file={file} onFileSelect={setFile} />
+            {lastResume && !file && !isChangingResume ? (
+              <div className={`upload-transition ${isTransitioning ? 'upload-transition--out' : ''}`}>
+                <LastResumeCard
+                  fileName={lastResume.fileName}
+                  uploadedAt={lastResume.uploadedAt}
+                  onReplace={() => {
+                    setIsTransitioning(true);
+                    setTimeout(() => {
+                      setIsChangingResume(true);
+                      setIsTransitioning(false);
+                    }, 150);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="upload-transition upload-transition--in">
+                {isChangingResume && lastResume && !file && (
+                  <p className="upload-replacing-hint">
+                    Replacing: {lastResume.fileName}
+                    <span> — </span>
+                    <button
+                      type="button"
+                      className="upload-replacing-cancel"
+                      onClick={() => setIsChangingResume(false)}
+                    >
+                      Cancel
+                    </button>
+                  </p>
+                )}
+                <FileDropzone file={file} onFileSelect={setFile} />
+              </div>
+            )}
           </div>
 
           <button
@@ -131,7 +265,12 @@ export function Upload() {
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M3 9h12M9 3l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                Analyze Resume
+                <span>
+                  Analyze Resume
+                  {isReusing && lastResume && !isChangingResume && (
+                    <span className="upload-submit__hint">Using {lastResume.fileName}</span>
+                  )}
+                </span>
               </>
             )}
           </button>
@@ -141,13 +280,7 @@ export function Upload() {
               <div className="upload-progress__track">
                 <div
                   className="upload-progress__bar"
-                  style={{
-                    width:
-                      stage === 'requesting' ? '25%'
-                        : stage === 'storing' ? '50%'
-                          : stage === 'uploading' ? '75%'
-                            : '100%',
-                  }}
+                  style={{ width: getProgressWidth() }}
                 />
               </div>
             </div>

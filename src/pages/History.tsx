@@ -74,6 +74,14 @@ export function History() {
 
         const sorted = sortByNewest(merged);
 
+        // Hide failed items older than 24h
+        const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const filtered = sorted.filter(a => {
+          if (a.status !== 'failed') return true;
+          const ts = new Date(toUTC(a.timestamp ?? a.createdAt)).getTime();
+          return ts > dayAgo;
+        });
+
         // Detect newly completed items
         const prev = prevStatusRef.current;
         const justCompleted = new Set<string>();
@@ -101,11 +109,11 @@ export function History() {
           }, 5000);
         }
 
-        setAnalyses(sorted);
+        setAnalyses(filtered);
         setLoading(false);
 
         // Start or stop polling based on in-progress items
-        if (hasInProgress(sorted) && !pollRef.timer) {
+        if (hasInProgress(filtered) && !pollRef.timer) {
           pollRef.timer = setInterval(load, 4000);
         } else if (!hasInProgress(sorted) && pollRef.timer) {
           clearInterval(pollRef.timer);

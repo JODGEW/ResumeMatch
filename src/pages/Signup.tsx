@@ -7,6 +7,19 @@ import './Login.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function getPasswordStrength(pw: string): 'weak' | 'medium' | 'strong' {
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (/[a-z]/.test(pw)) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^a-zA-Z0-9]/.test(pw)) score++;
+  if (pw.length >= 12) score++;
+  if (score <= 2) return 'weak';
+  if (score <= 4) return 'medium';
+  return 'strong';
+}
+
 export function Signup() {
   const [step, setStep] = useState<'register' | 'confirm'>('register');
   const [email, setEmail] = useState('');
@@ -150,7 +163,7 @@ export function Signup() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder="Create a strong password"
                   required
                   autoComplete="new-password"
                 />
@@ -174,14 +187,26 @@ export function Signup() {
                   )}
                 </button>
               </div>
-              {password.length > 0 && (
+              {password.length === 0 ? (
+                <p className="login-card__pw-hint">Use 8+ characters with letters, numbers &amp; symbols</p>
+              ) : (
                 <ul className="login-card__pw-rules">
-                  <li data-met={password.length >= 8}>At least 8 characters</li>
-                  <li data-met={/[a-z]/.test(password)}>Lowercase letter</li>
-                  <li data-met={/[A-Z]/.test(password)}>Uppercase letter</li>
-                  <li data-met={/\d/.test(password)}>Number</li>
-                  <li data-met={/[^a-zA-Z0-9]/.test(password)}>Special character</li>
+                  <li data-met={password.length >= 8}>8+ chars</li>
+                  <li data-met={/[a-z]/.test(password)}>lowercase</li>
+                  <li data-met={/[A-Z]/.test(password)}>uppercase</li>
+                  <li data-met={/\d/.test(password)}>number</li>
+                  <li data-met={/[^a-zA-Z0-9]/.test(password)}>symbol</li>
                 </ul>
+              )}
+              {password.length > 0 && (
+                <div className={`login-card__pw-strength login-card__pw-strength--${getPasswordStrength(password)}`}>
+                  <div className="login-card__pw-strength-track">
+                    <div className="login-card__pw-strength-seg" />
+                    <div className="login-card__pw-strength-seg" />
+                    <div className="login-card__pw-strength-seg" />
+                  </div>
+                  <span className="login-card__pw-strength-label">{getPasswordStrength(password)}</span>
+                </div>
               )}
             </div>
 
@@ -218,8 +243,18 @@ export function Signup() {
                   )}
                 </button>
               </div>
-              {confirmPassword.length > 0 && confirmPassword !== password && (
-                <span className="login-card__pw-mismatch">Passwords do not match</span>
+              {confirmPassword.length > 0 && (
+                confirmPassword === password ? (
+                  <span className="login-card__pw-match login-card__pw-match--yes">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Passwords match
+                  </span>
+                ) : (
+                  <span className="login-card__pw-match login-card__pw-match--no">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    Passwords do not match
+                  </span>
+                )
               )}
             </div>
 
