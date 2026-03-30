@@ -71,14 +71,20 @@ export function Results() {
   async function handleViewResume() {
     setResumeLoading(true);
     setResumeError(null);
+    const timeout = setTimeout(() => {
+      setResumeLoading(false);
+      setResumeError('Loading took too long. Please try again or re-upload your resume.');
+    }, 12000);
     try {
       const session = await fetchAuthSession();
       const userId = (session.tokens?.idToken?.payload?.email as string) || '';
       const url = await getResumeUrl(analysisId ?? '', userId);
+      clearTimeout(timeout);
       setResumeUrl(url);
     } catch (err) {
+      clearTimeout(timeout);
       console.error('Failed to load resume', err);
-      setResumeError('Failed to load resume. Please try again.');
+      setResumeError('Failed to load resume. Check your connection and try again.');
     } finally {
       setResumeLoading(false);
     }
@@ -224,7 +230,7 @@ export function Results() {
                 </>
               )}
             </button>
-            <Link to="/upload" className="btn btn-secondary">
+            <Link to="/upload" className="btn btn-primary">
               New analysis
             </Link>
           </div>
@@ -283,9 +289,9 @@ export function Results() {
         </div>
       )}
 
-      {/* Score Row: Ring & Breakdown side by side */}
-      <div className="results-score-row">
-        <div className="results-score card animate-in stagger-1">
+      {/* Score Row: Ring & Breakdown in one card */}
+      <div className="results-score-row card animate-in stagger-1">
+        <div className="results-score">
           {analysis.matchScore != null ? (() => {
             const interp = getScoreInterpretation(Number(analysis.matchScore));
             return (
@@ -303,7 +309,7 @@ export function Results() {
 
         {/* Score Breakdown */}
         {analysis.scoreBreakdown && (
-          <div className="card results-score-breakdown animate-in stagger-2">
+          <div className="results-score-breakdown">
             <h4 className="results-breakdown-title">Score Breakdown</h4>
 
             {analysis.scoreSummary && (
@@ -389,36 +395,31 @@ export function Results() {
           )}
         </div>
 
-        {/* Top Priority Missing Keywords */}
-        {analysis.topMissing && analysis.topMissing.length > 0 && (
-          <div className="card results-keyword-section animate-in stagger-3">
-            <h4>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 2l1.5 3.5H13l-2.8 2 1 3.5L8 9.5l-3.2 1.5 1-3.5L3 5.5h3.5z"
-                  stroke="var(--warning, #ca8a04)" strokeWidth="1.5"
-                  strokeLinejoin="round" fill="none" />
-              </svg>
-              Top Priority Keywords
-              <span className="results-keyword-count" style={{ color: 'var(--warning, #ca8a04)' }}>
-                {analysis.topMissing.length}
-              </span>
-            </h4>
-            <div className="results-suggestions">
-              {analysis.topMissing.map((item) => (
-                <div key={item.keyword} className="card results-suggestion" style={{ marginBottom: '0.5rem' }}>
-                  <div className="results-suggestion__header">
-                    <span className="results-suggestion__section">{item.keyword}</span>
-                    <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                      {item.importanceScore}/10
-                    </span>
-                  </div>
-                  <p className="results-suggestion__reason text-muted">{item.reason}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Top Priority Keywords */}
+      {analysis.topMissing && analysis.topMissing.length > 0 && (
+        <div className="results-section animate-in stagger-3">
+          <h2>Top Priority Keywords</h2>
+          <p className="text-secondary" style={{ marginBottom: '1.25rem' }}>
+            High-impact keywords missing from your resume, ranked by importance
+          </p>
+
+          <div className="results-suggestions">
+            {analysis.topMissing.map((item) => (
+              <div key={item.keyword} className="card results-suggestion">
+                <div className="results-suggestion__header">
+                  <span className="results-suggestion__section">{item.keyword}</span>
+                  <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                    {item.importanceScore}/10
+                  </span>
+                </div>
+                <p className="results-suggestion__reason text-muted">{item.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Suggestions */}
       {analysis.suggestions && analysis.suggestions.length > 0 && (

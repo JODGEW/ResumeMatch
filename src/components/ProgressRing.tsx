@@ -107,8 +107,10 @@ export function ProgressRing({ score, size = 220, label }: Props) {
       </svg>
 
       <div className="progress-ring__center">
-        <span className="progress-ring__value">{animatedScore}</span>
-        <span className="progress-ring__percent">%</span>
+        <div className="progress-ring__score-row">
+          <span className="progress-ring__value">{animatedScore}</span>
+          <span className="progress-ring__percent">%</span>
+        </div>
         <span className="progress-ring__label" style={{ color: getLabelColor() }}>{label ?? getLabel()}</span>
       </div>
     </div>

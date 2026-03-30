@@ -109,7 +109,7 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
   }, []);
 
   const handleTouchStart = useCallback((e: React.TouchEvent, appId: string) => {
-    if (isReadOnly) return;
+    if (isReadOnly || window.innerWidth <= 480) return;
     const touch = e.touches[0];
     touchState.current = {
       id: appId,
@@ -219,6 +219,7 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
                   onTouchStart={(e) => handleTouchStart(e, app.id)}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
+                  onUpdateStatus={onUpdateStatus}
                 />
               ))}
             </div>
@@ -239,6 +240,7 @@ function KanbanCard({
   onTouchStart,
   onTouchMove,
   onTouchEnd,
+  onUpdateStatus,
 }: {
   app: Application;
   isReadOnly: boolean;
@@ -249,6 +251,7 @@ function KanbanCard({
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: () => void;
+  onUpdateStatus: (id: string, status: Application['applicationStatus']) => void;
 }) {
   const scoring = calculateOutreachScore(app);
   const matchColor = getScoreColor(app.skillMatch.matchPercentage);
@@ -290,6 +293,21 @@ function KanbanCard({
       </div>
       {app.contact && (
         <span className="kanban__card-contact">{app.contact.name}</span>
+      )}
+      {!isReadOnly && (
+        <select
+          className="kanban__card-status-select"
+          value={app.applicationStatus}
+          onClick={e => e.stopPropagation()}
+          onChange={e => {
+            e.stopPropagation();
+            onUpdateStatus(app.id, e.target.value as Application['applicationStatus']);
+          }}
+        >
+          {COLUMNS.map(col => (
+            <option key={col.key} value={col.key}>{col.label}</option>
+          ))}
+        </select>
       )}
     </div>
   );

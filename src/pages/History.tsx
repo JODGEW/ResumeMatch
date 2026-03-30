@@ -40,7 +40,7 @@ export function History() {
 
   useEffect(() => {
     let cancelled = false;
-    const pollRef: { timer?: ReturnType<typeof setInterval> } = {};
+    const pollRef: { timer?: ReturnType<typeof setInterval>; started?: number } = {};
 
     function toUTC(iso: string) {
       // Treat bare timestamps (no timezone suffix) as UTC
@@ -114,7 +114,24 @@ export function History() {
 
         // Start or stop polling based on in-progress items
         if (hasInProgress(filtered) && !pollRef.timer) {
-          pollRef.timer = setInterval(load, 4000);
+          pollRef.started = Date.now();
+          pollRef.timer = setInterval(() => {
+            // Stop polling after 60s and show timeout message
+            if (pollRef.started && Date.now() - pollRef.started > 90000) {
+              clearInterval(pollRef.timer);
+              pollRef.timer = undefined;
+              if (!cancelled) {
+                // Mark still-processing items as timed out visually
+                setAnalyses(prev => prev.map(a =>
+                  (a.status === 'pending' || a.status === 'processing')
+                    ? { ...a, status: 'failed' as const, errorMessage: 'Analysis is taking longer than expected. Refresh the page to check again.' }
+                    : a
+                ));
+              }
+              return;
+            }
+            load();
+          }, 4000);
         } else if (!hasInProgress(sorted) && pollRef.timer) {
           clearInterval(pollRef.timer);
           pollRef.timer = undefined;
@@ -155,9 +172,16 @@ export function History() {
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
   async function handleDownload(a: Analysis) {
     if (downloadingId) return;
     setDownloadingId(a.analysisId);
+    setDownloadError(null);
+    const timeout = setTimeout(() => {
+      setDownloadingId(null);
+      setDownloadError('Download took too long. Check your connection and try again.');
+    }, 12000);
     try {
       // History endpoint may not include suggestedText — fetch full analysis if needed
       let text = a.suggestedText;
@@ -165,11 +189,14 @@ export function History() {
         const full = await getAnalysis(a.analysisId);
         text = full.suggestedText;
       }
-      if (!text?.trim()) return;
+      clearTimeout(timeout);
+      if (!text?.trim()) { setDownloadingId(null); return; }
       const parsed = parseResume(text);
       await downloadOptimizedResume(parsed);
     } catch (err) {
+      clearTimeout(timeout);
       console.error('Download failed:', err);
+      setDownloadError('Download failed. Check your connection and try again.');
     } finally {
       setDownloadingId(null);
     }
@@ -200,13 +227,13 @@ export function History() {
         </div>
       )}
 
-      {error && (
+      {(error || downloadError) && (
         <div className="upload-error animate-in">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
             <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          {error}
+          {error || downloadError}
         </div>
       )}
 
@@ -247,7 +274,7 @@ export function History() {
                     <div className="history-item__left">
                       {a.status === 'completed' && a.matchScore != null ? (
                         <div className="history-item__score" style={{ color: getScoreColor(a.matchScore) }}>
-                          <svg width="44" height="44" viewBox="0 0 44 44">
+                          <svg width="56" height="56" viewBox="0 0 44 44">
                             <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="2.5" />
                             <circle
                               cx="22" cy="22" r="18"
@@ -259,7 +286,7 @@ export function History() {
                               transform="rotate(-90 22 22)"
                             />
                           </svg>
-                          <span className="history-item__score-value">{a.matchScore}</span>
+                          <span className="history-item__score-value">{a.matchScore}%</span>
                         </div>
                       ) : (
                         <div className={`status-badge status-badge--${a.status}`}>
@@ -293,12 +320,13 @@ export function History() {
                       ) : null}
                       {a.presentKeywords && a.missingKeywords && (
                         <div className="history-item__stats">
-                          <span className="text-success">
-                            {a.presentKeywords.length} matched
+                          <span className="history-item__pill history-item__pill--success">
+                            <span className="history-item__pill-dot" />
+                            {a.presentKeywords.length} Matched
                           </span>
-                          <span className="history-item__stats-divider" />
-                          <span className="text-danger">
-                            {a.missingKeywords.length} missing
+                          <span className="history-item__pill history-item__pill--danger">
+                            <span className="history-item__pill-dot" />
+                            {a.missingKeywords.length} Missing
                           </span>
                         </div>
                       )}
@@ -316,7 +344,7 @@ export function History() {
                     {a.status === 'completed' && a.matchScore != null && (
                       <div className="history-item__actions">
                         <button
-                          className="btn btn-secondary history-item__tracker-btn"
+                          className="btn btn-primary history-item__tracker-btn"
                           disabled={isDemo}
                           title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}

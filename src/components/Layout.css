@@ -89,6 +89,9 @@
 }
 
 .nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
   font-family: var(--font-display);
   font-size: 0.8125rem;
   font-weight: 600;
@@ -99,14 +102,28 @@
   transition: all 0.2s;
 }
 
+.nav__link svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
 .nav__link:hover {
   color: var(--text-primary);
   background: var(--bg-elevated);
 }
 
+.nav__link:hover svg {
+  opacity: 0.85;
+}
+
 .nav__link--active {
   color: var(--accent) !important;
   background: var(--accent-dim);
+}
+
+.nav__link--active svg {
+  opacity: 1;
 }
 
 .nav__user {

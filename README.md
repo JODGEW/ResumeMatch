@@ -28,21 +28,26 @@ Demo account is available via the **Try Demo** button on the login page.
 
 - Fully serverless architecture with automatic scaling
 - Multi-pass AI analysis pipeline using Amazon Bedrock
+- DynamoDB read-through cache with deterministic hashing, TTL expiry, gzip compression for large payloads, and silent fallback on failure
 - Cost tracking dashboard for AI inference monitoring
+- Cache-aware observability — hit rate, latency comparison, and cost savings derived from the same analysis records
 - Resume history stored in DynamoDB for fast retrieval
 - Secure authentication and password recovery with AWS Cognito
 
 ## How It Works
 
 ```
-Upload Resume (PDF) + Paste JD → Textract OCR → Bedrock 4-Pass Analysis → DynamoDB → Results UI
+Upload + Paste JD → Cache Check → [hit]  → Return cached result → Results UI
+                                → [miss] → Textract → Bedrock 4-Pass → Cache Write → DynamoDB → Results UI
 ```
 
 1. **Upload** — User uploads a resume PDF and pastes the target job description. Returning users can reuse their last uploaded resume without re-uploading
-2. **Extract** — Amazon Textract pulls structured text from the PDF
-3. **Analyze** — Amazon Bedrock (Claude Haiku) runs four passes: keyword extraction, match scoring, experience gap analysis, and resume rewriting
-4. **Store** — Results persist in DynamoDB for fast retrieval and history
-5. **Display** — Frontend renders match score with breakdown, keyword gaps with priority ranking, experience warnings, actionable suggestions, and a side-by-side diff of the rewritten resume
+2. **Cache Check** — Lambda normalizes inputs (trim, lowercase, collapse whitespace), hashes them into a deterministic cache key (`v1#analysis#<sha256>`), and looks up the `ResumeCache` DynamoDB table. On hit, returns cached result instantly. On miss or failure, falls through silently to the pipeline
+3. **Extract** — Amazon Textract pulls structured text from the PDF
+4. **Analyze** — Amazon Bedrock (Claude Haiku) runs four passes: keyword extraction, match scoring, experience gap analysis, and resume rewriting
+5. **Cache Write** — Result is written to `ResumeCache` with a 48-hour TTL. Payloads over 200KB are gzip-compressed; over 350KB are skipped. Write failures are logged and swallowed — never block the user
+6. **Store** — Results persist in `ResumeAnalysis` DynamoDB table with cache metadata (`cacheSource`, `cacheLatencyMs`) for dashboard analytics
+7. **Display** — Frontend renders match score with breakdown, keyword gaps with priority ranking, experience warnings, actionable suggestions, and a side-by-side diff of the rewritten resume
 
 ## Features
 
@@ -60,12 +65,19 @@ Upload Resume (PDF) + Paste JD → Textract OCR → Bedrock 4-Pass Analysis → 
 - **Follow-up reminders** — notifications for overdue or upcoming follow-ups
 - **Contact management** — store recruiter or hiring manager information
 
+### Caching Layer
+- **DynamoDB read-through cache** — deterministic SHA-256 hashing of normalized inputs with versioned key prefix (`v1#analysis#<hash>`)
+- **TTL management** — 48-hour TTL for successful results, 10-minute TTL for failures, with manual expiry check before trusting results (DynamoDB TTL deletion can lag up to 48 hours)
+- **Compression** — gzip for payloads over 200KB, skip for over 350KB, with explicit `compressed` flag and mutually exclusive `result`/`resultCompressed` fields
+- **Silent fallback** — cache read and write failures are logged and swallowed independently; pipeline always runs on miss or error
+- **Cache-aware dashboard** — `cacheSource` and `cacheLatencyMs` written to each analysis record, enabling frontend-derived hit rate, latency comparison, and cost savings without a separate CloudWatch pipeline
+
 ### Platform Features
 - **Analysis history** — view past resume analyses and results
 - **One-click resume download** — download AI-optimized resume as a Word document
 - **Secure authentication** — Cognito login, signup, verification, and password reset
 - **Demo mode** — explore the app instantly without creating an account
-- **Cost dashboard (demo workspace)** — visualize estimated AI inference cost per analysis
+- **Cost dashboard (demo workspace)** — visualize estimated AI inference cost per analysis with cache hit/miss breakdown
 
 ## Authentication Flow
 
@@ -128,7 +140,8 @@ The score breakdown is visible in each application's detail view.
 Built and deployed as a fully serverless stack:
 
 - **Compute:** AWS Lambda
-- **Storage:** S3, DynamoDB
+- **Storage:** S3, DynamoDB (ResumeAnalysis + ResumeCache)
+- **Caching:** DynamoDB read-through cache with TTL, compression, and fallback isolation
 - **AI/ML:** Amazon Textract (OCR), Amazon Bedrock (Claude Haiku)
 - **API:** API Gateway
 - **Auth:** AWS Cognito (email/password authentication, signup verification, password reset flow, session management)
@@ -151,7 +164,7 @@ AI:
 
 Infrastructure:
 - S3
-- DynamoDB
+- DynamoDB (ResumeAnalysis, ResumeCache)
 - CloudFront
 - Cognito
 

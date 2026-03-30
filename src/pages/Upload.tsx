@@ -32,6 +32,9 @@ export function Upload() {
   const [jobDescription, setJobDescription] = useState('');
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ jd?: string; resume?: string }>({});
+  const [touched, setTouched] = useState<{ jd?: boolean; resume?: boolean }>({});
+  const [submitError, setSubmitError] = useState('');
   const isDemo = user?.email === DEMO_EMAIL;
 
   const [lastResume, setLastResume] = useState<LastResumeMetadata | null>(() => {
@@ -49,8 +52,6 @@ export function Upload() {
   const isSubmitting = stage !== 'idle';
   // Resume source: either a new file or the saved last resume (auto-selected)
   const activeResume = file || lastResume;
-  // When in change-resume mode, require a new file before enabling submit
-  const canSubmit = !!(isChangingResume ? file : activeResume) && jobDescription.trim().length > 0 && !isSubmitting;
   // Reuse path when last resume is the active source (not changing, no new file)
   const isReusing = !file && !!lastResume && !isChangingResume;
 
@@ -63,9 +64,26 @@ export function Upload() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!activeResume || !jobDescription.trim()) return;
     if (isSubmitting) return;
 
+    // Validate — show global + inline errors together
+    const missingJd = !jobDescription.trim();
+    const missingResume = isChangingResume ? !file : !activeResume;
+    if (missingJd || missingResume) {
+      const parts: string[] = [];
+      if (missingJd) parts.push('job description');
+      if (missingResume) parts.push('resume');
+      setSubmitError(`Please add a ${parts.join(' and ')} to continue`);
+      setTouched({ jd: true, resume: true });
+      setFieldErrors({
+        ...(missingJd ? { jd: 'Job description is required' } : {}),
+        ...(missingResume ? { resume: 'Resume is required' } : {}),
+      });
+      return;
+    }
+
+    setSubmitError('');
+    setFieldErrors({});
     setError('');
 
     try {
@@ -165,12 +183,24 @@ export function Upload() {
                   setIsChangingResume(false);
                   setFile(null);
                   setError('');
+                  setFieldErrors(f => ({ ...f, resume: undefined }));
+                  if (jobDescription.trim()) setSubmitError('');
                 }}
               >
                 Keep {lastResume.fileName}
               </button>
             )}
           </span>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="upload-error animate-in">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
+            <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          {submitError}
         </div>
       )}
 
@@ -182,18 +212,29 @@ export function Upload() {
               <div className="upload-panel__step">1</div>
               <div>
                 <h3>Job Description</h3>
-                <p className="text-secondary">Paste the full job posting</p>
+                <p className="text-secondary">Paste test from posting</p>
               </div>
             </div>
             <textarea
               value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setJobDescription(val);
+                if (!touched.jd) setTouched(t => ({ ...t, jd: true }));
+                setFieldErrors(f => ({ ...f, jd: val.trim() ? undefined : 'Job description is required' }));
+                // Clear global only when both valid
+                const resumeValid = isChangingResume ? !!file : !!(file || lastResume);
+                if (val.trim() && resumeValid) setSubmitError('');
+              }}
               placeholder="Paste the job description here...&#10;&#10;Include requirements, responsibilities, and preferred qualifications for the best analysis."
               rows={16}
               className="upload-panel__textarea"
               disabled={isSubmitting}
             />
             <div className="upload-panel__count">
+              {touched.jd && fieldErrors.jd && (
+                <span className="upload-field-error">{fieldErrors.jd}</span>
+              )}
               {jobDescription.length > 0 && (
                 <span className="text-muted">
                   {jobDescription.split(/\s+/).filter(Boolean).length} words
@@ -236,21 +277,36 @@ export function Upload() {
                     <button
                       type="button"
                       className="upload-replacing-cancel"
-                      onClick={() => setIsChangingResume(false)}
+                      onClick={() => {
+                        setIsChangingResume(false);
+                        setFieldErrors(f => ({ ...f, resume: undefined }));
+                        if (jobDescription.trim()) setSubmitError('');
+                      }}
                     >
                       Cancel
                     </button>
                   </p>
                 )}
-                <FileDropzone file={file} onFileSelect={setFile} />
+                <FileDropzone file={file} onFileSelect={(f) => {
+                  setFile(f);
+                  setTouched(t => ({ ...t, resume: true }));
+                  if (f) {
+                    setFieldErrors(fe => ({ ...fe, resume: undefined }));
+                    // Clear global only when both valid
+                    if (jobDescription.trim()) setSubmitError('');
+                  }
+                }} />
               </div>
+            )}
+            {touched.resume && fieldErrors.resume && (
+              <p className="upload-field-error" style={{ padding: '0 1rem 0.75rem' }}>{fieldErrors.resume}</p>
             )}
           </div>
 
           <button
             type="submit"
             className="btn btn-primary upload-submit"
-            disabled={!canSubmit}
+            disabled={isSubmitting}
           >
             {isSubmitting ? (
               <>

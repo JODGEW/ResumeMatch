@@ -25,6 +25,11 @@
   z-index: 1;
 }
 
+.progress-ring__score-row {
+  display: flex;
+  align-items: baseline;
+}
+
 .progress-ring__value {
   font-family: var(--font-display);
   font-weight: 800;
@@ -39,7 +44,7 @@
   font-weight: 600;
   font-size: 1.25rem;
   color: var(--text-muted);
-  margin-top: -0.25rem;
+  margin-left: 0.125rem;
 }
 
 .progress-ring__label {
@@ -62,7 +67,7 @@
   }
 
   .progress-ring__percent {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
   .progress-ring__label {

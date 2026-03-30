@@ -76,7 +76,7 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
           fontSize: '14px',
           fontWeight: 500,
           color: '#fff',
-          backgroundColor: isGenerating ? '#6b7280' : '#2563eb',
+          backgroundColor: isGenerating ? '#6b7280' : 'var(--accent)',
           border: 'none',
           borderRadius: '6px',
           cursor: isGenerating ? 'not-allowed' : 'pointer',
@@ -84,12 +84,12 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
         }}
         onMouseEnter={(e) => {
           if (!isGenerating) {
-            (e.target as HTMLButtonElement).style.backgroundColor = '#1d4ed8';
+            (e.target as HTMLButtonElement).style.backgroundColor = 'var(--accent-hover)';
           }
         }}
         onMouseLeave={(e) => {
           if (!isGenerating) {
-            (e.target as HTMLButtonElement).style.backgroundColor = '#2563eb';
+            (e.target as HTMLButtonElement).style.backgroundColor = 'var(--accent)';
           }
         }}
       >

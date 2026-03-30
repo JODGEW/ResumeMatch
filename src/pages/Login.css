@@ -366,7 +366,7 @@
 }
 
 .login-card__forgot:hover {
-  text-decoration: underline;
+  opacity: 0.8;
 }
 
 .login-card__forgot--disabled {
@@ -389,7 +389,7 @@
 }
 
 .login-card__link a:hover {
-  text-decoration: underline;
+  opacity: 0.8;
 }
 
 .login-card__resend {

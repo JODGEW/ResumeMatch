@@ -1196,6 +1196,14 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+.tracker-modal__input[type="date"] {
+  color-scheme: dark;
+}
+
+[data-theme="light"] .tracker-modal__input[type="date"] {
+  color-scheme: light;
+}
+
 .tracker-modal__input:focus,
 .tracker-modal__select:focus,
 .tracker-modal__textarea:focus {
