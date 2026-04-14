@@ -18,10 +18,14 @@ export interface Analysis {
   createdAt: string;
   timestamp?: string;
   fileName?: string;
+  jobTitle?: string;
+  roleName?: string;
+  companyName?: string;
   experienceCheck?: {
     requiredYears: string | null;
     resumeStatedYears: string | null;
-    actualYears: string;
+    actualYears: string | number;
+    displayYears?: string | number;
     hasMismatch: boolean;
     warning: string | null;
     recommendation: string | null;

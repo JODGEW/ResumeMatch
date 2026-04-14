@@ -37,27 +37,25 @@
 
 /* ── Item ────────────────────────────────────────────── */
 .history-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "score details nav"
+    ". actions .";
   align-items: center;
-  gap: 1.25rem;
+  column-gap: 1.25rem;
+  row-gap: 0.5rem;
   padding: 1.25rem 1.5rem;
   color: inherit;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s;
   cursor: pointer;
-}
-
-.history-item:hover {
-  border-color: var(--border-light);
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-sm);
-  color: inherit;
 }
 
 /* Mini score ring */
 .history-item__left {
+  grid-area: score;
   flex-shrink: 0;
-  padding-right: 1.25rem;
-  border-right: 1px solid var(--border);
+  padding-right: 0.75rem;
 }
 
 .history-item__score {
@@ -84,8 +82,34 @@
 
 /* Body */
 .history-item__body {
+  grid-area: details;
   flex: 1;
   min-width: 0;
+}
+
+.history-item__details {
+  position: relative;
+}
+
+.history-item__details::before {
+  content: '';
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  left: -1rem;
+  width: 1px;
+  background: var(--border);
+}
+
+.history-item__title {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--text-primary);
+  margin-bottom: 0.3125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-item__meta {
@@ -100,7 +124,8 @@
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
 }
 
 .history-item__date {
@@ -113,13 +138,14 @@
 
 .history-item__jd {
   font-size: 0.8125rem;
-  color: var(--text-muted);
-  line-height: 1.5;
+  color: var(--text-secondary);
+  line-height: 1.45;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  max-width: 72ch;
 }
 
 .history-item__stats {
@@ -133,10 +159,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.25rem 0.625rem;
-  border-radius: 100px;
+  padding: 0.3125rem 0.6875rem;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .history-item__pill-dot {
@@ -175,36 +202,66 @@
   white-space: nowrap;
 }
 
-/* Tracker button */
-.history-item__tracker-btn {
+.history-item__actions .btn {
   flex-shrink: 0;
   font-size: 0.6875rem;
   padding: 0.3125rem 0.625rem;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
-/* Download button — same visual weight as tracker button */
-.history-item__download-btn {
-  flex-shrink: 0;
-  font-size: 0.6875rem;
-  padding: 0.3125rem 0.625rem;
-  white-space: nowrap;
+.history-item__download-btn,
+.history-item__interview-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.325rem;
 }
 
+.history-item__interview-btn {
+  justify-content: center;
+  width: 100%;
+  min-height: 2.25rem;
+  font-size: 0.75rem;
+}
+
 /* Arrow */
 .history-item__arrow {
+  grid-area: nav;
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   align-self: center;
-  transition: transform 0.2s;
+  gap: 0.25rem;
+  margin-left: 0.125rem;
+  padding: 0.375rem 0.25rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  opacity: 0.78;
+  transition: color 0.2s, opacity 0.2s, transform 0.2s;
 }
 
-.history-item:hover .history-item__arrow {
-  transform: translateX(3px);
+.history-item__arrow-label {
+  color: currentColor;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .history-item:not(.history-item--disabled):hover {
+    border-color: var(--border-light);
+    background: var(--bg-secondary);
+    box-shadow: var(--shadow-sm);
+    color: inherit;
+    transform: translateY(-1px);
+  }
+
+  .history-item:not(.history-item--disabled):hover .history-item__arrow {
+    color: var(--accent);
+    opacity: 1;
+    transform: translateX(3px);
+  }
 }
 
 /* ── Disabled (in-progress) item ────────────────────── */
@@ -220,7 +277,7 @@
 }
 
 .history-item--disabled .history-item__arrow {
-  opacity: 0.3;
+  opacity: 0.25;
 }
 
 /* ── "New" badge ────────────────────────────────────── */
@@ -251,18 +308,34 @@
 
 /* ── Action buttons wrapper ───────────────────────── */
 .history-item__actions {
+  grid-area: actions;
   display: flex;
-  gap: 0.625rem;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.history-item__secondary-actions {
+  display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
 }
 
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 640px) {
   .history-item {
-    flex-wrap: wrap;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "score details"
+      "actions actions";
     padding: 1rem;
-    gap: 0.75rem;
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
   }
 
   .history-item__date {
@@ -273,9 +346,19 @@
     font-size: 0.75rem;
   }
 
-  .history-item__left {
-    padding-right: 0;
-    border-right: none;
+  .history-item__title {
+    font-size: 0.875rem;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: initial;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.3;
+  }
+
+  .history-item__details::before {
+    display: none;
   }
 
   .history-item__jd {
@@ -288,10 +371,21 @@
     padding: 0.1875rem 0.5rem;
   }
 
-  /* Action buttons go full-width on their own row */
   .history-item__actions {
-    width: 100%;
     justify-content: flex-end;
+  }
+
+  .history-item__interview-btn {
+    width: 100%;
+  }
+
+  .history-item__secondary-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .history-item__secondary-actions .btn {
+    flex: 0 0 auto;
   }
 
   .history-item__arrow {

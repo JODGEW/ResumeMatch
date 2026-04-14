@@ -5,6 +5,15 @@ export async function getResumeUrl(analysisId: string, userId: string): Promise<
   return data.url;
 }
 
+export async function fetchLastResume(): Promise<{
+  analysisId: string;
+  fileName: string;
+  uploadedAt: string;
+} | null> {
+  const { data } = await client.get('/user/last-resume');
+  return data.lastResume ?? null;
+}
+
 export async function requestUploadUrl(fileName: string, jobDescription: string) {
   const { data } = await client.post('/upload', { fileName, jobDescription });
   return data; // returns { presignedUrl, presignedFields, analysisId, s3Key }

@@ -69,11 +69,18 @@ export function ResultsPreview() {
     <div className="page-container">
       <div className="page-header animate-in">
         <div className="results-header">
-          <div>
-            <h1>Analysis Results</h1>
-            <p><span className="results-filename">{MOCK.fileName}</span></p>
+          <div className="results-header__top">
+            <div className="results-header__title">
+              <h1>Analysis Results</h1>
+              <p><span className="results-filename">{MOCK.fileName}</span></p>
+            </div>
+            <Link to="/upload" className="btn btn-secondary btn-create-action results-header__primary">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              New analysis
+            </Link>
           </div>
-          <Link to="/upload" className="btn btn-secondary">New analysis</Link>
         </div>
       </div>
 

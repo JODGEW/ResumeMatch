@@ -39,8 +39,7 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: color-mix(in srgb, var(--bg-root) 85%, transparent);
-  backdrop-filter: blur(16px);
+  background: var(--bg-root);
 }
 
 .nav {
@@ -190,11 +189,7 @@
   left: 0;
   bottom: 0;
   width: min(80%, 320px);
-  /* Slight frosted contrast on the drawer panel itself */
-  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  /* No hard border — shadow provides edge definition */
+  background: var(--bg-primary);
   border-right: none;
   box-shadow: 6px 0 32px rgba(0, 0, 0, 0.6), inset -1px 0 0 rgba(255, 255, 255, 0.04);
   z-index: 201;
@@ -214,8 +209,6 @@
 /* Light theme: solid panel, no transparency needed */
 [data-theme="light"] .nav__drawer {
   background: var(--bg-primary);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
 }
 
@@ -306,9 +299,6 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    /* Fade hint at right edge to signal scrollability */
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
-    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
   }
 
   .nav__links::-webkit-scrollbar {

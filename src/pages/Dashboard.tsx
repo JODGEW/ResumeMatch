@@ -110,7 +110,7 @@ export function Dashboard() {
         date: a.timestamp ?? a.createdAt,
         cost: getCost(a),
         score: a.matchScore ?? 0,
-        fileName: a.fileName ?? 'Unknown',
+        fileName: a.jobTitle ?? a.fileName ?? 'Unknown',
         id: a.analysisId,
       }));
   }, [analyses]);
@@ -369,7 +369,7 @@ export function Dashboard() {
                           {formatDate(row.timestamp ?? row.createdAt)}
                         </td>
                         <td className="dash-table__td dash-table__td--file">
-                          {row.fileName ?? '—'}
+                          {row.jobTitle ?? row.fileName ?? '—'}
                         </td>
                         <td className="dash-table__td dash-table__td--right">
                           {row.status === 'completed' && row.matchScore != null ? (

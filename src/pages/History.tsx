@@ -4,6 +4,7 @@ import { getAnalysisHistory, getAnalysis } from '../api/analysis';
 import { useAuth } from '../auth/AuthContext';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
+import { getTrackerPrefill } from '../utils/trackerPrefill';
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import './History.css';
@@ -28,13 +29,7 @@ export function History() {
   const [showSignupModal, setShowSignupModal] = useState(false);
 
   function handleAddToTracker(a: Analysis) {
-    const prefill = {
-      skillMatch: {
-        matchedSkills: a.presentKeywords || [],
-        missingSkills: a.missingKeywords || [],
-        matchPercentage: a.matchScore || 0,
-      },
-    };
+    const prefill = getTrackerPrefill(a);
     navigate(`/tracker?prefill=${encodeURIComponent(JSON.stringify(prefill))}`);
   }
 
@@ -74,9 +69,21 @@ export function History() {
 
         const sorted = sortByNewest(merged);
 
+        // Mark stale processing items as failed (older than 5 min)
+        const staleThreshold = Date.now() - 5 * 60 * 1000;
+        const withStaleFixed = sorted.map(a => {
+          if ((a.status === 'pending' || a.status === 'processing')) {
+            const ts = new Date(toUTC(a.timestamp ?? a.createdAt)).getTime();
+            if (ts < staleThreshold) {
+              return { ...a, status: 'failed' as const, errorMessage: 'Analysis timed out. Please try again.' };
+            }
+          }
+          return a;
+        });
+
         // Hide failed items older than 24h
         const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-        const filtered = sorted.filter(a => {
+        const filtered = withStaleFixed.filter(a => {
           if (a.status !== 'failed') return true;
           const ts = new Date(toUTC(a.timestamp ?? a.createdAt)).getTime();
           return ts > dayAgo;
@@ -148,7 +155,7 @@ export function History() {
       cancelled = true;
       if (pollRef.timer) clearInterval(pollRef.timer);
     };
-  }, []);
+  }, [pendingAnalysisId]);
 
   function formatDate(iso: string) {
     const normalized = iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
@@ -173,6 +180,7 @@ export function History() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [interviewError, setInterviewError] = useState<string | null>(null);
 
   async function handleDownload(a: Analysis) {
     if (downloadingId) return;
@@ -202,6 +210,36 @@ export function History() {
     }
   }
 
+  async function handleInterview(a: Analysis) {
+    setInterviewError(null);
+    try {
+      const needsFullAnalysis = !a.jobDescription || (!a.originalText && !a.suggestedText);
+      const source = needsFullAnalysis ? await getAnalysis(a.analysisId) : a;
+      const resumeText = source.originalText || source.suggestedText || '';
+      const jobDescription = source.jobDescription || '';
+
+      if (!resumeText.trim() || !jobDescription.trim()) {
+        setInterviewError('Could not find the resume and job description for this analysis.');
+        return;
+      }
+
+      navigate('/interview', {
+        state: {
+          resumeText,
+          jobDescription,
+          fileName: source.fileName,
+          analysisId: source.analysisId,
+          jobTitle: source.jobTitle,
+          matchScore: source.matchScore,
+          startFresh: true,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to open interview:', err);
+      setInterviewError('Could not prepare the interview. Check your connection and try again.');
+    }
+  }
+
   const isProcessing = (status: string) => status === 'pending' || status === 'processing';
 
   return (
@@ -212,7 +250,7 @@ export function History() {
             <h1>Analysis History</h1>
             <p>Your past resume analyses</p>
           </div>
-          <Link to="/upload" className="btn btn-primary">
+          <Link to="/upload" className="btn btn-primary btn-create-action">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
@@ -227,13 +265,13 @@ export function History() {
         </div>
       )}
 
-      {(error || downloadError) && (
+      {(error || downloadError || interviewError) && (
         <div className="upload-error animate-in">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
             <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          {error || downloadError}
+          {error || downloadError || interviewError}
         </div>
       )}
 
@@ -258,22 +296,22 @@ export function History() {
         return (
           <>
             <div className="history-list">
-              {paginatedItems.map((a, i) => {
-                const inProgress = isProcessing(a.status);
-                const isNew = newlyCompleted.has(a.analysisId);
+              {paginatedItems.map((analysis, i) => {
+                const inProgress = isProcessing(analysis.status);
+                const isNew = newlyCompleted.has(analysis.analysisId);
 
                 return (
                   <Link
-                    key={a.analysisId}
-                    to={inProgress ? '#' : `/results/${a.analysisId}`}
+                    key={analysis.analysisId}
+                    to={inProgress ? '#' : `/results/${analysis.analysisId}`}
                     className={`history-item card animate-in${inProgress ? ' history-item--disabled' : ''}${isNew ? ' history-item--new' : ''}`}
                     style={{ animationDelay: `${0.05 + i * 0.04}s` }}
                     onClick={inProgress ? (e) => e.preventDefault() : undefined}
-                    title={inProgress ? 'Still processing — results aren\'t ready yet' : undefined}
+                    title={inProgress ? 'Still processing — results aren\'t ready yet' : 'View analysis details'}
                   >
                     <div className="history-item__left">
-                      {a.status === 'completed' && a.matchScore != null ? (
-                        <div className="history-item__score" style={{ color: getScoreColor(a.matchScore) }}>
+                      {analysis.status === 'completed' && analysis.matchScore != null ? (
+                        <div className="history-item__score" style={{ color: getScoreColor(analysis.matchScore) }}>
                           <svg width="56" height="56" viewBox="0 0 44 44">
                             <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="2.5" />
                             <circle
@@ -282,105 +320,124 @@ export function History() {
                               stroke="currentColor"
                               strokeWidth="2.5"
                               strokeLinecap="round"
-                              strokeDasharray={`${(a.matchScore / 100) * 113.1} 113.1`}
+                              strokeDasharray={`${(analysis.matchScore / 100) * 113.1} 113.1`}
                               transform="rotate(-90 22 22)"
                             />
                           </svg>
-                          <span className="history-item__score-value">{a.matchScore}%</span>
+                          <span className="history-item__score-value">{analysis.matchScore}%</span>
                         </div>
                       ) : (
-                        <div className={`status-badge status-badge--${a.status}`}>
-                          {a.status === 'processing' && <span className="status-badge__dot" />}
-                          {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                        <div className={`status-badge status-badge--${analysis.status}`}>
+                          {analysis.status === 'processing' && <span className="status-badge__dot" />}
+                          {analysis.status.charAt(0).toUpperCase() + analysis.status.slice(1)}
                         </div>
                       )}
                     </div>
 
                     <div className="history-item__body">
-                      <div className="history-item__meta">
-                        {a.fileName && (
-                          <span className="history-item__file">{a.fileName}</span>
-                        )}
-                        {isNew && <span className="history-item__new-badge">New</span>}
-                        <span className="history-item__date">{formatDate(a.timestamp ?? a.createdAt)}</span>
-                      </div>
-                      {inProgress ? (
-                        <p className="history-item__jd" style={{ fontStyle: 'italic' }}>
-                          Analyzing match score, keyword gaps, and experience alignment…
-                        </p>
-                      ) : a.status === 'failed' && a.errorMessage ? (
-                        <p className="history-item__jd" style={{ color: 'var(--danger)' }}>
-                          {a.errorMessage}
-                        </p>
-                      ) : (a.scoreSummaryShort || a.scoreSummary || a.jobDescription) ? (
-                        <p className="history-item__jd">
-                          {a.scoreSummaryShort ?? a.scoreSummary
-                            ?? (a.jobDescription!.substring(0, 140) + (a.jobDescription!.length > 140 ? '...' : ''))}
-                        </p>
-                      ) : null}
-                      {a.presentKeywords && a.missingKeywords && (
-                        <div className="history-item__stats">
-                          <span className="history-item__pill history-item__pill--success">
-                            <span className="history-item__pill-dot" />
-                            {a.presentKeywords.length} Matched
-                          </span>
-                          <span className="history-item__pill history-item__pill--danger">
-                            <span className="history-item__pill-dot" />
-                            {a.missingKeywords.length} Missing
-                          </span>
-                        </div>
-                      )}
-                      {a.missingKeywords && a.missingKeywords.length > 0 && (
-                        <p className="history-item__missing">
-                          <span className="history-item__missing-label">Missing: </span>
-                          <span className="history-item__missing-keywords">{a.missingKeywords.slice(0, 3).join(', ')}</span>
-                          {a.missingKeywords.length > 3 && (
-                            <span className="history-item__missing-more"> +{a.missingKeywords.length - 3} more</span>
+                      <div className="history-item__details">
+                        <h3 className="history-item__title">{analysis.jobTitle || 'Analysis Results'}</h3>
+                        <div className="history-item__meta">
+                          {analysis.fileName && (
+                            <span className="history-item__file">{analysis.fileName}</span>
                           )}
-                        </p>
-                      )}
+                          {isNew && <span className="history-item__new-badge">New</span>}
+                          <span className="history-item__date">{formatDate(analysis.timestamp ?? analysis.createdAt)}</span>
+                        </div>
+                        {inProgress ? (
+                          <p className="history-item__jd" style={{ fontStyle: 'italic' }}>
+                            Analyzing match score, keyword gaps, and experience alignment…
+                          </p>
+                        ) : analysis.status === 'failed' && analysis.errorMessage ? (
+                          <p className="history-item__jd" style={{ color: 'var(--danger)' }}>
+                            {analysis.errorMessage}
+                          </p>
+                        ) : (analysis.scoreSummaryShort || analysis.scoreSummary || analysis.jobDescription) ? (
+                          <p className="history-item__jd">
+                            {analysis.scoreSummaryShort ?? analysis.scoreSummary
+                              ?? (analysis.jobDescription!.substring(0, 140) + (analysis.jobDescription!.length > 140 ? '...' : ''))}
+                          </p>
+                        ) : null}
+                        {analysis.presentKeywords && analysis.missingKeywords && (
+                          <div className="history-item__stats">
+                            <span className="history-item__pill history-item__pill--success">
+                              <span className="history-item__pill-dot" />
+                              {analysis.presentKeywords.length} Matched
+                            </span>
+                            <span className="history-item__pill history-item__pill--danger">
+                              <span className="history-item__pill-dot" />
+                              {analysis.missingKeywords.length} Missing
+                            </span>
+                          </div>
+                        )}
+                        {analysis.missingKeywords && analysis.missingKeywords.length > 0 && (
+                          <p className="history-item__missing">
+                            <span className="history-item__missing-label">Missing: </span>
+                            <span className="history-item__missing-keywords">{analysis.missingKeywords.slice(0, 3).join(', ')}</span>
+                            {analysis.missingKeywords.length > 3 && (
+                              <span className="history-item__missing-more"> +{analysis.missingKeywords.length - 3} more</span>
+                            )}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    {a.status === 'completed' && a.matchScore != null && (
+                    {analysis.status === 'completed' && analysis.matchScore != null && (
                       <div className="history-item__actions">
                         <button
-                          className="btn btn-primary history-item__tracker-btn"
+                          className="btn btn-primary history-item__interview-btn"
                           disabled={isDemo}
-                          title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(a); }}
+                          title={isDemo ? 'Sign up for full access' : 'Start mock interview'}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInterview(analysis); }}
                         >
-                          Add to Tracker
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
+                            <path d="M2 7c0 2.75 2.25 5 5 5s5-2.25 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            <path d="M7 12v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
+                          Start Interview
                         </button>
-                        <button
-                          className="btn btn-secondary history-item__download-btn"
-                          disabled={downloadingId === a.analysisId}
-                          title={isDemo ? 'Sign up for full access' : 'Download optimized resume'}
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (isDemo) { setShowSignupModal(true); } else { handleDownload(a); } }}
-                        >
-                          {downloadingId === a.analysisId ? (
-                            <>
-                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 0.8s linear infinite' }}>
-                                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="8" strokeLinecap="round" />
-                              </svg>
-                              Downloading...
-                            </>
-                          ) : (
-                            <>
-                              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M8 2v8m0 0L5 7m3 3l3-3" />
-                                <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
-                              </svg>
-                              Download (DOCX)
-                            </>
-                          )}
-                        </button>
+                        <div className="history-item__secondary-actions">
+                          <button
+                            className="btn btn-secondary history-item__tracker-btn"
+                            disabled={isDemo}
+                            title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(analysis); }}
+                          >
+                            Add to Tracker
+                          </button>
+                          <button
+                            className="btn btn-secondary history-item__download-btn"
+                            disabled={downloadingId === analysis.analysisId}
+                            title={isDemo ? 'Sign up for full access' : 'Download optimized resume'}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (isDemo) { setShowSignupModal(true); } else { handleDownload(analysis); } }}
+                          >
+                            {downloadingId === analysis.analysisId ? (
+                              <>
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 0.8s linear infinite' }}>
+                                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="8" strokeLinecap="round" />
+                                </svg>
+                                Downloading...
+                              </>
+                            ) : (
+                              <>
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M8 2v8m0 0L5 7m3 3l3-3" />
+                                  <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+                                </svg>
+                                Download
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     )}
 
                     <div className="history-item__arrow">
+                      <span className="history-item__arrow-label">View details</span>
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M6 4l4 4-4 4" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
                   </Link>

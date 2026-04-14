@@ -58,6 +58,16 @@ Upload + Paste JD → Cache Check → [hit]  → Return cached result → Result
 - **AI resume rewriting** — suggests improved resume phrasing based on the JD
 - **Resume reuse** — returning users see their last uploaded resume auto-selected, allowing instant analysis against a new JD without re-uploading
 
+### Mock Interview Practice
+- **Interview generation from analysis results** — start a mock interview directly from a resume/JD analysis
+- **Behavioral and technical formats** — choose the interview style before starting a session
+- **Voice-first interview flow** — push-to-talk recording with browser speech recognition and optional interviewer text-to-speech
+- **Live session state** — question progress, countdown timer, answer timing, active-session restore, and continue-interview support
+- **Follow-up aware progress** — follow-up prompts count as interview questions, while closing instructions are excluded from question totals
+- **Interview report** — assessment-first results page with overall score, dimension feedback, strengths, areas to improve, and full transcript
+- **Transcript actions** — copy transcript text or download a Markdown interview report
+- **Interview history** — review previous interview sessions and reopen completed reports
+
 ### Application Tracking
 - **Kanban board view** — drag-and-drop cards across application stages (Not Applied → Applied → Screening → Interviewing → Offer / Rejected)
 - **Outreach tracker** — manage job applications with outreach and application pipelines
@@ -74,6 +84,7 @@ Upload + Paste JD → Cache Check → [hit]  → Return cached result → Result
 
 ### Platform Features
 - **Analysis history** — view past resume analyses and results
+- **Interview sessions** — start, resume, complete, and review mock interviews tied to resume analyses
 - **One-click resume download** — download AI-optimized resume as a Word document
 - **Secure authentication** — Cognito login, signup, verification, and password reset
 - **Demo mode** — explore the app instantly without creating an account
@@ -134,6 +145,18 @@ The score is the sum of five weighted factors:
 | | Senior | +0 |
 
 The score breakdown is visible in each application's detail view.
+
+## Mock Interview Pages
+
+The mock interview feature adds three protected routes:
+
+| Route | Page | Purpose |
+|-------|------|---------|
+| `/interview` | `Interview` | Setup and active mock interview session with voice controls, timer, progress, and session restore |
+| `/interview/history` | `InterviewHistory` | List previous interview sessions by role, resume, date, status, and question count |
+| `/interview/results/:sessionId` | `InterviewResults` | Report-first interview assessment with transcript, export, and continue/retry actions |
+
+Mock interviews can be launched from a resume analysis result or from analysis history. Active sessions can be resumed, and completed sessions open into the interview report page.
 
 ## Architecture
 
@@ -214,6 +237,7 @@ src/
   components/   # Reusable UI components
   config/       # AWS Amplify configuration
   hooks/        # Custom React hooks
-  pages/        # Page components (Login, Signup, ForgotPassword, ResetPassword, Upload, Results, History)
+  pages/        # Page components (Login, Signup, ForgotPassword, ResetPassword, Upload, Results, History, Interview, InterviewHistory, InterviewResults)
   types/        # TypeScript type definitions
+  utils/        # Shared frontend helpers, including interview session and question utilities
 ```

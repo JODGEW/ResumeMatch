@@ -1142,7 +1142,7 @@ export function Tracker() {
             <p>Track applications and manage cold outreach</p>
           </div>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-create-action"
             disabled={isReadOnly}
             title={isReadOnly ? 'Sign up for full access' : undefined}
             onClick={() => { setPrefillData(null); setModalState({ open: true }); }}

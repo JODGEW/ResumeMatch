@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
@@ -7,8 +7,116 @@ import { DiffView } from '../components/DiffView';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
+import { getSession, isMissingInterviewSessionError, listSessions } from '../api/interview';
+import { clearInterviewPointer, loadInterviewPointer } from '../utils/interviewPointer';
+import { getTrackerPrefill } from '../utils/trackerPrefill';
 import { useAuth } from '../auth/AuthContext';
 import './Results.css';
+
+type LastInterview = {
+  sessionId: string;
+  createdAt?: string;
+  completedAt?: string;
+};
+
+function getLastInterviewTime(session: LastInterview) {
+  const timestamp = new Date(session.completedAt || session.createdAt || '').getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function InterviewButton({ resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, navigate, isDemo }: {
+  resumeText: string;
+  jobDescription: string;
+  fileName?: string;
+  analysisId?: string;
+  jobTitle?: string;
+  matchScore?: number;
+  navigate: ReturnType<typeof useNavigate>;
+  isDemo: boolean;
+}) {
+  const [lastInterviewId, setLastInterviewId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLastInterview() {
+      setLastInterviewId(null);
+      const candidates: LastInterview[] = [];
+
+      const pointer = loadInterviewPointer(resumeText, jobDescription);
+      if (pointer) {
+        try {
+          const session = await getSession(pointer.sessionId);
+          if (cancelled) return;
+          if (session.status === 'completed') {
+            candidates.push({
+              sessionId: session.sessionId,
+              createdAt: session.createdAt,
+              completedAt: session.completedAt,
+            });
+          }
+        } catch (err) {
+          if (cancelled) return;
+          if (isMissingInterviewSessionError(err)) {
+            clearInterviewPointer(resumeText, jobDescription);
+          }
+        }
+      }
+
+      if (analysisId) {
+        try {
+          const sessions = await listSessions();
+          if (cancelled) return;
+          sessions
+            .filter(session => session.analysisId === analysisId && session.status === 'completed')
+            .forEach(session => candidates.push({
+              sessionId: session.sessionId,
+              createdAt: session.createdAt,
+              completedAt: session.completedAt,
+            }));
+        } catch (err) {
+          console.error('Failed to load interview sessions:', err);
+        }
+      }
+
+      const latest = candidates.sort((a, b) => getLastInterviewTime(b) - getLastInterviewTime(a))[0];
+      if (!cancelled) {
+        setLastInterviewId(latest?.sessionId ?? null);
+      }
+    }
+
+    loadLastInterview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeText, jobDescription, analysisId]);
+
+  return (
+    <div className="results-interview-action">
+      <button
+        className="btn btn-primary"
+        disabled={isDemo}
+        title={isDemo ? 'Sign up for full access' : undefined}
+        onClick={() => navigate('/interview', {
+          state: { resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, startFresh: true }
+        })}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M2 7c0 2.75 2.25 5 5 5s5-2.25 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M7 12v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+        Start Interview
+      </button>
+      {lastInterviewId ? (
+        <Link className="results-last-interview-link" to={`/interview/results/${lastInterviewId}`}>
+          View last interview
+        </Link>
+      ) : null}
+    </div>
+  );
+}
 
 function getScoreInterpretation(score: number) {
   if (score >= 86) return { label: 'Strong Match', action: 'Apply with confidence. Highlight your matched keywords in a cover letter.', color: '#16a34a' };
@@ -28,6 +136,7 @@ export function Results() {
   const [jdOpen, setJdOpen] = useState(false);
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
+  const navigate = useNavigate();
 
   const closeModal = useCallback(() => {
     setResumeUrl(null);
@@ -88,6 +197,12 @@ export function Results() {
     } finally {
       setResumeLoading(false);
     }
+  }
+
+  function handleAddToTracker() {
+    if (!analysis) return;
+    const prefill = getTrackerPrefill(analysis);
+    navigate(`/tracker?prefill=${encodeURIComponent(JSON.stringify(prefill))}`);
   }
 
   if (error) {
@@ -173,7 +288,7 @@ export function Results() {
                 <p className="results-loading__bg-tertiary">Usually takes ~30 seconds.</p>
                 <div className="results-loading__actions">
                   <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary btn--sm">Go to History</Link>
-                  <Link to="/upload" className="btn btn-outline btn--sm">Upload another resume</Link>
+                  <Link to="/upload" className="btn btn-outline btn--sm">Do another analysis</Link>
                 </div>
               </div>
             </>
@@ -199,18 +314,41 @@ export function Results() {
     );
   }
 
+  const calculatedExperienceYears = analysis.experienceCheck?.displayYears ?? analysis.experienceCheck?.actualYears;
+  const resumeStatedYears = analysis.experienceCheck?.resumeStatedYears || 'Not specified';
+
   return (
-    <div className="page-container">
+    <div className="page-container results-reading-page">
       {/* Header */}
       <div className="page-header animate-in">
         <div className="results-header">
-          <div>
-            <h1>Analysis Results</h1>
-            {analysis.fileName && (
-              <p className="results-filename">{analysis.fileName}</p>
-            )}
+          <div className="results-header__top">
+            <div className="results-header__title">
+              <h1>{analysis.jobTitle || 'Analysis Results'}</h1>
+              {analysis.fileName && (
+                <p className="results-filename">{analysis.fileName}</p>
+              )}
+            </div>
+            <Link to="/upload" className="btn btn-primary btn-create-action results-header__primary">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              New analysis
+            </Link>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div className="results-header__tools">
+            {analysis.jobDescription && (analysis.originalText || analysis.suggestedText) ? (
+              <InterviewButton
+                resumeText={analysis.originalText || analysis.suggestedText || ''}
+                jobDescription={analysis.jobDescription}
+                fileName={analysis.fileName}
+                analysisId={analysisId}
+                jobTitle={analysis.jobTitle}
+                matchScore={analysis.matchScore}
+                navigate={navigate}
+                isDemo={isDemo}
+              />
+            ) : null}
             <button
               className="btn btn-secondary"
               onClick={handleViewResume}
@@ -230,9 +368,14 @@ export function Results() {
                 </>
               )}
             </button>
-            <Link to="/upload" className="btn btn-primary">
-              New analysis
-            </Link>
+            <button
+              className="btn btn-outline"
+              disabled={isDemo}
+              title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
+              onClick={handleAddToTracker}
+            >
+              Add to Tracker
+            </button>
           </div>
         </div>
       </div>
@@ -281,8 +424,8 @@ export function Results() {
             {analysis.experienceCheck.requiredYears && (
               <p className="results-experience__detail">
                 Required: {analysis.experienceCheck.requiredYears} years ·
-                Stated on resume: {analysis.experienceCheck.resumeStatedYears ?? 'not specified'} ·
-                Calculated from dates: {analysis.experienceCheck.actualYears} years
+                Explicitly stated on resume: {resumeStatedYears} ·
+                Calculated from dates: {calculatedExperienceYears} years
               </p>
             )}
           </div>
@@ -401,7 +544,7 @@ export function Results() {
       {analysis.topMissing && analysis.topMissing.length > 0 && (
         <div className="results-section animate-in stagger-3">
           <h2>Top Priority Keywords</h2>
-          <p className="text-secondary" style={{ marginBottom: '1.25rem' }}>
+          <p className="text-secondary results-section__intro">
             High-impact keywords missing from your resume, ranked by importance
           </p>
 
@@ -414,7 +557,9 @@ export function Results() {
                     {item.importanceScore}/10
                   </span>
                 </div>
-                <p className="results-suggestion__reason text-muted">{item.reason}</p>
+                <div className="results-suggestion__copy">
+                  <p className="results-suggestion__reason text-muted">{item.reason}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -425,7 +570,7 @@ export function Results() {
       {analysis.suggestions && analysis.suggestions.length > 0 && (
         <div className="results-section animate-in stagger-3">
           <h2>Suggestions</h2>
-          <p className="text-secondary" style={{ marginBottom: '1.25rem' }}>
+          <p className="text-secondary results-section__intro">
             Recommended additions to improve your match score
           </p>
 
@@ -440,8 +585,10 @@ export function Results() {
                     {s.keyword}
                   </span>
                 </div>
-                <p className="results-suggestion__text">{s.whereToAdd}</p>
-                <p className="results-suggestion__reason text-muted">{s.reason}</p>
+                <div className="results-suggestion__copy">
+                  <p className="results-suggestion__text">{s.whereToAdd}</p>
+                  <p className="results-suggestion__reason text-muted">{s.reason}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -452,7 +599,7 @@ export function Results() {
       {analysis.originalText && analysis.suggestedText && (
         <div className="results-section animate-in stagger-4">
           <h2>Detailed Changes</h2>
-          <p className="text-secondary" style={{ marginBottom: '1.25rem' }}>
+          <p className="text-secondary results-section__intro">
             Side-by-side comparison of your resume with suggested improvements
           </p>
           <DiffView

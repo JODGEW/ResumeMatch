@@ -10,6 +10,9 @@ import { Results } from './pages/Results';
 import { History } from './pages/History';
 import { Dashboard } from './pages/Dashboard';
 import { Tracker } from './pages/Tracker';
+import { Interview } from './pages/Interview';
+import { InterviewHistory } from './pages/InterviewHistory';
+import { InterviewResults } from './pages/InterviewResults';
 import { ResultsPreview } from './pages/ResultsPreview';
 
 const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
@@ -40,6 +43,9 @@ export default function App() {
             <Route path="/history" element={<History />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/tracker" element={<Tracker />} />
+            <Route path="/interview" element={<Interview />} />
+            <Route path="/interview/history" element={<InterviewHistory />} />
+            <Route path="/interview/results/:sessionId" element={<InterviewResults />} />
             {DEV_MODE && (
               <Route path="/preview" element={<ResultsPreview />} />
             )}

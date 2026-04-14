@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { FileDropzone } from '../components/FileDropzone';
 import { LastResumeCard } from '../components/LastResumeCard';
-import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3 } from '../api/upload';
+import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, fetchLastResume } from '../api/upload';
 import '../components/LastResumeCard.css';
 import './Upload.css';
 
@@ -39,12 +39,36 @@ export function Upload() {
 
   const [lastResume, setLastResume] = useState<LastResumeMetadata | null>(() => {
     if (isDemo) return null;
+    // Sync fallback — backend fetch below will override if available
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try { return JSON.parse(saved); } catch { localStorage.removeItem(STORAGE_KEY); }
     }
     return null;
   });
+
+  // Fetch last resume from backend (cross-device sync), update localStorage if newer
+  useEffect(() => {
+    if (isDemo) return;
+    fetchLastResume()
+      .then((remote) => {
+        if (!remote) return;
+        const remoteTime = new Date(remote.uploadedAt).getTime();
+        const localTime = lastResume?.uploadedAt ?? 0;
+        if (remoteTime > localTime) {
+          const metadata: LastResumeMetadata = {
+            analysisId: remote.analysisId,
+            fileName: remote.fileName,
+            uploadedAt: remoteTime,
+          };
+          setLastResume(metadata);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(metadata));
+        }
+      })
+      .catch(() => {
+        // Backend unavailable — localStorage fallback already loaded
+      });
+  }, []);
   const [isChangingResume, setIsChangingResume] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const navigate = useNavigate();

@@ -100,6 +100,15 @@ export function Layout() {
                 </svg>
                 History
               </NavLink>
+              <NavLink to="/interview/history" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
+                <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="1.75" width="5" height="7.5" rx="2.5" />
+                  <path d="M3.25 7.25c0 2.35 1.9 4.25 4.25 4.25s4.25-1.9 4.25-4.25" />
+                  <path d="M7.5 11.5v1.75" />
+                  <path d="M5.5 13.25h4" />
+                </svg>
+                Interviews
+              </NavLink>
               {isDashboardVisible && (
                 <NavLink to="/dashboard" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
                   <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
