@@ -170,11 +170,11 @@ export function History() {
   }
 
   function getScoreColor(score: number) {
-    if (score >= 86) return '#16a34a';
-    if (score >= 76) return '#3b82f6';
-    if (score >= 61) return '#ca8a04';
-    if (score >= 41) return '#dc4a20';
-    return '#dc2626';
+    if (score >= 86) return 'var(--score-high)';
+    if (score >= 76) return 'var(--score-good)';
+    if (score >= 61) return 'var(--score-mid)';
+    if (score >= 41) return 'var(--score-low)';
+    return 'var(--score-poor)';
   }
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);

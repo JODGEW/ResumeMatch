@@ -24,21 +24,29 @@ const STATUS_LABELS: Record<Application['outreachStatus'], string> = {
 };
 
 function getScoreColor(score: number) {
-  if (score >= 86) return '#16a34a';
-  if (score >= 76) return '#3b82f6';
-  if (score >= 61) return '#ca8a04';
-  if (score >= 41) return '#dc4a20';
-  return '#dc2626';
+  if (score >= 86) return 'var(--score-high)';
+  if (score >= 76) return 'var(--score-good)';
+  if (score >= 61) return 'var(--score-mid)';
+  if (score >= 41) return 'var(--score-low)';
+  return 'var(--score-poor)';
+}
+
+function getScoreBackground(score: number) {
+  if (score >= 86) return 'var(--score-high-dim)';
+  if (score >= 76) return 'var(--score-good-dim)';
+  if (score >= 61) return 'var(--score-mid-dim)';
+  if (score >= 41) return 'var(--score-low-dim)';
+  return 'var(--score-poor-dim)';
 }
 
 function getColumnAccent(key: Application['applicationStatus']): string {
   switch (key) {
     case 'not_applied': return 'var(--text-muted)';
-    case 'applied': return '#3b82f6';
-    case 'screening': return '#ca8a04';
-    case 'interviewing': return '#8b5cf6';
-    case 'offer': return '#16a34a';
-    case 'rejected': return '#dc2626';
+    case 'applied': return 'var(--info)';
+    case 'screening': return 'var(--warning)';
+    case 'interviewing': return 'var(--accent)';
+    case 'offer': return 'var(--success)';
+    case 'rejected': return 'var(--danger)';
   }
 }
 
@@ -143,7 +151,7 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
       ghost.style.cssText = `
         position: fixed; z-index: 1000; pointer-events: none;
         width: ${target.offsetWidth}px; opacity: 0.85;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        box-shadow: var(--shadow-popover);
         transform: rotate(2deg);
       `;
       document.body.appendChild(ghost);
@@ -255,6 +263,7 @@ function KanbanCard({
 }) {
   const scoring = calculateOutreachScore(app);
   const matchColor = getScoreColor(app.skillMatch.matchPercentage);
+  const matchBackground = getScoreBackground(app.skillMatch.matchPercentage);
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', app.id);
@@ -277,7 +286,7 @@ function KanbanCard({
         <span className="kanban__card-company">{app.companyName}</span>
         <span
           className="kanban__card-match"
-          style={{ color: matchColor, background: matchColor + '18' }}
+          style={{ color: matchColor, background: matchBackground }}
         >
           {app.skillMatch.matchPercentage}%
         </span>

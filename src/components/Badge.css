@@ -3,15 +3,15 @@
   align-items: center;
   gap: 0.375rem;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 510;
   padding: 0.375rem 0.875rem;
   border-radius: 100px;
   border: 1px solid transparent;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 
 .badge:hover {
-  transform: translateY(-1px);
+  border-color: currentColor;
 }
 
 .badge__dot {
@@ -30,7 +30,7 @@
   background: var(--success);
 }
 .badge--success:hover {
-  box-shadow: 0 2px 12px rgba(23, 135, 83, 0.12);
+  background: var(--success-dim);
 }
 
 .badge--danger {
@@ -42,5 +42,5 @@
   background: var(--danger);
 }
 .badge--danger:hover {
-  box-shadow: 0 2px 12px rgba(197, 52, 52, 0.12);
+  background: var(--danger-dim);
 }

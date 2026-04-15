@@ -122,9 +122,9 @@ export function ForgotPassword() {
       <div className="login-card animate-in">
         <div className="login-card__header">
           <div className="login-card__logo">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <rect x="4" y="4" width="32" height="32" rx="8" stroke="var(--accent)" strokeWidth="2.5" />
-              <path d="M12 14h16M12 20h10M12 26h13" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+              <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
+              <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </div>
           <h1>ResumeMatch</h1>

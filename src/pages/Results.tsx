@@ -119,11 +119,11 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
 }
 
 function getScoreInterpretation(score: number) {
-  if (score >= 86) return { label: 'Strong Match', action: 'Apply with confidence. Highlight your matched keywords in a cover letter.', color: '#16a34a' };
-  if (score >= 76) return { label: 'Good Match', action: 'Apply and address missing keywords in your cover letter.', color: '#3b82f6' };
-  if (score >= 61) return { label: 'Moderate Match', action: 'Update your resume to include missing keywords before applying.', color: '#ca8a04' };
-  if (score >= 41) return { label: 'Weak Match', action: 'Significant gaps exist. Address them in a strong cover letter.', color: '#dc4a20' };
-  return { label: 'Poor Match', action: 'This role may not be the right fit. Try better-matched opportunities.', color: '#dc2626' };
+  if (score >= 86) return { label: 'Strong Match', action: 'Apply with confidence. Highlight your matched keywords in a cover letter.', color: 'var(--score-high)' };
+  if (score >= 76) return { label: 'Good Match', action: 'Apply and address missing keywords in your cover letter.', color: 'var(--score-good)' };
+  if (score >= 61) return { label: 'Moderate Match', action: 'Update your resume to include missing keywords before applying.', color: 'var(--score-mid)' };
+  if (score >= 41) return { label: 'Weak Match', action: 'Significant gaps exist. Address them in a strong cover letter.', color: 'var(--score-low)' };
+  return { label: 'Poor Match', action: 'This role may not be the right fit. Try better-matched opportunities.', color: 'var(--score-poor)' };
 }
 
 export function Results() {

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import './ConfirmModal.css';
 import './SignupPromptModal.css';
 
 interface SignupPromptModalProps {

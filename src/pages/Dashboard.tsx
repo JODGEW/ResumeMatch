@@ -115,6 +115,8 @@ export function Dashboard() {
       }));
   }, [analyses]);
 
+  const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+
   if (!isDemoAccount) {
     return <Navigate to="/upload" replace />;
   }
@@ -167,7 +169,6 @@ export function Dashboard() {
   }
 
   const points = getPointCoords();
-  const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
 
   // Cumulative cost — accumulate oldest→newest, then reverse for display
   let runningTotal = 0;
@@ -298,7 +299,7 @@ export function Dashboard() {
                       <circle
                         cx={p.x} cy={p.y}
                         r={hoveredPoint === i ? 8 : 6}
-                        fill="var(--bg-primary)" stroke="var(--accent)" strokeWidth="2"
+                        fill="var(--surface-card)" stroke="var(--accent)" strokeWidth="2"
                         style={{ transition: 'r 0.15s ease' }}
                       />
                       <circle

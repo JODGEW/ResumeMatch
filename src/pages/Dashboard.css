@@ -15,9 +15,9 @@
 }
 
 .dash-stat {
-  background: var(--bg-primary);
+  background: var(--surface-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: 1.25rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -26,18 +26,15 @@
 
 .dash-stat__label {
   font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-weight: 510;
   color: var(--text-muted);
 }
 
 .dash-stat__value {
   font-family: var(--font-mono);
   font-size: 1.5rem;
-  font-weight: 500;
+  font-weight: 510;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
 }
 
 .dash-stat__sub {
@@ -59,14 +56,13 @@
 
 .dash-chart__header h3 {
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 510;
 }
 
 .dash-chart__range {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   color: var(--text-muted);
-  letter-spacing: 0.03em;
 }
 
 .dash-chart__container {
@@ -83,11 +79,11 @@
 .dash-chart__tooltip {
   position: absolute;
   pointer-events: none;
-  background: var(--bg-secondary);
+  background: var(--surface-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-popover);
   white-space: nowrap;
   z-index: 10;
   animation: tooltipFadeIn 0.15s ease;
@@ -101,7 +97,7 @@
 .dash-chart__tooltip-cost {
   font-family: var(--font-mono);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 510;
   color: var(--accent);
 }
 
@@ -135,7 +131,7 @@
 
 .dash-ledger__header h3 {
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 510;
 }
 
 .dash-table-wrap {
@@ -153,9 +149,7 @@
 .dash-table__th {
   font-family: var(--font-display);
   font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-weight: 510;
   color: var(--text-muted);
   padding: 0.625rem 0.75rem;
   text-align: left;
@@ -163,7 +157,7 @@
   white-space: nowrap;
   position: sticky;
   top: 0;
-  background: var(--bg-primary);
+  background: var(--surface-card);
 }
 
 .dash-table__th--right {
@@ -175,7 +169,7 @@
 }
 
 .dash-table__row:hover {
-  background: var(--bg-secondary);
+  background: var(--surface-card-hover);
 }
 
 .dash-table__td {
@@ -195,7 +189,7 @@
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 500;
+  font-weight: 510;
 }
 
 .dash-table__td--right {
@@ -216,23 +210,23 @@
 
 .dash-table__td--total-latest {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 510;
 }
 
 .dash-table__score {
   display: inline-block;
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 510;
   font-size: 0.75rem;
   min-width: 2rem;
   text-align: center;
 }
 
-.dash-table__score[data-level="high"] { color: #16a34a; }
-.dash-table__score[data-level="good"] { color: #3b82f6; }
-.dash-table__score[data-level="mid"]  { color: #ca8a04; }
-.dash-table__score[data-level="low"]  { color: #dc4a20; }
-.dash-table__score[data-level="poor"] { color: #dc2626; }
+.dash-table__score[data-level="high"] { color: var(--score-high); }
+.dash-table__score[data-level="good"] { color: var(--score-good); }
+.dash-table__score[data-level="mid"]  { color: var(--score-mid); }
+.dash-table__score[data-level="low"]  { color: var(--score-low); }
+.dash-table__score[data-level="poor"] { color: var(--score-poor); }
 
 .dash-table tbody tr:last-child .dash-table__td {
   border-bottom: none;
@@ -249,16 +243,14 @@
 }
 
 .dash-ledger__total-label {
-  font-weight: 600;
-  text-transform: uppercase;
+  font-weight: 510;
   font-size: 0.6875rem;
-  letter-spacing: 0.06em;
   color: var(--text-muted);
 }
 
 .dash-ledger__total-value {
   font-family: var(--font-mono);
-  font-weight: 700;
+  font-weight: 590;
   font-size: 0.875rem;
   color: var(--accent);
 }

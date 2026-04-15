@@ -165,11 +165,19 @@ function getQuickActions(app: Application): QuickActionSet {
 }
 
 function getScoreColor(score: number) {
-  if (score >= 86) return '#16a34a';
-  if (score >= 76) return '#3b82f6';
-  if (score >= 61) return '#ca8a04';
-  if (score >= 41) return '#dc4a20';
-  return '#9ca3af';
+  if (score >= 86) return 'var(--score-high)';
+  if (score >= 76) return 'var(--score-good)';
+  if (score >= 61) return 'var(--score-mid)';
+  if (score >= 41) return 'var(--score-low)';
+  return 'var(--score-poor)';
+}
+
+function getScoreBackground(score: number) {
+  if (score >= 86) return 'var(--score-high-dim)';
+  if (score >= 76) return 'var(--score-good-dim)';
+  if (score >= 61) return 'var(--score-mid-dim)';
+  if (score >= 41) return 'var(--score-low-dim)';
+  return 'var(--score-poor-dim)';
 }
 
 function formatDate(iso: string) {
@@ -1067,6 +1075,9 @@ export function Tracker() {
       const app = applications.find(a => a.id === modalState.editId);
       if (app) {
         const { id, createdAt, updatedAt, outreachWorth, ...rest } = app;
+        void createdAt;
+        void updatedAt;
+        void outreachWorth;
         return { ...rest, id };
       }
     }
@@ -1171,7 +1182,7 @@ export function Tracker() {
 
       {/* Error state */}
       {error && (
-        <div className="tracker-demo-banner animate-in" style={{ animationDelay: '0.05s', borderColor: '#dc2626', color: '#dc2626' }}>
+        <div className="tracker-demo-banner tracker-demo-banner--error animate-in" style={{ animationDelay: '0.05s' }}>
           {error}
         </div>
       )}
@@ -1416,7 +1427,13 @@ export function Tracker() {
                         </div>
                       </div>
                       <div className="tracker-card__right">
-                        <span className="tracker-card__match" style={{ color: getScoreColor(app.skillMatch.matchPercentage), background: getScoreColor(app.skillMatch.matchPercentage) + '18' }}>
+                        <span
+                          className="tracker-card__match"
+                          style={{
+                            color: getScoreColor(app.skillMatch.matchPercentage),
+                            background: getScoreBackground(app.skillMatch.matchPercentage),
+                          }}
+                        >
                           {app.skillMatch.matchPercentage}% match
                         </span>
                         <span className={`app-status-badge app-status-badge--${app.applicationStatus}`}>

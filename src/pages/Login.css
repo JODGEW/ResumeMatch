@@ -6,7 +6,7 @@
   padding: 2rem;
   position: relative;
   overflow: hidden;
-  background: var(--bg-secondary);
+  background: var(--bg-root);
 }
 
 /* ── Background ─────────────────────────────────────── */
@@ -29,52 +29,72 @@
 }
 
 .login-page__glow {
-  position: absolute;
-  top: 30%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 600px;
-  height: 400px;
-  background: radial-gradient(ellipse, rgba(67, 56, 202, 0.06) 0%, transparent 70%);
-  opacity: 1;
+  display: none;
 }
 
 /* ── Card ───────────────────────────────────────────── */
 .login-card {
   width: 100%;
   max-width: 400px;
-  background: var(--bg-primary);
+  background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 2.5rem;
   position: relative;
   z-index: 1;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-md);
 }
 
 .login-card__header {
   text-align: center;
   margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .login-card__logo {
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin-bottom: 1.25rem;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 1.5rem;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.login-card__logo svg {
+  display: block;
 }
 
 .login-card__header h1 {
+  font-family: var(--font-display);
+  font-feature-settings: "cv01", "ss03";
   font-size: 1.75rem;
-  margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, var(--text-primary), var(--accent));
+  line-height: 1.1;
+  font-weight: 590;
+  letter-spacing: -0.616px;
+  margin-bottom: 0.625rem;
+  background: linear-gradient(135deg, #5e6ad2 0%, #828fff 60%, rgba(130, 143, 255, 0.72) 100%);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .login-card__header p {
+  font-family: var(--font-body);
+  font-feature-settings: "cv01", "ss03";
   font-size: 0.9375rem;
-  color: var(--text-secondary);
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: -0.165px;
+  color: var(--text-muted);
+  max-width: 28ch;
+  margin: 0 auto;
 }
 
 /* ── Error ──────────────────────────────────────────── */
@@ -102,9 +122,9 @@
   gap: 0.625rem;
   padding: 0.75rem;
   font-size: 0.9375rem;
-  font-weight: 500;
+  font-weight: 510;
   color: var(--text-primary);
-  background: var(--bg-primary);
+  background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -112,8 +132,9 @@
 }
 
 .login-card__google-btn:hover:not(:disabled) {
-  border-color: var(--text-tertiary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-color: var(--border-light);
+  background: var(--surface-card-hover);
+  box-shadow: var(--shadow-sm);
 }
 
 .login-card__google-btn:disabled {
@@ -173,8 +194,8 @@
 }
 
 .login-card__submit .loading-spinner {
-  border-color: rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border-color: color-mix(in srgb, var(--text-on-accent) 34%, transparent);
+  border-top-color: var(--text-on-accent);
 }
 
 /* ── Password field ────────────────────────────────── */
@@ -240,7 +261,7 @@
 /* Unmet → full emphasis */
 .login-card__pw-rules li:not([data-met="true"]) {
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 510;
 }
 
 .login-card__pw-rules li:not([data-met="true"])::before {
@@ -290,7 +311,7 @@
 
 .login-card__pw-strength--medium .login-card__pw-strength-seg:nth-child(1),
 .login-card__pw-strength--medium .login-card__pw-strength-seg:nth-child(2) {
-  background: var(--warning, #e8a735);
+  background: var(--warning);
 }
 
 .login-card__pw-strength--strong .login-card__pw-strength-seg {
@@ -299,9 +320,7 @@
 
 .login-card__pw-strength-label {
   font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 510;
   white-space: nowrap;
   line-height: 1;
 }
@@ -311,7 +330,7 @@
 }
 
 .login-card__pw-strength--medium .login-card__pw-strength-label {
-  color: var(--warning, #e8a735);
+  color: var(--warning);
 }
 
 .login-card__pw-strength--strong .login-card__pw-strength-label {
@@ -339,7 +358,7 @@
 .login-card__footer {
   margin: 1.5rem -2.5rem -2.5rem;
   padding: 1.25rem 2.5rem;
-  background: var(--bg-secondary);
+  background: var(--surface-subtle);
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   text-align: center;
@@ -385,7 +404,7 @@
 .login-card__link a {
   color: var(--accent);
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 510;
 }
 
 .login-card__link a:hover {
@@ -399,7 +418,7 @@
   font-size: inherit;
   font-family: inherit;
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 510;
   cursor: pointer;
 }
 
@@ -437,9 +456,9 @@
   width: 100%;
   padding: 0.625rem 0.75rem;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 510;
   color: var(--text-primary);
-  background: var(--bg-primary);
+  background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -496,6 +515,7 @@
 
   .login-card__header h1 {
     font-size: 1.5rem;
+    letter-spacing: -0.528px;
   }
 
   .login-card__header p {

@@ -40,7 +40,7 @@
   margin: 0;
   color: var(--text-primary);
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 590;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -54,7 +54,32 @@
   background: var(--accent-dim);
   color: var(--accent);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 510;
+}
+
+.ih-card__match--high {
+  color: var(--score-high);
+  background: var(--score-high-dim);
+}
+
+.ih-card__match--good {
+  color: var(--score-good);
+  background: var(--score-good-dim);
+}
+
+.ih-card__match--mid {
+  color: var(--score-mid);
+  background: var(--score-mid-dim);
+}
+
+.ih-card__match--low {
+  color: var(--score-low);
+  background: var(--score-low-dim);
+}
+
+.ih-card__match--poor {
+  color: var(--score-poor);
+  background: var(--score-poor-dim);
 }
 
 .ih-card__source {
@@ -96,24 +121,26 @@
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 510;
+  border: 1px solid transparent;
 }
 
 .ih-badge--completed {
-  background: var(--success-dim, rgba(22, 163, 74, 0.1));
+  background: var(--success-dim);
   color: var(--success);
+  border-color: var(--success-border);
 }
 
 .ih-badge--active {
-  background: rgba(202, 138, 4, 0.12);
-  color: var(--warning, #ca8a04);
+  background: var(--warning-dim);
+  color: var(--warning);
+  border-color: var(--warning-border);
 }
 
 .ih-badge--abandoned {
-  background: var(--bg-elevated);
+  background: var(--surface-raised);
   color: var(--text-muted);
+  border-color: var(--border-subtle);
 }
 
 .ih-card__view {

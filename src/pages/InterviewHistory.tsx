@@ -44,11 +44,24 @@ function getResumeLabel(session: SessionSummary): string {
   return session.fileName || 'Default Resume';
 }
 
-function formatMatchScore(score?: number | string): string | null {
+function parseMatchScore(score?: number | string): number | null {
   if (score == null || (typeof score === 'string' && score.trim() === '')) return null;
   const numeric = typeof score === 'number' ? score : Number(score);
   if (!Number.isFinite(numeric)) return null;
-  return `${Math.round(numeric)}% Match`;
+  return Math.round(numeric);
+}
+
+function formatMatchScore(score?: number | string): string | null {
+  const numeric = parseMatchScore(score);
+  return numeric == null ? null : `${numeric}% Match`;
+}
+
+function getScoreTier(score: number): 'high' | 'good' | 'mid' | 'low' | 'poor' {
+  if (score >= 86) return 'high';
+  if (score >= 76) return 'good';
+  if (score >= 61) return 'mid';
+  if (score >= 41) return 'low';
+  return 'poor';
 }
 
 function formatStatus(status?: string): string {
@@ -147,6 +160,8 @@ export function InterviewHistory() {
         <div className="ih-list animate-in stagger-1">
           {sessions.map((session) => {
             const matchLabel = formatMatchScore(session.matchScore);
+            const matchValue = parseMatchScore(session.matchScore);
+            const matchTier = matchValue != null ? getScoreTier(matchValue) : null;
             const company = getCompanyLabel(session);
             const sourceLabel = company
               ? `${company} · ${getResumeLabel(session)}`
@@ -156,7 +171,11 @@ export function InterviewHistory() {
               <article key={session.sessionId} className="ih-card card">
                 <div className="ih-card__top">
                   <h2 className="ih-card__title">{getRoleLabel(session)}</h2>
-                  {matchLabel && <span className="ih-card__match">{matchLabel}</span>}
+                  {matchLabel && (
+                    <span className={`ih-card__match${matchTier ? ` ih-card__match--${matchTier}` : ''}`}>
+                      {matchLabel}
+                    </span>
+                  )}
                 </div>
 
                 <p className="ih-card__source">{sourceLabel}</p>

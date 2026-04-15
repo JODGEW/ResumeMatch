@@ -14,7 +14,7 @@
   font-size: 0.8125rem;
   color: var(--text-secondary);
   background: var(--accent-dim);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   text-align: center;
 }
 
@@ -25,7 +25,7 @@
   font-family: inherit;
   font-size: inherit;
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 510;
   text-decoration: none;
   cursor: pointer;
 }
@@ -39,21 +39,23 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--bg-root);
+  background: color-mix(in srgb, var(--bg-root) 90%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .nav {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .nav__inner {
-  max-width: 1120px;
+  max-width: var(--container-max);
   margin: 0 auto;
-  padding: 0 2rem;
-  height: 64px;
+  padding: 0 var(--container-pad-x);
+  height: 60px;
   display: flex;
   align-items: center;
-  gap: 2.5rem;
+  gap: 2rem;
 }
 
 .nav__brand {
@@ -70,13 +72,15 @@
 
 .nav__title {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-feature-settings: "cv01", "ss03";
+  font-weight: 590;
   font-size: 1.125rem;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  letter-spacing: -0.396px;
+  background: linear-gradient(135deg, #5e6ad2 0%, #828fff 60%, rgba(130, 143, 255, 0.72) 100%);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .nav__links {
@@ -93,12 +97,12 @@
   gap: 0.375rem;
   font-family: var(--font-display);
   font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 510;
   color: var(--text-muted);
-  padding: 0.5rem 1rem;
+  padding: 0.4375rem 0.8125rem;
   border-radius: var(--radius-sm);
   transition: all 0.2s;
+  border: 1px solid transparent;
 }
 
 .nav__link svg {
@@ -109,7 +113,8 @@
 
 .nav__link:hover {
   color: var(--text-primary);
-  background: var(--bg-elevated);
+  background: var(--surface-card-hover);
+  border-color: var(--border-subtle);
 }
 
 .nav__link:hover svg {
@@ -117,8 +122,9 @@
 }
 
 .nav__link--active {
-  color: var(--accent) !important;
-  background: var(--accent-dim);
+  color: var(--text-primary) !important;
+  background: var(--surface-card);
+  border-color: var(--border);
 }
 
 .nav__link--active svg {
@@ -134,7 +140,7 @@
 
 .nav__email {
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .nav__logout {
@@ -150,8 +156,8 @@
   width: 44px;
   height: 44px;
   flex-shrink: 0;
-  background: none;
-  border: none;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   cursor: pointer;
@@ -160,14 +166,14 @@
 }
 
 .nav__hamburger:hover {
-  background: var(--bg-elevated);
+  background: var(--surface-card-hover);
 }
 
 /* ── Mobile drawer backdrop ─────────────────────────── */
 .nav__backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--overlay);
   z-index: 200;
   opacity: 0;
   pointer-events: none;
@@ -189,9 +195,9 @@
   left: 0;
   bottom: 0;
   width: min(80%, 320px);
-  background: var(--bg-primary);
-  border-right: none;
-  box-shadow: 6px 0 32px rgba(0, 0, 0, 0.6), inset -1px 0 0 rgba(255, 255, 255, 0.04);
+  background: var(--surface-panel);
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-popover);
   z-index: 201;
   transform: translateX(-100%);
   transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
@@ -206,19 +212,9 @@
   pointer-events: auto;
 }
 
-/* Light theme: solid panel, no transparency needed */
-[data-theme="light"] .nav__drawer {
-  background: var(--bg-primary);
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
-}
-
-[data-theme="light"] .nav__backdrop--open {
-  background: rgba(0, 0, 0, 0.3);
-}
-
 .nav__drawer-header {
   padding: 1.25rem 1.25rem 1rem 1.25rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .nav__drawer-email {
@@ -246,7 +242,7 @@
 
 .nav__drawer-divider {
   height: 1px;
-  background: var(--border);
+  background: var(--border-subtle);
   margin: 0;
 }
 

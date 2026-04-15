@@ -9,11 +9,11 @@
   height: 3.25rem;
   text-align: center;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 510;
   font-family: var(--font-mono, monospace);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-primary);
+  background: var(--surface-card);
   color: var(--text-primary);
   transition: border-color 0.15s, box-shadow 0.15s;
   padding: 0;
@@ -22,7 +22,7 @@
 .code-input input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-dim);
+  box-shadow: var(--shadow-focus);
 }
 
 @media (max-width: 480px) {

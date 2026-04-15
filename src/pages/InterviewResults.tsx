@@ -28,9 +28,9 @@ function formatTime(dateStr: string): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'var(--success)';
-  if (score >= 60) return 'var(--accent)';
-  return 'var(--warning, #ca8a04)';
+  if (score >= 80) return 'var(--score-high)';
+  if (score >= 60) return 'var(--score-good)';
+  return 'var(--score-mid)';
 }
 
 function formatInterviewType(type: string): string {
@@ -51,11 +51,24 @@ function getSessionTitle(session: SessionResponse): string {
   return `${formatInterviewType(session.interviewType)} Practice Session (No job selected)`;
 }
 
-function formatMatchScore(score?: number | string): string | null {
+function parseMatchScore(score?: number | string): number | null {
   if (score == null || (typeof score === 'string' && score.trim() === '')) return null;
   const numeric = typeof score === 'number' ? score : Number(score);
   if (!Number.isFinite(numeric)) return null;
-  return `${Math.round(numeric)}% Match`;
+  return Math.round(numeric);
+}
+
+function formatMatchScore(score?: number | string): string | null {
+  const numeric = parseMatchScore(score);
+  return numeric == null ? null : `${numeric}% Match`;
+}
+
+function getMatchScoreTier(score: number): 'high' | 'good' | 'mid' | 'low' | 'poor' {
+  if (score >= 86) return 'high';
+  if (score >= 76) return 'good';
+  if (score >= 61) return 'mid';
+  if (score >= 41) return 'low';
+  return 'poor';
 }
 
 function formatCategoryWeight(weight: number): string {
@@ -164,6 +177,8 @@ export function InterviewResults() {
   const interviewType = formatInterviewType(session.interviewType);
   const typeBadge = `${interviewType} Interview`;
   const matchLabel = formatMatchScore(session.matchScore);
+  const matchValue = parseMatchScore(session.matchScore);
+  const matchTier = matchValue != null ? getMatchScoreTier(matchValue) : null;
   const hasContextLinks = Boolean(session.analysisId || session.jobDescription);
   const contextTitle = session.analysisId ? 'Analysis & Context' : 'Context';
   const isActiveSession = session.status === 'active';
@@ -312,7 +327,11 @@ export function InterviewResults() {
       <header className="ir-session-header">
         <div className="ir-session-header__top">
           <h1>{getSessionTitle(session)}</h1>
-          {matchLabel && <span className="ir-context__match">{matchLabel}</span>}
+          {matchLabel && (
+            <span className={`ir-context__match${matchTier ? ` ir-context__match--${matchTier}` : ''}`}>
+              {matchLabel}
+            </span>
+          )}
         </div>
 
         <div className="ir-session-header__body">

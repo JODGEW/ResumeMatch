@@ -1,15 +1,17 @@
 .signup-modal {
-  background: var(--bg-primary);
-  border-radius: 12px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 2rem 1.5rem;
   width: 100%;
   max-width: 360px;
   text-align: center;
+  box-shadow: var(--shadow-popover);
 }
 
 .signup-modal__title {
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 590;
   color: var(--text-primary);
   margin: 0 0 0.75rem;
 }
@@ -32,15 +34,15 @@
   padding: 0.5rem 1.25rem;
   border-radius: 8px;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 510;
   cursor: pointer;
   line-height: 1.25;
 }
 
 .signup-modal__primary {
   background: var(--accent);
-  color: #fff;
-  border: 1.5px solid transparent;
+  color: var(--text-on-accent);
+  border: 1px solid var(--accent);
   transition: opacity 0.15s;
 }
 
@@ -51,13 +53,13 @@
 .signup-modal__secondary {
   background: transparent;
   color: var(--text-primary);
-  border: 1.5px solid var(--text-muted);
+  border: 1px solid var(--border);
   transition: border-color 0.15s, background 0.15s;
 }
 
 .signup-modal__secondary:hover {
   border-color: var(--text-primary);
-  background: var(--bg-secondary);
+  background: var(--surface-card-hover);
 }
 
 .signup-modal__primary:focus-visible,

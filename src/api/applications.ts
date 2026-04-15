@@ -58,7 +58,10 @@ export async function updateApplication(
 ): Promise<Application> {
   const userId = await getUserId();
   // Strip fields that shouldn't be sent to the server
-  const { id: _id, createdAt: _ca, updatedAt: _ua, ...payload } = updates;
+  const { id, createdAt, updatedAt, ...payload } = updates;
+  void id;
+  void createdAt;
+  void updatedAt;
   const { data } = await client.put<UpdateResponse>(`/applications/${applicationId}?userId=${userId}`, payload);
   return toApplication(data.application);
 }

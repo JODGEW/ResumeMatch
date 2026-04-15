@@ -33,7 +33,11 @@ export function useApplications() {
           const migrated: Application[] = [];
           for (const app of local) {
             try {
-              const { id: _id, createdAt: _ca, updatedAt: _ua, outreachWorth: _ow, ...payload } = app;
+              const { id, createdAt, updatedAt, outreachWorth, ...payload } = app;
+              void id;
+              void createdAt;
+              void updatedAt;
+              void outreachWorth;
               const created = await api.createApplication(payload);
               created.outreachWorth = calculateOutreachScore(created).worth;
               migrated.push(created);
@@ -59,19 +63,6 @@ export function useApplications() {
 
     fetchAndMigrate();
   }, [isDemo]);
-
-  // Demo mode: return sample data with no API calls
-  if (isDemo) {
-    return {
-      applications: SAMPLE_DATA,
-      isReadOnly: true,
-      isLoading: false,
-      error: null,
-      addApplication: () => {},
-      updateApplication: () => {},
-      deleteApplication: () => {},
-    };
-  }
 
   const addApplication = useCallback(async (
     data: Omit<Application, 'id' | 'createdAt' | 'updatedAt' | 'outreachWorth'>,
@@ -141,6 +132,23 @@ export function useApplications() {
       setError(err instanceof Error ? err.message : 'Failed to delete application');
     }
   }, [applications]);
+
+  const noopAddApplication = useCallback(async () => {}, []);
+  const noopUpdateApplication = useCallback(async () => {}, []);
+  const noopDeleteApplication = useCallback(async () => {}, []);
+
+  // Demo mode: return sample data with no API calls
+  if (isDemo) {
+    return {
+      applications: SAMPLE_DATA,
+      isReadOnly: true,
+      isLoading: false,
+      error: null,
+      addApplication: noopAddApplication,
+      updateApplication: noopUpdateApplication,
+      deleteApplication: noopDeleteApplication,
+    };
+  }
 
   return {
     applications,

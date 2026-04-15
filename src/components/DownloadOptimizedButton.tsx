@@ -16,6 +16,7 @@ import React, { useState, useCallback } from 'react';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
 import { SignupPromptModal } from './SignupPromptModal';
+import './DownloadOptimizedButton.css';
 
 interface DownloadOptimizedButtonProps {
   suggestedText?: string;
@@ -55,7 +56,7 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
     } finally {
       setIsGenerating(false);
     }
-  }, [suggestedText, isGenerating]);
+  }, [suggestedText, isGenerating, isDemo]);
 
   // Gate: only show when analysis is done and we have text
   if (status !== 'completed' || !suggestedText?.trim()) {
@@ -63,35 +64,12 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div className={`download-optimized ${className ?? ''}`.trim()}>
       <button
+        className="btn btn-primary download-optimized__button"
         onClick={handleDownload}
         disabled={isGenerating}
         title={isDemo ? 'Sign up for full access' : undefined}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 16px',
-          fontSize: '14px',
-          fontWeight: 500,
-          color: '#fff',
-          backgroundColor: isGenerating ? '#6b7280' : 'var(--accent)',
-          border: 'none',
-          borderRadius: '6px',
-          cursor: isGenerating ? 'not-allowed' : 'pointer',
-          transition: 'background-color 0.15s',
-        }}
-        onMouseEnter={(e) => {
-          if (!isGenerating) {
-            (e.target as HTMLButtonElement).style.backgroundColor = 'var(--accent-hover)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isGenerating) {
-            (e.target as HTMLButtonElement).style.backgroundColor = 'var(--accent)';
-          }
-        }}
       >
         {isGenerating ? (
           <>
@@ -106,24 +84,12 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
         )}
       </button>
 
-      <p
-        style={{
-          margin: '6px 0 0',
-          fontSize: '12px',
-          color: '#6b7280',
-        }}
-      >
+      <p className="download-optimized__hint">
         Optimized for ATS parsing — paste into your preferred template
       </p>
 
       {error && (
-        <p
-          style={{
-            margin: '6px 0 0',
-            fontSize: '12px',
-            color: '#dc2626',
-          }}
-        >
+        <p className="download-optimized__error">
           {error}
         </p>
       )}

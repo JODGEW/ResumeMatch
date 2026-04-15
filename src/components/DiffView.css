@@ -38,13 +38,13 @@
 }
 
 .diff-view__legend-item--original::before {
-  background: var(--bg-secondary);
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
 }
 
 .diff-view__legend-item--added::before {
-  background: rgba(67, 56, 202, 0.12);
-  border: 1px solid rgba(67, 56, 202, 0.25);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
 }
 
 .diff-view__legend-item--removed::before {
@@ -53,7 +53,7 @@
 }
 
 .diff-view__body {
-  background: var(--bg-secondary);
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 1.5rem;
@@ -72,9 +72,9 @@
 }
 
 .diff-view__added {
-  background: rgba(67, 56, 202, 0.10);
-  border-bottom: 2px solid rgba(67, 56, 202, 0.4);
-  color: #3730A3;
+  background: var(--accent-dim);
+  border-bottom: 2px solid var(--accent-border);
+  color: var(--accent);
   padding: 0.1em 0.15em;
   border-radius: 2px;
 }
@@ -83,7 +83,7 @@
   background: var(--danger-dim);
   color: var(--danger);
   text-decoration: line-through;
-  text-decoration-color: rgba(197, 52, 52, 0.4);
+  text-decoration-color: var(--danger-border);
   padding: 0.1em 0.15em;
   border-radius: 2px;
   opacity: 0.75;

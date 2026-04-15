@@ -1,0 +1,23 @@
+.download-optimized {
+  margin-top: 1.5rem;
+}
+
+.download-optimized__button {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.download-optimized__hint,
+.download-optimized__error {
+  margin: 0.375rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.download-optimized__hint {
+  color: var(--text-muted);
+}
+
+.download-optimized__error {
+  color: var(--danger);
+}

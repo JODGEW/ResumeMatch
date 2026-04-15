@@ -34,11 +34,11 @@ export function ProgressRing({ score, size = 220, label }: Props) {
   }, [score]);
 
   const getGradient = () => {
-    if (score >= 86) return { a: '#16a34a', b: '#15803d' }; // green
-    if (score >= 76) return { a: '#3b82f6', b: '#2563eb' }; // blue
-    if (score >= 61) return { a: '#ca8a04', b: '#a16207' }; // amber (yellow-leaning)
-    if (score >= 41) return { a: '#dc4a20', b: '#b83a14' }; // orange (red-leaning)
-    return { a: '#dc2626', b: '#b91c1c' };                  // red
+    if (score >= 86) return { a: 'var(--score-high)', b: 'var(--success)' };
+    if (score >= 76) return { a: 'var(--score-good)', b: 'var(--info)' };
+    if (score >= 61) return { a: 'var(--score-mid)', b: 'var(--warning)' };
+    if (score >= 41) return { a: 'var(--score-low)', b: 'var(--score-low)' };
+    return { a: 'var(--score-poor)', b: 'var(--danger)' };
   };
 
   const getLabel = () => {
@@ -50,11 +50,11 @@ export function ProgressRing({ score, size = 220, label }: Props) {
   };
 
   const getLabelColor = () => {
-    if (score >= 86) return '#15803d'; // muted green
-    if (score >= 76) return '#2563eb'; // muted blue
-    if (score >= 61) return '#7c5e06'; // muted amber (deepened)
-    if (score >= 41) return '#a3351a'; // muted orange
-    return '#991b1b';                  // muted red
+    if (score >= 86) return 'var(--score-high)';
+    if (score >= 76) return 'var(--score-good)';
+    if (score >= 61) return 'var(--score-mid)';
+    if (score >= 41) return 'var(--score-low)';
+    return 'var(--score-poor)';
   };
 
   const colors = getGradient();

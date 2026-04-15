@@ -10,7 +10,7 @@ ResumeMatch is a production-grade, fully serverless AI resume analyzer deployed 
 
 ### Resume Analysis
 
-![Results Page](screenshots/results.png)
+![Results Page](screenshots/result.png)
 
 ### Outreach Tracker
 

@@ -38,13 +38,13 @@
   background: var(--accent-dim);
   color: var(--accent);
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 510;
   font-size: 0.8125rem;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid rgba(67, 56, 202, 0.25);
+  border: 1px solid var(--accent-border);
 }
 
 .upload-panel__header h3 {
@@ -96,7 +96,7 @@
 
 .upload-progress__bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  background: var(--accent);
   border-radius: 2px;
   transition: width 0.5s ease;
 }
