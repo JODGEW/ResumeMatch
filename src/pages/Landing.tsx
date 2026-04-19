@@ -3,7 +3,9 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../auth/AuthContext';
 import './Landing.css';
 
-const resultImage = new URL('../../screenshots/result.png', import.meta.url).href;
+const resultImage = new URL('../../screenshots/landing_result.JPG', import.meta.url).href;
+const suggestionImage = new URL('../../screenshots/landing_suggestion.JPG', import.meta.url).href;
+const interviewImage = new URL('../../screenshots/landing_interview.JPG', import.meta.url).href;
 
 const steps = [
   {
@@ -28,18 +30,22 @@ const steps = [
   },
 ];
 
-const benefits = [
+const workflowPreviews = [
   {
-    title: 'Get the interview',
-    body: 'See whether your resume is making the right case before you apply.',
+    title: 'Targeted resume edits',
+    body: 'Move from scoring into concrete suggestions that strengthen the resume for that job description.',
+    image: suggestionImage,
+    alt: 'Role-specific resume suggestions showing targeted edits and changes to strengthen the application before applying.',
+    frameClassName: ' landing-shot--preview-wide',
+    imageClassName: ' landing-shot__image--wide',
   },
   {
-    title: 'Improve the application',
-    body: 'Focus on the gaps and edits that will make the application more relevant.',
-  },
-  {
-    title: 'Practice for the interview',
-    body: 'Turn the same role into interview practice after the resume is in better shape.',
+    title: 'Role-based mock interview',
+    body: 'Carry the same role into interview practice and review how the answers hold up.',
+    image: interviewImage,
+    alt: 'Role-based mock interview results showing interview questions, transcript feedback, and evaluation for the same job context.',
+    frameClassName: ' landing-shot--preview-portrait',
+    imageClassName: ' landing-shot__image--portrait',
   },
 ];
 
@@ -188,6 +194,20 @@ export function Landing() {
           </div>
         </section>
 
+        <section className="landing-showcase" aria-labelledby="landing-preview-heading">
+          <div className="page-container landing-showcase__inner">
+            <h2 id="landing-preview-heading" className="sr-only">
+              Product preview
+            </h2>
+            <figure className="landing-shot landing-shot--hero">
+              <img
+                src={resultImage}
+                alt="Resume analysis results showing an overall match score, breakdown, and role-specific evaluation before applying."
+              />
+            </figure>
+          </div>
+        </section>
+
         <section className="landing-section" id="why">
           <div className="page-container landing-section__inner landing-section__inner--reading">
             <p className="landing-eyebrow">Why ResumeMatch</p>
@@ -221,18 +241,35 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="landing-section">
+        <section className="landing-section landing-section--workflow">
           <div className="page-container landing-section__inner">
             <div className="landing-section__header">
-              <p className="landing-eyebrow">What you get</p>
-              <h2>Three outcomes, one workflow</h2>
+              <p className="landing-eyebrow">See the workflow in action</p>
+              <h2>What happens after the analysis</h2>
             </div>
 
-            <div className="landing-benefits" role="list">
-              {benefits.map((benefit) => (
-                <article key={benefit.title} className="landing-benefit" role="listitem">
-                  <h3>{benefit.title}</h3>
-                  <p>{benefit.body}</p>
+            <div className="landing-reading-wrap landing-workflow__intro">
+              <p className="landing-reading-copy">
+                ResumeMatch turns role-specific gaps into resume edits, then carries the same role into interview practice.
+              </p>
+            </div>
+
+            <div className="landing-product-strip" role="list" aria-label="Workflow proof">
+              {workflowPreviews.map((preview) => (
+                <article key={preview.title} className="landing-preview-card" role="listitem">
+                  <figure className={`landing-shot landing-shot--preview${preview.frameClassName ?? ''}`}>
+                    <img
+                      className={preview.imageClassName?.trim() || undefined}
+                      src={preview.image}
+                      alt={preview.alt}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </figure>
+                  <div className="landing-preview-card__body">
+                    <h3>{preview.title}</h3>
+                    <p>{preview.body}</p>
+                  </div>
                 </article>
               ))}
             </div>
