@@ -95,7 +95,11 @@ const DownloadOptimizedButton: React.FC<DownloadOptimizedButtonProps> = ({
       )}
 
       {showSignupModal && (
-        <SignupPromptModal onClose={() => setShowSignupModal(false)} />
+        <SignupPromptModal
+          onClose={() => setShowSignupModal(false)}
+          title="Download Your Optimized Resume"
+          body="Create a free account to download your AI-optimized resume as a Word document."
+        />
       )}
     </div>
   );

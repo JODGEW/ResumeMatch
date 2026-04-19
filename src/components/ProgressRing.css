@@ -1,8 +1,11 @@
 .progress-ring {
+  --progress-ring-size: 220px;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: var(--progress-ring-size);
+  height: var(--progress-ring-size);
   animation: scaleIn 0.6s ease both;
   flex-shrink: 0;
 }
@@ -10,10 +13,13 @@
 .progress-ring__svg {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .progress-ring__arc {
-  transition: stroke-dashoffset 0.1s ease;
+  will-change: stroke-dashoffset;
 }
 
 .progress-ring__center {
@@ -55,8 +61,8 @@
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
   .progress-ring {
-    width: 170px !important;
-    height: 170px !important;
+    width: min(var(--progress-ring-size), 170px);
+    height: min(var(--progress-ring-size), 170px);
   }
 
   .progress-ring__value {

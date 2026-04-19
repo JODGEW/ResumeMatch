@@ -4,6 +4,10 @@ import type { Analysis } from '../types';
 
 const POLL_TIMEOUT_MS = 120_000; // 2 minutes
 
+export function isInProgress(status: string): boolean {
+  return status === 'pending' || status === 'processing' || status === 'pending_upload';
+}
+
 export function usePolling(analysisId: string | null, intervalMs = 3000) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,10 +20,6 @@ export function usePolling(analysisId: string | null, intervalMs = 3000) {
     if (!analysisId) return;
 
     let cancelled = false;
-
-    function isInProgress(status: string) {
-      return status === 'pending' || status === 'processing';
-    }
 
     async function poll() {
       try {

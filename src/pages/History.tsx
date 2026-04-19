@@ -5,13 +5,19 @@ import { useAuth } from '../auth/AuthContext';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
 import { getTrackerPrefill } from '../utils/trackerPrefill';
+import { isInProgress } from '../hooks/usePolling';
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import './History.css';
 
 function hasInProgress(items: Analysis[]) {
-  return items.some(a => a.status === 'pending' || a.status === 'processing');
+  return items.some(a => isInProgress(a.status));
 }
+
+type SignupPromptContent = {
+  title: string;
+  body: string;
+};
 
 export function History() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
@@ -26,7 +32,7 @@ export function History() {
   const pendingAnalysisId = (location.state as { pendingAnalysisId?: string } | null)?.pendingAnalysisId;
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
-  const [showSignupModal, setShowSignupModal] = useState(false);
+  const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
 
   function handleAddToTracker(a: Analysis) {
     const prefill = getTrackerPrefill(a);
@@ -72,7 +78,7 @@ export function History() {
         // Mark stale processing items as failed (older than 5 min)
         const staleThreshold = Date.now() - 5 * 60 * 1000;
         const withStaleFixed = sorted.map(a => {
-          if ((a.status === 'pending' || a.status === 'processing')) {
+          if (isInProgress(a.status)) {
             const ts = new Date(toUTC(a.timestamp ?? a.createdAt)).getTime();
             if (ts < staleThreshold) {
               return { ...a, status: 'failed' as const, errorMessage: 'Analysis timed out. Please try again.' };
@@ -94,7 +100,7 @@ export function History() {
         const justCompleted = new Set<string>();
         for (const a of sorted) {
           const oldStatus = prev.get(a.analysisId);
-          if (oldStatus && (oldStatus === 'pending' || oldStatus === 'processing') && a.status === 'completed') {
+          if (oldStatus && isInProgress(oldStatus) && a.status === 'completed') {
             justCompleted.add(a.analysisId);
           }
           prev.set(a.analysisId, a.status);
@@ -130,7 +136,7 @@ export function History() {
               if (!cancelled) {
                 // Mark still-processing items as timed out visually
                 setAnalyses(prev => prev.map(a =>
-                  (a.status === 'pending' || a.status === 'processing')
+                  isInProgress(a.status)
                     ? { ...a, status: 'failed' as const, errorMessage: 'Analysis is taking longer than expected. Refresh the page to check again.' }
                     : a
                 ));
@@ -240,7 +246,6 @@ export function History() {
     }
   }
 
-  const isProcessing = (status: string) => status === 'pending' || status === 'processing';
 
   return (
     <div className="page-container">
@@ -297,7 +302,8 @@ export function History() {
           <>
             <div className="history-list">
               {paginatedItems.map((analysis, i) => {
-                const inProgress = isProcessing(analysis.status);
+                const inProgress = isInProgress(analysis.status);
+                const badgeStatus = inProgress ? 'processing' : analysis.status;
                 const isNew = newlyCompleted.has(analysis.analysisId);
 
                 return (
@@ -327,9 +333,9 @@ export function History() {
                           <span className="history-item__score-value">{analysis.matchScore}%</span>
                         </div>
                       ) : (
-                        <div className={`status-badge status-badge--${analysis.status}`}>
-                          {analysis.status === 'processing' && <span className="status-badge__dot" />}
-                          {analysis.status.charAt(0).toUpperCase() + analysis.status.slice(1)}
+                        <div className={`status-badge status-badge--${badgeStatus}`}>
+                          {inProgress && <span className="status-badge__dot" />}
+                          {badgeStatus.charAt(0).toUpperCase() + badgeStatus.slice(1)}
                         </div>
                       )}
                     </div>
@@ -386,9 +392,19 @@ export function History() {
                       <div className="history-item__actions">
                         <button
                           className="btn btn-primary history-item__interview-btn"
-                          disabled={isDemo}
                           title={isDemo ? 'Sign up for full access' : 'Start mock interview'}
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleInterview(analysis); }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (isDemo) {
+                              setSignupPrompt({
+                                title: 'Start Your Mock Interview',
+                                body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
+                              });
+                              return;
+                            }
+                            handleInterview(analysis);
+                          }}
                         >
                           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                             <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
@@ -400,9 +416,19 @@ export function History() {
                         <div className="history-item__secondary-actions">
                           <button
                             className="btn btn-secondary history-item__tracker-btn"
-                            disabled={isDemo}
                             title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToTracker(analysis); }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (isDemo) {
+                                setSignupPrompt({
+                                  title: 'Add This Role to Your Outreach Tracker',
+                                  body: 'Create a free account to save roles, track follow-ups, and manage your application pipeline.',
+                                });
+                                return;
+                              }
+                              handleAddToTracker(analysis);
+                            }}
                           >
                             Add to Tracker
                           </button>
@@ -410,7 +436,18 @@ export function History() {
                             className="btn btn-secondary history-item__download-btn"
                             disabled={downloadingId === analysis.analysisId}
                             title={isDemo ? 'Sign up for full access' : 'Download optimized resume'}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (isDemo) { setShowSignupModal(true); } else { handleDownload(analysis); } }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (isDemo) {
+                                setSignupPrompt({
+                                  title: 'Download Your Optimized Resume',
+                                  body: 'Create a free account to download your AI-optimized resume as a Word document.',
+                                });
+                              } else {
+                                handleDownload(analysis);
+                              }
+                            }}
                           >
                             {downloadingId === analysis.analysisId ? (
                               <>
@@ -478,8 +515,12 @@ export function History() {
         );
       })()}
 
-      {showSignupModal && (
-        <SignupPromptModal onClose={() => setShowSignupModal(false)} />
+      {signupPrompt && (
+        <SignupPromptModal
+          onClose={() => setSignupPrompt(null)}
+          title={signupPrompt.title}
+          body={signupPrompt.body}
+        />
       )}
     </div>
   );

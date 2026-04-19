@@ -1,6 +1,6 @@
 export interface Analysis {
   analysisId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'pending_upload' | 'processing' | 'completed' | 'failed';
   errorMessage?: string;
   matchScore?: number;
   presentKeywords?: string[];

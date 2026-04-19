@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { usePolling } from '../hooks/usePolling';
+import { usePolling, isInProgress } from '../hooks/usePolling';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
+import { SignupPromptModal } from '../components/SignupPromptModal';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
 import { getSession, isMissingInterviewSessionError, listSessions } from '../api/interview';
@@ -19,12 +20,17 @@ type LastInterview = {
   completedAt?: string;
 };
 
+type SignupPromptContent = {
+  title: string;
+  body: string;
+};
+
 function getLastInterviewTime(session: LastInterview) {
   const timestamp = new Date(session.completedAt || session.createdAt || '').getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function InterviewButton({ resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, navigate, isDemo }: {
+function InterviewButton({ resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, navigate, isDemo, onDemoAction }: {
   resumeText: string;
   jobDescription: string;
   fileName?: string;
@@ -33,6 +39,7 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
   matchScore?: number;
   navigate: ReturnType<typeof useNavigate>;
   isDemo: boolean;
+  onDemoAction: (content: SignupPromptContent) => void;
 }) {
   const [lastInterviewId, setLastInterviewId] = useState<string | null>(null);
 
@@ -96,11 +103,19 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
     <div className="results-interview-action">
       <button
         className="btn btn-primary"
-        disabled={isDemo}
         title={isDemo ? 'Sign up for full access' : undefined}
-        onClick={() => navigate('/interview', {
-          state: { resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, startFresh: true }
-        })}
+        onClick={() => {
+          if (isDemo) {
+            onDemoAction({
+              title: 'Start Your Mock Interview',
+              body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
+            });
+            return;
+          }
+          navigate('/interview', {
+            state: { resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, startFresh: true }
+          });
+        }}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
@@ -134,6 +149,7 @@ export function Results() {
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [jdOpen, setJdOpen] = useState(false);
+  const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const navigate = useNavigate();
@@ -229,7 +245,7 @@ export function Results() {
     );
   }
 
-  if (!analysis || analysis.status === 'pending' || analysis.status === 'processing') {
+  if (!analysis || isInProgress(analysis.status)) {
     return (
       <div className="page-container">
         <div className="results-loading">
@@ -347,6 +363,7 @@ export function Results() {
                 matchScore={analysis.matchScore}
                 navigate={navigate}
                 isDemo={isDemo}
+                onDemoAction={setSignupPrompt}
               />
             ) : null}
             <button
@@ -370,9 +387,17 @@ export function Results() {
             </button>
             <button
               className="btn btn-outline"
-              disabled={isDemo}
               title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
-              onClick={handleAddToTracker}
+              onClick={() => {
+                if (isDemo) {
+                  setSignupPrompt({
+                    title: 'Add This Role to Your Outreach Tracker',
+                    body: 'Create a free account to save roles, track follow-ups, and manage your application pipeline.',
+                  });
+                  return;
+                }
+                handleAddToTracker();
+              }}
             >
               Add to Tracker
             </button>
@@ -615,6 +640,14 @@ export function Results() {
         status={analysis.status}
         isDemo={isDemo}
       />
+
+      {signupPrompt && (
+        <SignupPromptModal
+          onClose={() => setSignupPrompt(null)}
+          title={signupPrompt.title}
+          body={signupPrompt.body}
+        />
+      )}
 
       {/* Resume Modal */}
       {(resumeUrl || resumeError) && (

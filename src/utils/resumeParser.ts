@@ -12,9 +12,12 @@
  */
 
 export interface ParsedSection {
-  header: string | null; // null = preamble (contact + optional summary)
-  lines: string[];       // non-empty lines of content under this header
-  isContact?: boolean;   // true for preamble lines detected as contact info
+  header: string | null;          // null = preamble (contact + optional summary)
+  lines: string[];                // content lines after soft-wrap reassembly
+  entryBreakBefore: boolean[];    // parallel to lines: true when a blank line
+                                  // preceded this line in the source (i.e. a
+                                  // new project/job entry starts here)
+  isContact?: boolean;            // true for preamble lines detected as contact info
 }
 
 export interface ParsedResume {
@@ -149,6 +152,67 @@ function decodeText(raw: string): string {
 }
 
 /**
+ * Words that almost never end a real bullet — if a line ends with one of
+ * these, the sentence is still mid-flight and the next physical line is a
+ * hard-wrap continuation. Using this whitelist (instead of "no terminal
+ * punctuation") avoids false joins between separate bullets that the LLM
+ * wrote without trailing periods.
+ */
+const WEAK_ENDING_WORDS = new Set([
+  // prepositions
+  'in', 'on', 'at', 'by', 'for', 'with', 'from', 'to', 'into', 'onto', 'upon',
+  'about', 'between', 'among', 'through', 'across', 'against', 'before',
+  'after', 'during', 'until', 'throughout', 'within', 'without', 'over',
+  'under', 'along', 'around', 'beside', 'of', 'off', 'near',
+  // articles
+  'a', 'an', 'the',
+  // conjunctions
+  'and', 'or', 'but', 'nor', 'so', 'yet',
+  // relative pronouns / subordinators
+  'that', 'which', 'who', 'whom', 'whose', 'where', 'when', 'while', 'as',
+  // common auxiliaries / linking verbs
+  'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had',
+  'do', 'does', 'did',
+  'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'shall',
+]);
+
+/**
+ * Soft-wrap continuation: the previous physical line is mid-sentence and
+ * the current line is its hard-wrap continuation. Two independent signals:
+ *   1. prev ends with a weak connector word (between / the / was / …)
+ *   2. next starts with a lowercase letter — legitimate bullets and
+ *      titles always start uppercase, so a lowercase-start next line is
+ *      almost always a mid-noun-phrase wrap (e.g. "…strict TypeScript" +
+ *      "contract validation…"). Gated on prev.length >= 60 to avoid
+ *      gluing short contact/metadata lines into an email or URL.
+ */
+function isSoftWrapContinuation(prev: string, next: string): boolean {
+  if (!prev || !next) return false;
+  if (isSectionHeader(next)) return false;
+  if (/^[•\-–*]/.test(next)) return false;           // next is a new bullet
+  if (/[.!?)"\]]\s*$/.test(prev)) return false;      // prev ends a sentence
+
+  const firstChar = next[0];
+  if (firstChar >= 'a' && firstChar <= 'z' && prev.length >= 60) {
+    return true;
+  }
+
+  const match = prev.match(/([A-Za-z]+)[,:;]?\s*$/);
+  if (!match) return false;
+  return WEAK_ENDING_WORDS.has(match[1].toLowerCase());
+}
+
+function makeSection(header: string | null): ParsedSection {
+  return { header, lines: [], entryBreakBefore: [] };
+}
+
+function pushLine(section: ParsedSection, line: string, breakBefore: boolean): void {
+  section.lines.push(line);
+  section.entryBreakBefore.push(breakBefore);
+}
+
+/**
  * Parse suggestedText into structured sections.
  */
 export function parseResume(suggestedText: string): ParsedResume {
@@ -158,51 +222,53 @@ export function parseResume(suggestedText: string): ParsedResume {
   // Find the name: first non-empty line
   const name = rawLines.find((l) => l.trim().length > 0)?.trim() || 'Resume';
 
-  // Build sections by scanning for headers
   const sections: ParsedSection[] = [];
-  let currentSection: ParsedSection = { header: null, lines: [] };
-
+  let currentSection = makeSection(null);
   let pastName = false;
+  let blankPending = false;
 
   for (const rawLine of rawLines) {
     const line = rawLine.trim();
 
-    // Skip empty lines
-    if (!line) continue;
+    if (!line) {
+      blankPending = true;
+      continue;
+    }
 
-    // Skip the name line itself (already captured)
     if (!pastName && line === name) {
       pastName = true;
+      blankPending = false;
       continue;
     }
     pastName = true;
 
-    // Check if this line is a section header
     if (isSectionHeader(line)) {
-      // Save current section if it has content
       if (currentSection.lines.length > 0 || currentSection.header !== null) {
         sections.push(currentSection);
       }
-      // Start new section
-      currentSection = { header: line, lines: [] };
+      currentSection = makeSection(line);
+      blankPending = false;
       continue;
     }
 
-    // Regular content line — add to current section
-    currentSection.lines.push(line);
+    const prev = currentSection.lines[currentSection.lines.length - 1];
+    if (!blankPending && prev && isSoftWrapContinuation(prev, line)) {
+      // Merge hard-wrapped continuation into the previous bullet.
+      currentSection.lines[currentSection.lines.length - 1] = `${prev} ${line}`;
+      continue;
+    }
+
+    pushLine(currentSection, line, blankPending);
+    blankPending = false;
   }
 
-  // Don't forget the last section
   if (currentSection.lines.length > 0 || currentSection.header !== null) {
     sections.push(currentSection);
   }
 
-  // Mark preamble section (header === null) as contact info
-  // Preamble lines are everything between the name and the first section header —
-  // typically title, email, phone, LinkedIn, location, pipe-separated contact blocks
   for (const section of sections) {
     if (section.header === null && section.lines.length > 0) {
-      section.isContact = section.lines.some(line => CONTACT_RE.test(line));
+      section.isContact = section.lines.some((line) => CONTACT_RE.test(line));
     }
   }
 

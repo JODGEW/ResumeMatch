@@ -148,15 +148,16 @@ function buildDocument(parsed: ParsedResume): Document {
 
     // Content lines — with metadata bolding for experience/project/education sections
     const boldIndices = getMetadataBoldIndices(section.lines, section.header);
+    const breaks = section.entryBreakBefore;
 
     for (let i = 0; i < section.lines.length; i++) {
       const line = section.lines[i];
       const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('–');
       const cleanLine = isBullet ? line.replace(/^[•\-–]\s*/, '') : line;
       const isBold = boldIndices.has(i);
+      const entryBreak = i > 0 && breaks[i] === true;
 
       if (isBullet) {
-        // Bullet point
         children.push(
           new Paragraph({
             children: [
@@ -167,10 +168,11 @@ function buildDocument(parsed: ParsedResume): Document {
               }),
             ],
             numbering: { reference: 'default-bullet', level: 0 },
-            spacing: { before: 40, after: 40 },
+            spacing: { before: entryBreak ? 200 : 40, after: 40 },
           })
         );
       } else {
+        const baseBefore = isBold && i > 0 && !boldIndices.has(i - 1) ? 160 : 20;
         children.push(
           new Paragraph({
             children: [
@@ -181,7 +183,7 @@ function buildDocument(parsed: ParsedResume): Document {
                 font: 'Calibri',
               }),
             ],
-            spacing: { before: isBold && i > 0 && !boldIndices.has(i - 1) ? 160 : 20, after: 20 },
+            spacing: { before: entryBreak ? Math.max(baseBefore, 200) : baseBefore, after: 20 },
           })
         );
       }

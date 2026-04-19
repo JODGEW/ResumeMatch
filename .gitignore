@@ -13,6 +13,8 @@ dist-ssr
 *.local
 .env
 .planning/
+eval/
+local_lambda/
 
 # Editor directories and files
 .vscode/*

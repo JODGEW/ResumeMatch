@@ -5,10 +5,15 @@ import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { KanbanView } from '../components/KanbanView';
+import { SignupPromptModal } from '../components/SignupPromptModal';
 import './Tracker.css';
 
 type Filter = 'all' | 'worth' | 'follow_up' | 'awaiting' | 'completed' | 'rejected';
 type SortKey = 'dateApplied' | 'matchPercentage' | 'outreachScore';
+type SignupPromptContent = {
+  title: string;
+  body: string;
+};
 
 const STATUS_LABELS: Record<Application['outreachStatus'], string> = {
   not_started: 'Not Started',
@@ -967,6 +972,7 @@ export function Tracker() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [flashId, setFlashId] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
 
   function showToast(message: string) {
     clearTimeout(toastTimer.current);
@@ -1154,9 +1160,18 @@ export function Tracker() {
           </div>
           <button
             className="btn btn-primary btn-create-action"
-            disabled={isReadOnly}
             title={isReadOnly ? 'Sign up for full access' : undefined}
-            onClick={() => { setPrefillData(null); setModalState({ open: true }); }}
+            onClick={() => {
+              if (isReadOnly) {
+                setSignupPrompt({
+                  title: 'Add an Application',
+                  body: 'Create a free account to save applications, track progress, and manage your outreach workflow.',
+                });
+                return;
+              }
+              setPrefillData(null);
+              setModalState({ open: true });
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -1171,6 +1186,14 @@ export function Tracker() {
         <div className="tracker-demo-banner animate-in" style={{ animationDelay: '0.05s' }}>
           Demo mode — you're viewing sample data. Try bulk actions and CSV export!
         </div>
+      )}
+
+      {signupPrompt && (
+        <SignupPromptModal
+          onClose={() => setSignupPrompt(null)}
+          title={signupPrompt.title}
+          body={signupPrompt.body}
+        />
       )}
 
       {/* Loading state */}

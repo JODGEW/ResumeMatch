@@ -5,9 +5,15 @@ import './SignupPromptModal.css';
 
 interface SignupPromptModalProps {
   onClose: () => void;
+  title?: string;
+  body?: string;
 }
 
-export function SignupPromptModal({ onClose }: SignupPromptModalProps) {
+export function SignupPromptModal({
+  onClose,
+  title = 'Please sign up to explore this feature...',
+  body = 'Create a free account to unlock the full experience.',
+}: SignupPromptModalProps) {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
@@ -20,11 +26,8 @@ export function SignupPromptModal({ onClose }: SignupPromptModalProps) {
   return (
     <div className="confirm-overlay" onClick={onClose}>
       <div className="signup-modal" onClick={e => e.stopPropagation()}>
-        <h3 className="signup-modal__title">Download Your Optimized Resume</h3>
-        <p className="signup-modal__body">
-          Create a free account to download your AI-optimized resume as a
-          Word document, ready to submit.
-        </p>
+        <h3 className="signup-modal__title">{title}</h3>
+        <p className="signup-modal__body">{body}</p>
         <div className="signup-modal__actions">
           <button className="signup-modal__primary" onClick={handleSignup}>
             Sign Up Free
