@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { PublicFooter } from '../components/PublicFooter';
+import { LogoMark } from '../components/LogoMark';
 import { useAuth } from '../auth/AuthContext';
 import './Landing.css';
 
@@ -117,15 +119,6 @@ const faqs = [
     answer: 'ResumeMatch is for job seekers who want a more targeted way to improve applications and prepare for interviews.',
   },
 ];
-
-function LogoMark() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
-      <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 export function Landing() {
   const { user } = useAuth();
@@ -383,6 +376,8 @@ export function Landing() {
           </div>
         </section>
       </main>
+
+      <PublicFooter />
     </div>
   );
 }

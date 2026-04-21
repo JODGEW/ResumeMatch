@@ -1,0 +1,242 @@
+.legal-page {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-default) 94%, var(--accent) 6%) 0%, var(--surface-default) 18%, var(--surface-default) 100%);
+  color: var(--text-primary);
+}
+
+.legal-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--surface-default) 88%, transparent);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.legal-header__inner {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.legal-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 590;
+}
+
+.legal-header__brand:hover {
+  color: var(--text-primary);
+}
+
+.legal-header__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.legal-main {
+  min-height: calc(100vh - 64px);
+}
+
+.legal-hero {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.legal-hero__inner {
+  max-width: 840px;
+  padding-top: 4.5rem;
+  padding-bottom: 3rem;
+}
+
+.legal-eyebrow {
+  margin-bottom: 1rem;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 590;
+  line-height: 1.4;
+}
+
+.legal-hero h1 {
+  max-width: 14ch;
+  font-size: 3rem;
+  font-weight: 510;
+  line-height: 1.02;
+  letter-spacing: -1.056px;
+  margin-bottom: 1rem;
+  text-wrap: balance;
+}
+
+.legal-intro {
+  max-width: 62ch;
+  color: var(--text-secondary);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.legal-meta {
+  margin-top: 1rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.legal-content__inner {
+  padding-top: 3rem;
+  padding-bottom: 5rem;
+}
+
+.legal-copy {
+  max-width: 760px;
+}
+
+.legal-copy section {
+  scroll-margin-top: 6rem;
+}
+
+.legal-copy section + section {
+  margin-top: 3.25rem;
+}
+
+.legal-copy section + .legal-section--major {
+  margin-top: 4rem;
+}
+
+.legal-copy h2 {
+  font-size: 1.625rem;
+  line-height: 1.2;
+  font-weight: 590;
+  margin-bottom: 1rem;
+  text-wrap: balance;
+}
+
+.legal-copy p {
+  max-width: 62ch;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.legal-copy p + p {
+  margin-top: 0.875rem;
+}
+
+.legal-copy ul {
+  margin-top: 1rem;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+  display: grid;
+  gap: 0.625rem;
+}
+
+.legal-copy li {
+  line-height: 1.6;
+}
+
+.legal-copy strong {
+  color: var(--text-primary);
+  font-weight: 590;
+}
+
+.legal-summary {
+  padding: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+}
+
+.legal-summary h2 {
+  margin-bottom: 0.875rem;
+}
+
+.legal-summary ul {
+  margin-top: 0;
+}
+
+.legal-cta {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.legal-cta__inner {
+  max-width: 760px;
+  padding-top: 3.5rem;
+  padding-bottom: 4.5rem;
+  text-align: center;
+}
+
+.legal-cta__inner h2 {
+  max-width: 18ch;
+  margin: 0 auto 1rem;
+  font-size: 2rem;
+  line-height: 1.13;
+  letter-spacing: -0.704px;
+  text-wrap: balance;
+}
+
+.legal-cta__copy {
+  max-width: 44ch;
+  margin: 0 auto 1.75rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .legal-header__actions {
+    gap: 0.5rem;
+  }
+
+  .legal-header__actions .btn {
+    padding-inline: 0.875rem;
+  }
+
+  .legal-hero__inner {
+    padding-top: 3.5rem;
+    padding-bottom: 2.5rem;
+  }
+
+  .legal-hero h1 {
+    font-size: 2.25rem;
+    line-height: 1.08;
+    letter-spacing: -0.792px;
+  }
+
+  .legal-content__inner {
+    padding-top: 2.5rem;
+    padding-bottom: 3.5rem;
+  }
+
+  .legal-copy section + section {
+    margin-top: 2.75rem;
+  }
+
+  .legal-copy section + .legal-section--major {
+    margin-top: 3.25rem;
+  }
+
+  .legal-copy h2 {
+    font-size: 1.5rem;
+  }
+
+  .legal-summary {
+    padding: 1rem;
+  }
+
+  .legal-cta__inner {
+    padding-top: 3rem;
+    padding-bottom: 3.5rem;
+  }
+
+  .legal-cta__inner h2 {
+    font-size: 1.75rem;
+    letter-spacing: -0.616px;
+  }
+}
