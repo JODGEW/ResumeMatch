@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApplications } from '../hooks/useApplications';
 import type { Application } from '../types/tracker';
@@ -14,6 +14,8 @@ type SignupPromptContent = {
   title: string;
   body: string;
 };
+
+const ITEMS_PER_PAGE = 10;
 
 const STATUS_LABELS: Record<Application['outreachStatus'], string> = {
   not_started: 'Not Started',
@@ -38,6 +40,11 @@ const APP_STATUS_LABELS: Record<Application['applicationStatus'], string> = {
 const TIMELINE_STEPS: Application['outreachStatus'][] = [
   'not_started', 'researching', 'drafted', 'sent', 'followed_up', 'replied',
 ];
+
+function getPageFromSearchParams(searchParams: URLSearchParams) {
+  const page = Number(searchParams.get('page'));
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
 
 // Parse "YYYY-MM-DD" as local date (not UTC) to avoid off-by-one timezone issues
 function parseLocalDate(iso: string): Date {
@@ -963,9 +970,8 @@ export function Tracker() {
   const [modalState, setModalState] = useState<{ open: boolean; editId?: string }>({ open: false });
   const [bannerExpanded, setBannerExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; appId: string; appTitle: string; appCompany: string }>({ open: false, appId: '', appTitle: '', appCompany: '' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
   const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = getPageFromSearchParams(searchParams);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [toast, setToast] = useState<{ message: string; key: number } | null>(null);
@@ -973,6 +979,19 @@ export function Tracker() {
   const [flashId, setFlashId] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
+
+  const goToPage = useCallback((page: number, options?: { replace?: boolean }) => {
+    const nextPage = Math.max(1, page);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (nextPage === 1) {
+        next.delete('page');
+      } else {
+        next.set('page', String(nextPage));
+      }
+      return next;
+    }, options);
+  }, [setSearchParams]);
 
   function showToast(message: string) {
     clearTimeout(toastTimer.current);
@@ -986,22 +1005,41 @@ export function Tracker() {
     flashTimer.current = setTimeout(() => setFlashId(null), 600);
   }
 
+  function handleFilterChange(nextFilter: Filter) {
+    setFilter(nextFilter);
+    setSelectedIds(new Set());
+    goToPage(1, { replace: true });
+  }
+
+  function handleSearchChange(nextSearch: string) {
+    setSearch(nextSearch);
+    setSelectedIds(new Set());
+    goToPage(1, { replace: true });
+  }
+
   // Handle prefill from History page
   useEffect(() => {
     const prefill = searchParams.get('prefill');
     if (prefill && !isReadOnly) {
+      const clearPrefill = () => {
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.delete('prefill');
+          return next;
+        }, { replace: true });
+      };
+
       try {
         const data = JSON.parse(decodeURIComponent(prefill));
         setModalState({ open: true });
-        // Clear the search param
-        setSearchParams({}, { replace: true });
+        clearPrefill();
         // We'll pass the prefill data through the modal's initial state
         setPrefillData(data);
       } catch {
-        setSearchParams({}, { replace: true });
+        clearPrefill();
       }
     }
-  }, []);
+  }, [isReadOnly, searchParams, setSearchParams]);
 
   const [prefillData, setPrefillData] = useState<Partial<ReturnType<typeof emptyForm>> | null>(null);
 
@@ -1023,8 +1061,9 @@ export function Tracker() {
       .sort((a, b) => a.due.daysUntil - b.due.daysUntil);
   }, [applications]);
 
-  // Clear selection when filter/search changes
-  useEffect(() => { setCurrentPage(1); setSelectedIds(new Set()); }, [filter, search]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
 
   // Filter
   const filtered = useMemo(() => {
@@ -1051,7 +1090,15 @@ export function Tracker() {
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
-  const paginatedItems = sorted.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const pageInView = Math.min(currentPage, totalPages);
+  const paginatedItems = sorted.slice((pageInView - 1) * ITEMS_PER_PAGE, pageInView * ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (currentPage > totalPages) {
+      goToPage(totalPages, { replace: true });
+    }
+  }, [currentPage, goToPage, isLoading, totalPages]);
 
   function handleSave(data: ReturnType<typeof emptyForm>) {
     if (modalState.editId) {
@@ -1285,7 +1332,7 @@ export function Tracker() {
             <button
               key={f.key}
               className={`tracker-filter ${filter === f.key ? 'tracker-filter--active' : ''}`}
-              onClick={() => setFilter(f.key)}
+              onClick={() => handleFilterChange(f.key)}
             >
               {f.label}
             </button>
@@ -1321,7 +1368,7 @@ export function Tracker() {
             type="text"
             placeholder="Search..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => handleSearchChange(e.target.value)}
           />
           <select className="tracker-sort" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
             <option value="dateApplied">Date Applied</option>
@@ -1524,8 +1571,8 @@ export function Tracker() {
             <div className="pagination">
               <button
                 className="pagination__btn"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => p - 1)}
+                disabled={pageInView === 1}
+                onClick={() => goToPage(pageInView - 1)}
               >
                 Previous
               </button>
@@ -1533,8 +1580,8 @@ export function Tracker() {
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                   <button
                     key={page}
-                    className={`pagination__page ${page === currentPage ? 'pagination__page--active' : ''}`}
-                    onClick={() => setCurrentPage(page)}
+                    className={`pagination__page ${page === pageInView ? 'pagination__page--active' : ''}`}
+                    onClick={() => goToPage(page)}
                   >
                     {page}
                   </button>
@@ -1542,8 +1589,8 @@ export function Tracker() {
               </div>
               <button
                 className="pagination__btn"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(p => p + 1)}
+                disabled={pageInView === totalPages}
+                onClick={() => goToPage(pageInView + 1)}
               >
                 Next
               </button>

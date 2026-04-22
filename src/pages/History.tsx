@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getAnalysisHistory, getAnalysis } from '../api/analysis';
 import { useAuth } from '../auth/AuthContext';
 import { parseResume } from '../utils/resumeParser';
@@ -19,25 +19,57 @@ type SignupPromptContent = {
   body: string;
 };
 
+const ITEMS_PER_PAGE = 10;
+
+function getPageFromSearchParams(searchParams: URLSearchParams) {
+  const page = Number(searchParams.get('page'));
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
 export function History() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
   const [newlyCompleted, setNewlyCompleted] = useState<Set<string>>(new Set());
   const prevStatusRef = useRef<Map<string, string>>(new Map());
-  const ITEMS_PER_PAGE = 10;
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = getPageFromSearchParams(searchParams);
   const pendingAnalysisId = (location.state as { pendingAnalysisId?: string } | null)?.pendingAnalysisId;
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
 
+  const goToPage = useCallback((page: number, options?: { replace?: boolean }) => {
+    const nextPage = Math.max(1, page);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (nextPage === 1) {
+        next.delete('page');
+      } else {
+        next.set('page', String(nextPage));
+      }
+      return next;
+    }, options);
+  }, [setSearchParams]);
+
   function handleAddToTracker(a: Analysis) {
     const prefill = getTrackerPrefill(a);
     navigate(`/tracker?prefill=${encodeURIComponent(JSON.stringify(prefill))}`);
   }
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (loading) return;
+    const totalPages = Math.max(1, Math.ceil(analyses.length / ITEMS_PER_PAGE));
+    if (currentPage > totalPages) {
+      goToPage(totalPages, { replace: true });
+    }
+  }, [analyses.length, currentPage, goToPage, loading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -296,7 +328,8 @@ export function History() {
 
       {!loading && analyses.length > 0 && (() => {
         const totalPages = Math.max(1, Math.ceil(analyses.length / ITEMS_PER_PAGE));
-        const paginatedItems = analyses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+        const pageInView = Math.min(currentPage, totalPages);
+        const paginatedItems = analyses.slice((pageInView - 1) * ITEMS_PER_PAGE, pageInView * ITEMS_PER_PAGE);
 
         return (
           <>
@@ -486,8 +519,8 @@ export function History() {
               <div className="pagination">
                 <button
                   className="pagination__btn"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(p => p - 1)}
+                  disabled={pageInView === 1}
+                  onClick={() => goToPage(pageInView - 1)}
                 >
                   Previous
                 </button>
@@ -495,8 +528,8 @@ export function History() {
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                     <button
                       key={page}
-                      className={`pagination__page ${page === currentPage ? 'pagination__page--active' : ''}`}
-                      onClick={() => setCurrentPage(page)}
+                      className={`pagination__page ${page === pageInView ? 'pagination__page--active' : ''}`}
+                      onClick={() => goToPage(page)}
                     >
                       {page}
                     </button>
@@ -504,8 +537,8 @@ export function History() {
                 </div>
                 <button
                   className="pagination__btn"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(p => p + 1)}
+                  disabled={pageInView === totalPages}
+                  onClick={() => goToPage(pageInView + 1)}
                 >
                   Next
                 </button>

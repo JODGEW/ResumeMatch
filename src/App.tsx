@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { Layout } from './components/Layout';
@@ -38,9 +39,21 @@ function RootGate() {
   return <Landing />;
 }
 
+function ScrollToTop() {
+  const { hash, key, pathname, search } = useLocation();
+
+  useEffect(() => {
+    if (hash) return;
+    window.scrollTo(0, 0);
+  }, [hash, key, pathname, search]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AuthProvider>
         <Routes>
           <Route path="/" element={<RootGate />} />
