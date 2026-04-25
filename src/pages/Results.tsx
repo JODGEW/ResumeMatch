@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { usePolling, isInProgress } from '../hooks/usePolling';
+import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
@@ -134,16 +134,125 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
 }
 
 function getScoreInterpretation(score: number) {
-  if (score >= 86) return { label: 'Strong Match', action: 'Apply with confidence. Highlight your matched keywords in a cover letter.', color: 'var(--score-high)' };
-  if (score >= 76) return { label: 'Good Match', action: 'Apply and address missing keywords in your cover letter.', color: 'var(--score-good)' };
-  if (score >= 61) return { label: 'Moderate Match', action: 'Update your resume to include missing keywords before applying.', color: 'var(--score-mid)' };
-  if (score >= 41) return { label: 'Weak Match', action: 'Significant gaps exist. Address them in a strong cover letter.', color: 'var(--score-low)' };
-  return { label: 'Poor Match', action: 'This role may not be the right fit. Try better-matched opportunities.', color: 'var(--score-poor)' };
+  if (score >= 86) {
+    return {
+      label: 'Strong Match',
+      action: 'You are well aligned. Apply with minimal changes and emphasize your strongest matched skills.',
+      color: 'var(--score-high)'
+    };
+  }
+
+  if (score >= 76) {
+    return {
+      label: 'Good Match',
+      action: 'Apply after a light resume pass. Add missing keywords only where they honestly fit.',
+      color: 'var(--score-good)'
+    };
+  }
+
+  if (score >= 61) {
+    return {
+      label: 'Moderate Match',
+      action: 'Tailor your resume before applying. Focus on the highest-priority missing keywords.',
+      color: 'var(--score-mid)'
+    };
+  }
+
+  if (score >= 41) {
+    return {
+      label: 'Weak Match',
+      action: 'Apply selectively. The role has meaningful gaps, so prioritize stronger matches unless you can clearly address them.',
+      color: 'var(--score-low)'
+    };
+  }
+
+  return {
+    label: 'Poor Match',
+    action: 'This role is likely a poor fit based on the current resume. Target roles with closer alignment first.',
+    color: 'var(--score-poor)'
+  };
+}
+
+function ResultsLoadingState({
+  title = 'Analyzing your resume',
+  description = 'Comparing keywords, skills, and qualifications...',
+  showActions = false,
+  analysisId,
+}: {
+  title?: string;
+  description?: string;
+  showActions?: boolean;
+  analysisId?: string;
+}) {
+  return (
+    <div className="page-container">
+      <div className="results-loading">
+        <div className="results-loading__ring">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle
+              cx="40" cy="40" r="34"
+              fill="none"
+              stroke="var(--border)"
+              strokeWidth="6"
+            />
+            <circle
+              cx="40" cy="40" r="34"
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray="60 154"
+              className="results-loading__arc"
+            />
+          </svg>
+        </div>
+        <h2>{title}</h2>
+        <p className="text-secondary">
+          {description}
+        </p>
+        {showActions && (
+          <>
+            <div className="results-loading__steps">
+              <div className="results-loading__step results-loading__step--done">
+                <span className="results-loading__dot" />
+                Upload received
+              </div>
+              <div className="results-loading__step results-loading__step--active">
+                <span className="results-loading__dot" />
+                Processing analysis
+              </div>
+            </div>
+            <div className="results-loading__bg-notice">
+              <p className="results-loading__bg-primary">Analysis is running in the background — you can safely leave.</p>
+              <p className="results-loading__bg-secondary">Results are saved automatically. View them anytime in <strong>History</strong>.</p>
+              <p className="results-loading__bg-tertiary">Usually takes ~30 seconds.</p>
+              <div className="results-loading__actions">
+                <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary btn--sm">Go to History</Link>
+                <Link to="/upload" className="btn btn-outline btn--sm">Do another analysis</Link>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResultsRouteLoadingState() {
+  return (
+    <div className="page-container">
+      <div className="results-loading results-loading--route">
+        <div className="loading-spinner" />
+        <p className="text-secondary">Loading results...</p>
+      </div>
+    </div>
+  );
 }
 
 export function Results() {
   const { analysisId } = useParams<{ analysisId: string }>();
   const { analysis, loading, error, timedOut } = usePolling(analysisId ?? null);
+  const status = normalizeAnalysisStatus(analysis?.status);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -236,85 +345,34 @@ export function Results() {
   }
 
   if (loading) {
+    return <ResultsRouteLoadingState />;
+  }
+
+  if (!analysis || isInProgress(status)) {
+    if (!timedOut) {
+      return <ResultsLoadingState showActions analysisId={analysisId} />;
+    }
+
     return (
       <div className="page-container">
         <div className="results-loading">
-          <div className="loading-spinner" />
+          <h2>Still processing</h2>
+          <p className="text-secondary">
+            This is taking longer than expected. Refresh the page to check status.
+          </p>
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: '1rem' }}
+            onClick={() => window.location.reload()}
+          >
+            Refresh
+          </button>
         </div>
       </div>
     );
   }
 
-  if (!analysis || isInProgress(analysis.status)) {
-    return (
-      <div className="page-container">
-        <div className="results-loading">
-          {timedOut ? (
-            <>
-              <h2>Still processing</h2>
-              <p className="text-secondary">
-                This is taking longer than expected. Refresh the page to check status.
-              </p>
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: '1rem' }}
-                onClick={() => window.location.reload()}
-              >
-                Refresh
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="results-loading__ring">
-                <svg width="80" height="80" viewBox="0 0 80 80">
-                  <circle
-                    cx="40" cy="40" r="34"
-                    fill="none"
-                    stroke="var(--border)"
-                    strokeWidth="6"
-                  />
-                  <circle
-                    cx="40" cy="40" r="34"
-                    fill="none"
-                    stroke="var(--accent)"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeDasharray="60 154"
-                    className="results-loading__arc"
-                  />
-                </svg>
-              </div>
-              <h2>Analyzing your resume</h2>
-              <p className="text-secondary">
-                Comparing keywords, skills, and qualifications...
-              </p>
-              <div className="results-loading__steps">
-                <div className="results-loading__step results-loading__step--done">
-                  <span className="results-loading__dot" />
-                  Upload received
-                </div>
-                <div className="results-loading__step results-loading__step--active">
-                  <span className="results-loading__dot" />
-                  Processing analysis
-                </div>
-              </div>
-              <div className="results-loading__bg-notice">
-                <p className="results-loading__bg-primary">Analysis is running in the background — you can safely leave.</p>
-                <p className="results-loading__bg-secondary">Results are saved automatically. View them anytime in <strong>History</strong>.</p>
-                <p className="results-loading__bg-tertiary">Usually takes ~30 seconds.</p>
-                <div className="results-loading__actions">
-                  <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary btn--sm">Go to History</Link>
-                  <Link to="/upload" className="btn btn-outline btn--sm">Do another analysis</Link>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (analysis.status === 'failed') {
+  if (status === 'failed') {
     return (
       <div className="page-container">
         <div className="results-empty">
@@ -327,6 +385,15 @@ export function Results() {
           </Link>
         </div>
       </div>
+    );
+  }
+
+  if (analysis.matchScore == null) {
+    return (
+      <ResultsLoadingState
+        title="Finalizing results"
+        description="Your analysis is still being prepared..."
+      />
     );
   }
 
@@ -460,7 +527,7 @@ export function Results() {
       {/* Score Row: Ring & Breakdown in one card */}
       <div className="results-score-row card animate-in stagger-1">
         <div className="results-score">
-          {analysis.matchScore != null ? (() => {
+          {(() => {
             const interp = getScoreInterpretation(Number(analysis.matchScore));
             return (
               <div className="results-score__hover-wrap">
@@ -470,9 +537,7 @@ export function Results() {
                 </div>
               </div>
             );
-          })() : (
-            <ProgressRing score={0} />
-          )}
+          })()}
         </div>
 
         {/* Score Breakdown */}
@@ -637,7 +702,7 @@ export function Results() {
       {/* Download Optimized Resume */}
       <DownloadOptimizedButton
         suggestedText={analysis.suggestedText}
-        status={analysis.status}
+        status="completed"
         isDemo={isDemo}
       />
 

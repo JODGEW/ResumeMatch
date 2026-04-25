@@ -124,17 +124,6 @@ export function InterviewHistory() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <div className="page-container">
-        <div className="ih-loading">
-          <div className="loading-spinner" />
-          <p className="text-secondary">Loading interview sessions...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="page-container">
       <div className="page-header animate-in">
@@ -142,13 +131,20 @@ export function InterviewHistory() {
         <p className="text-secondary">Review mock interviews by role, resume, and outcome</p>
       </div>
 
+      {loading && (
+        <div className="ih-loading">
+          <div className="loading-spinner" />
+          <p className="text-secondary">Loading interview sessions...</p>
+        </div>
+      )}
+
       {error && (
         <div className="interview-error animate-in">
           <p>{error}</p>
         </div>
       )}
 
-      {sessions.length === 0 && !error ? (
+      {!loading && sessions.length === 0 && !error ? (
         <div className="ih-empty card animate-in stagger-1">
           <p>No interview sessions yet.</p>
           <p className="text-secondary">Start your first mock interview from a job analysis.</p>
@@ -156,7 +152,7 @@ export function InterviewHistory() {
             Choose an Analysis
           </Link>
         </div>
-      ) : (
+      ) : !loading && (
         <div className="ih-list animate-in stagger-1">
           {sessions.map((session) => {
             const matchLabel = formatMatchScore(session.matchScore);

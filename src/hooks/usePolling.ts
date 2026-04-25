@@ -4,8 +4,36 @@ import type { Analysis } from '../types';
 
 const POLL_TIMEOUT_MS = 120_000; // 2 minutes
 
-export function isInProgress(status: string): boolean {
-  return status === 'pending' || status === 'processing' || status === 'pending_upload';
+export type NormalizedAnalysisStatus =
+  | 'pending'
+  | 'processing'
+  | 'pending_upload'
+  | 'completed'
+  | 'failed'
+  | 'unknown';
+
+export function normalizeAnalysisStatus(status: unknown): NormalizedAnalysisStatus {
+  const normalized = String(status ?? '').trim().toLowerCase().replace(/-/g, '_');
+
+  if (
+    normalized === 'pending'
+    || normalized === 'processing'
+    || normalized === 'pending_upload'
+    || normalized === 'completed'
+    || normalized === 'failed'
+  ) {
+    return normalized;
+  }
+
+  return 'unknown';
+}
+
+export function isInProgress(status: unknown): boolean {
+  const normalized = normalizeAnalysisStatus(status);
+  return normalized === 'pending'
+    || normalized === 'processing'
+    || normalized === 'pending_upload'
+    || normalized === 'unknown';
 }
 
 export function usePolling(analysisId: string | null, intervalMs = 3000) {
@@ -17,6 +45,11 @@ export function usePolling(analysisId: string | null, intervalMs = 3000) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
+    setAnalysis(null);
+    setError(null);
+    setTimedOut(false);
+    setLoading(Boolean(analysisId));
+
     if (!analysisId) return;
 
     let cancelled = false;
@@ -68,5 +101,12 @@ export function usePolling(analysisId: string | null, intervalMs = 3000) {
     };
   }, [analysisId, intervalMs]);
 
-  return { analysis, loading, error, timedOut };
+  const hasStaleAnalysis = Boolean(analysisId && analysis && analysis.analysisId !== analysisId);
+
+  return {
+    analysis: hasStaleAnalysis ? null : analysis,
+    loading: loading || hasStaleAnalysis,
+    error,
+    timedOut,
+  };
 }

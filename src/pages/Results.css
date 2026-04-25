@@ -324,7 +324,7 @@
   padding: 1rem 1.5rem;
   background: var(--surface-subtle);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   max-width: 360px;
   text-align: center;
 }

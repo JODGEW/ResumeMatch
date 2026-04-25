@@ -477,19 +477,23 @@ export function Interview() {
     cancelTts();
     stopListening();
 
-    try {
-      await endInterview({ sessionId, endReason: reason });
-    } catch {
-      // Session end is best-effort
-    }
-
     // Update pointer to completed
     if (lsKeyRef.current) {
       saveInterviewPointer(lsKeyRef.current, { sessionId, status: 'completed' });
     }
+    try {
+      sessionStorage.setItem(
+        `resumematch_interview_finalizing_${sessionId}`,
+        JSON.stringify({ endReason: reason, startedAt: Date.now() })
+      );
+    } catch {
+      // Session storage can be unavailable in restricted browser contexts.
+    }
 
     // Navigate to dedicated results page
-    navigate(`/interview/results/${sessionId}`, { replace: true });
+    navigate(`/interview/results/${sessionId}`, {
+      replace: true,
+    });
   }, [sessionId, stopListening, navigate]);
 
   const handlePushToTalkDown = useCallback(() => {

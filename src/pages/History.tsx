@@ -299,6 +299,7 @@ export function History() {
       {loading && (
         <div className="history-loading">
           <div className="loading-spinner" />
+          <p className="text-secondary">Loading analysis history...</p>
         </div>
       )}
 

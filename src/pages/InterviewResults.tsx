@@ -1,13 +1,65 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getAnalysis } from '../api/analysis';
-import { getSession, type SessionResponse, type TurnFeedback } from '../api/interview';
+import { endInterview, getSession, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { clearInterviewPointer } from '../utils/interviewPointer';
 import './InterviewResults.css';
 
 type InterviewType = 'behavioral' | 'technical';
 type TranscriptTurn = SessionResponse['conversation'][number];
+type PendingInterviewFinalization = {
+  endReason: EndRequest['endReason'];
+  startedAt: number;
+};
+
+const FINALIZATION_STORAGE_PREFIX = 'resumematch_interview_finalizing_';
+const FINALIZATION_TTL_MS = 2 * 60 * 1000;
+
+function getFinalizationStorageKey(sessionId: string): string {
+  return `${FINALIZATION_STORAGE_PREFIX}${sessionId}`;
+}
+
+function loadPendingInterviewFinalization(sessionId: string): PendingInterviewFinalization | null {
+  try {
+    const raw = sessionStorage.getItem(getFinalizationStorageKey(sessionId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingInterviewFinalization>;
+    const endReason = parsed.endReason;
+    const startedAt = parsed.startedAt;
+    const isValidReason = endReason === 'timer_expired'
+      || endReason === 'user_ended'
+      || endReason === 'all_questions_answered';
+    const isFresh = typeof startedAt === 'number'
+      && Date.now() - startedAt <= FINALIZATION_TTL_MS;
+    if (!isValidReason || !isFresh || typeof startedAt !== 'number') {
+      sessionStorage.removeItem(getFinalizationStorageKey(sessionId));
+      return null;
+    }
+    return { endReason, startedAt };
+  } catch {
+    return null;
+  }
+}
+
+function savePendingInterviewFinalization(sessionId: string, endReason: EndRequest['endReason']): void {
+  try {
+    sessionStorage.setItem(
+      getFinalizationStorageKey(sessionId),
+      JSON.stringify({ endReason, startedAt: Date.now() })
+    );
+  } catch {
+    // Session storage can be unavailable in restricted browser contexts.
+  }
+}
+
+function clearPendingInterviewFinalization(sessionId: string): void {
+  try {
+    sessionStorage.removeItem(getFinalizationStorageKey(sessionId));
+  } catch {
+    // Session storage can be unavailable in restricted browser contexts.
+  }
+}
 
 function formatDuration(secs: number): string {
   const m = Math.floor(secs / 60);
@@ -131,8 +183,14 @@ function getTurnDetailLines(turn: TranscriptTurn): string[] {
 export function InterviewResults() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const pendingFinalization = sessionId ? loadPendingInterviewFinalization(sessionId) : null;
+  const [retryAssessmentCount, setRetryAssessmentCount] = useState(0);
+  const shouldFinalizeInterview = Boolean(pendingFinalization);
+  const finalizationEndReason = pendingFinalization?.endReason || 'user_ended';
+  const finalizeStartedRef = useRef(false);
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [finalizing, setFinalizing] = useState(shouldFinalizeInterview);
   const [error, setError] = useState('');
   const [restartError, setRestartError] = useState('');
   const [restarting, setRestarting] = useState(false);
@@ -142,18 +200,100 @@ export function InterviewResults() {
 
   useEffect(() => {
     if (!sessionId) return;
-    getSession(sessionId)
-      .then(setSession)
-      .catch(() => setError('Failed to load interview results'))
-      .finally(() => setLoading(false));
-  }, [sessionId]);
+    const activeSessionId = sessionId;
+
+    let cancelled = false;
+    let pollTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    async function fetchSession() {
+      const nextSession = await getSession(activeSessionId);
+      if (!cancelled) {
+        setSession(nextSession);
+        setLoading(false);
+      }
+      return nextSession;
+    }
+
+    async function pollForAssessment(attempt = 0) {
+      try {
+        const nextSession = await fetchSession();
+        const assessmentReady = Boolean(nextSession.assessment);
+        const stillFinalizing = nextSession.status === 'active' || !assessmentReady;
+
+        if (!cancelled && stillFinalizing && attempt < 30) {
+          pollTimeout = setTimeout(() => {
+            void pollForAssessment(attempt + 1);
+          }, 2000);
+          return;
+        }
+
+        if (!cancelled) {
+          clearPendingInterviewFinalization(activeSessionId);
+          setFinalizing(false);
+        }
+      } catch (err) {
+        console.error('Failed to refresh interview results:', err);
+        if (!cancelled) {
+          setError('Failed to load interview results');
+          setLoading(false);
+          setFinalizing(false);
+        }
+      }
+    }
+
+    async function loadResults() {
+      setError('');
+
+      if (shouldFinalizeInterview && !finalizeStartedRef.current) {
+        finalizeStartedRef.current = true;
+        setFinalizing(true);
+        endInterview({
+          sessionId: activeSessionId,
+          endReason: finalizationEndReason,
+        }).catch((err) => {
+          console.error('Failed to finalize interview:', err);
+        });
+      }
+
+      try {
+        const initialSession = await fetchSession();
+        if (initialSession.assessment) {
+          clearPendingInterviewFinalization(activeSessionId);
+        }
+        if (shouldFinalizeInterview && !initialSession.assessment) {
+          setFinalizing(true);
+          pollTimeout = setTimeout(() => {
+            void pollForAssessment();
+          }, 1000);
+        } else {
+          setFinalizing(false);
+        }
+      } catch (err) {
+        console.error('Failed to load interview results:', err);
+        if (!cancelled) {
+          setError('Failed to load interview results');
+          setLoading(false);
+          setFinalizing(false);
+        }
+      }
+    }
+
+    void loadResults();
+
+    return () => {
+      cancelled = true;
+      if (pollTimeout) clearTimeout(pollTimeout);
+    };
+  }, [sessionId, shouldFinalizeInterview, finalizationEndReason, retryAssessmentCount]);
 
   if (loading) {
     return (
       <div className="page-container">
         <div className="ir-loading">
           <div className="loading-spinner" />
-          <p className="text-secondary">Loading interview results...</p>
+          <p className="text-secondary">
+            {finalizing ? 'Finalizing your interview report...' : 'Loading interview results...'}
+          </p>
         </div>
       </div>
     );
@@ -285,6 +425,15 @@ export function InterviewResults() {
     } finally {
       setRestarting(false);
     }
+  }
+
+  function retryAssessment() {
+    if (!sessionId) return;
+    savePendingInterviewFinalization(sessionId, finalizationEndReason);
+    finalizeStartedRef.current = false;
+    setError('');
+    setFinalizing(true);
+    setRetryAssessmentCount(count => count + 1);
   }
 
   function continueInterview() {
@@ -549,7 +698,43 @@ export function InterviewResults() {
       ) : (
         <section id="ir-assessment" className="ir-assessment-section ir-assessment-section--empty">
           <h2 className="ir-section-title">Assessment</h2>
-          <p className="ir-assessment-note">Not generated for this session.</p>
+          {finalizing ? (
+            <div className="ir-assessment-loading-banner" role="status" aria-live="polite">
+                <div className="loading-spinner ir-assessment-loading-banner__spinner" />
+                <div className="ir-assessment-loading-banner__copy">
+                  <h3>Finalizing your interview report</h3>
+                  <p>Transcript is ready. Analyzing responses and generating feedback...</p>
+                  <span>Usually takes ~10-20 seconds</span>
+                </div>
+              </div>
+          ) : (
+            <div className="ir-assessment-empty-banner" role="status">
+              <div className="ir-assessment-empty-banner__icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 8v5M12 17h.01M10.3 4.3 2.6 18a1.5 1.5 0 0 0 1.3 2.2h16.2a1.5 1.5 0 0 0 1.3-2.2L13.7 4.3a1.9 1.9 0 0 0-3.4 0Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div className="ir-assessment-empty-banner__body">
+                <h3>We couldn&apos;t generate your assessment</h3>
+                <p>You can review your responses or try again.</p>
+                <div className="ir-assessment-empty-banner__actions">
+                  <button type="button" className="btn btn-primary btn--sm" onClick={retryAssessment}>
+                    Retry assessment
+                  </button>
+                  {session.analysisId && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn--sm"
+                      onClick={startInterviewAgain}
+                      disabled={restarting}
+                    >
+                      {restarting ? 'Preparing...' : 'Start new interview'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

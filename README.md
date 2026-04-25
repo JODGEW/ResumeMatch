@@ -107,15 +107,15 @@ Verification and password reset emails are automatically delivered by AWS Cognit
 
 ## Scoring Rubric
 
-The AI uses the full 0–100 range. Hover over the score ring on the results page to see the interpretation.
+ResumeMatch uses the full 0–100 range. Hover over the score ring on the results page to see the interpretation.
 
-| Score | Label | Color | Action |
-|-------|-------|-------|--------|
-| 86–100 | Strong Match | Green | Apply with confidence. Highlight your matched keywords in a cover letter. |
-| 76–85 | Good Match | Blue | Apply and address missing keywords in your cover letter. |
-| 61–75 | Moderate Match | Amber | Update your resume to include missing keywords before applying. |
-| 41–60 | Weak Match | Orange | Significant gaps exist. Address them in a strong cover letter. |
-| 0–40 | Poor Match | Red | This role may not be the right fit. Try better-matched opportunities. |
+| Score | Label | Color | Recommended Action |
+|-------|-------|-------|--------------------|
+| 86–100 | Strong Match | Green | You are well aligned. Apply with minimal changes and emphasize your strongest matched skills. |
+| 76–85 | Good Match | Blue | Apply after a light resume pass. Add missing keywords only where they honestly fit. |
+| 61–75 | Moderate Match | Amber | Tailor your resume before applying. Focus on the highest-priority missing keywords. |
+| 41–60 | Weak Match | Orange | Apply selectively. The role has meaningful gaps, so prioritize stronger matches unless you can clearly address them. |
+| 0–40 | Poor Match | Red | This role is likely a poor fit based on the current resume. Target roles with closer alignment first. |
 
 The score ring, label text, and history mini-rings all use the same 5-tier color system. The label is displayed inside the progress ring; the action text appears as a tooltip on hover.
 
