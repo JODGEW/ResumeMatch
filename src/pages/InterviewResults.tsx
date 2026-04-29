@@ -15,6 +15,10 @@ type PendingInterviewFinalization = {
 
 const FINALIZATION_STORAGE_PREFIX = 'resumematch_interview_finalizing_';
 const FINALIZATION_TTL_MS = 2 * 60 * 1000;
+const ASSESSMENT_POLL_INTERVAL_MS = 2000;
+const ASSESSMENT_POLL_MAX_ATTEMPTS = 30;
+const ASSESSMENT_END_RETRY_DELAY_MS = 3000;
+const ASSESSMENT_END_MAX_ATTEMPTS = 3;
 
 function getFinalizationStorageKey(sessionId: string): string {
   return `${FINALIZATION_STORAGE_PREFIX}${sessionId}`;
@@ -220,10 +224,10 @@ export function InterviewResults() {
         const assessmentReady = Boolean(nextSession.assessment);
         const stillFinalizing = nextSession.status === 'active' || !assessmentReady;
 
-        if (!cancelled && stillFinalizing && attempt < 30) {
+        if (!cancelled && stillFinalizing && attempt < ASSESSMENT_POLL_MAX_ATTEMPTS) {
           pollTimeout = setTimeout(() => {
             void pollForAssessment(attempt + 1);
-          }, 2000);
+          }, ASSESSMENT_POLL_INTERVAL_MS);
           return;
         }
 
@@ -241,21 +245,64 @@ export function InterviewResults() {
       }
     }
 
+    async function finalizeInterviewReport(attempt = 1) {
+      try {
+        const endResponse = await endInterview({
+          sessionId: activeSessionId,
+          endReason: finalizationEndReason,
+        });
+        if (cancelled) return;
+
+        const nextSession = await fetchSession();
+        const assessmentReady = Boolean(endResponse.assessment || nextSession.assessment);
+        if (endResponse.assessment && !nextSession.assessment && !cancelled) {
+          setSession({
+            ...nextSession,
+            status: 'completed',
+            conversation: endResponse.conversation,
+            totalDuration: endResponse.totalDuration,
+            questionCount: endResponse.questionCount,
+            assessment: endResponse.assessment,
+          });
+        }
+
+        if (assessmentReady) {
+          clearPendingInterviewFinalization(activeSessionId);
+          setFinalizing(false);
+          return;
+        }
+
+        if (attempt < ASSESSMENT_END_MAX_ATTEMPTS) {
+          pollTimeout = setTimeout(() => {
+            void finalizeInterviewReport(attempt + 1);
+          }, ASSESSMENT_END_RETRY_DELAY_MS);
+          return;
+        }
+
+        pollTimeout = setTimeout(() => {
+          void pollForAssessment();
+        }, 1000);
+      } catch (err) {
+        console.error('Failed to finalize interview:', err);
+        if (!cancelled) {
+          pollTimeout = setTimeout(() => {
+            void pollForAssessment();
+          }, 1000);
+        }
+      }
+    }
+
     async function loadResults() {
       setError('');
 
-      if (shouldFinalizeInterview && !finalizeStartedRef.current) {
-        finalizeStartedRef.current = true;
-        setFinalizing(true);
-        endInterview({
-          sessionId: activeSessionId,
-          endReason: finalizationEndReason,
-        }).catch((err) => {
-          console.error('Failed to finalize interview:', err);
-        });
-      }
-
       try {
+        if (shouldFinalizeInterview && !finalizeStartedRef.current) {
+          finalizeStartedRef.current = true;
+          setFinalizing(true);
+          await finalizeInterviewReport();
+          return;
+        }
+
         const initialSession = await fetchSession();
         if (initialSession.assessment) {
           clearPendingInterviewFinalization(activeSessionId);

@@ -6,7 +6,7 @@
 
   --font-display: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Berkeley Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-mono: 'Berkeley Mono', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   --bg-root: #08090a;
   --bg-primary: rgba(255, 255, 255, 0.03);
