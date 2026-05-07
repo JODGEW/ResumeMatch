@@ -15,6 +15,7 @@ dist-ssr
 .planning/
 eval/
 local_lambda/
+CLAUDE.md
 
 # Editor directories and files
 .vscode/*

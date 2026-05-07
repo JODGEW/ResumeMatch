@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@deepgram/sdk": "^5.1.0",
     "aws-amplify": "^6.16.2",
     "axios": "^1.13.5",
     "diff": "^8.0.3",

@@ -20,6 +20,42 @@
 .ih-list {
   display: flex;
   flex-direction: column;
+  gap: 1.75rem;
+}
+
+/* ── Date-grouped sections ─────────────────────────── */
+.ih-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.ih-group__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0 0.125rem 0.375rem;
+}
+
+.ih-group__title {
+  font-size: 0.75rem;
+  font-weight: 510;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.ih-group__count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.ih-group__cards {
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
 

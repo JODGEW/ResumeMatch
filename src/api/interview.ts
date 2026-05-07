@@ -58,6 +58,7 @@ export interface StartInterviewResponse {
   questionNumber: number;
   totalQuestions: number;
   timeLimit: number;
+  keyterms?: string[];
 }
 
 export interface TurnRequest {
@@ -162,6 +163,7 @@ export interface SessionResponse {
   timeLimit: number;
   createdAtEpoch: number;
   assessment?: Assessment | null;
+  keyterms?: string[];
 }
 
 export async function getSession(sessionId: string): Promise<SessionResponse> {

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, type PointerEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useMicrophoneCheck } from '../hooks/useMicrophoneCheck';
+import { useMicrophoneLevel } from '../hooks/useMicrophoneLevel';
 import {
   startInterview,
   submitTurn,
@@ -61,6 +63,7 @@ export function Interview() {
   const [answerElapsed, setAnswerElapsed] = useState(0);
   const [answerDurations, setAnswerDurations] = useState<number[]>([]);
   const [warnedAt2Min, setWarnedAt2Min] = useState(false);
+  const [sessionKeyterms, setSessionKeyterms] = useState<string[]>([]);
 
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const answerTimerRef = useRef<ReturnType<typeof setInterval>>();
@@ -80,6 +83,9 @@ export function Interview() {
     stopListening,
     resetTranscript,
   } = useSpeechRecognition();
+  const microphoneCheck = useMicrophoneCheck();
+  const micLevel = useMicrophoneLevel();
+  const isIOS = typeof navigator !== 'undefined' && /iP(ad|hone|od)/.test(navigator.userAgent);
 
   const [ttsEnabled, setTtsEnabled] = useState(() => {
     try { return localStorage.getItem('resumematch_tts') !== 'off'; } catch { return true; }
@@ -192,6 +198,7 @@ export function Interview() {
       setSessionId(session.sessionId);
       setConversation(session.conversation);
       setTimeLimit(session.timeLimit);
+      setSessionKeyterms(session.keyterms ?? []);
 
       if (session.status === 'completed') {
         // Redirect to dedicated results page
@@ -321,6 +328,7 @@ export function Interview() {
         }];
 
         setSessionId(res.sessionId);
+        setSessionKeyterms(res.keyterms ?? []);
         setCurrentQuestion(res.question);
         setQuestionNumber(firstConversation.filter(isInterviewQuestionTurn).length);
         setTotalQuestions(res.totalQuestions);
@@ -399,6 +407,21 @@ export function Interview() {
     };
   }, []);
 
+  // F3: auto-open the mic level meter on setup when permission was previously granted.
+  // iOS Safari requires a user gesture for AudioContext, so we fall back to F2 there
+  // (user must click "Test microphone" / "Recheck" — those are real gestures).
+  useEffect(() => {
+    if (interviewState !== 'setup') return;
+    if (isIOS) return;
+    if (microphoneCheck.status === 'ready' && micLevel.status !== 'active' && micLevel.status !== 'starting') {
+      void micLevel.start();
+    }
+    return () => {
+      micLevel.stop();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interviewState, microphoneCheck.status, isIOS]);
+
   const handleSubmitAnswer = useCallback(async (answerText: string) => {
     const answer = answerText.trim();
     if (!answer || !sessionId) return;
@@ -475,7 +498,7 @@ export function Interview() {
     pushToTalkActiveRef.current = false;
     activePointerIdRef.current = null;
     cancelTts();
-    stopListening();
+    void stopListening();
 
     // Update pointer to completed
     if (lsKeyRef.current) {
@@ -511,14 +534,14 @@ export function Interview() {
         setAnswerElapsed(Math.floor((Date.now() - answerStartRef.current) / 1000));
       }, 1000);
     }
-    startListening();
+    startListening(sessionId, sessionKeyterms);
     return true;
-  }, [interviewState, isSupported, startListening]);
+  }, [interviewState, isSupported, sessionId, sessionKeyterms, startListening]);
 
-  const handlePushToTalkUp = useCallback(() => {
+  const handlePushToTalkUp = useCallback(async () => {
     if (!pushToTalkActiveRef.current) return;
     pushToTalkActiveRef.current = false;
-    const finalText = stopListening();
+    const finalText = await stopListening();
     if (finalText) {
       handleSubmitAnswer(finalText);
     } else {
@@ -551,7 +574,7 @@ export function Interview() {
       // Browser may have already released capture.
     }
     activePointerIdRef.current = null;
-    handlePushToTalkUp();
+    void handlePushToTalkUp();
   }, [handlePushToTalkUp]);
 
   // Keyboard: hold Space to speak
@@ -567,7 +590,7 @@ export function Interview() {
       if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
       e.preventDefault();
       if (pushToTalkActiveRef.current) {
-        handlePushToTalkUp();
+        void handlePushToTalkUp();
       }
     }
     document.addEventListener('keydown', handleKeyDown);
@@ -577,6 +600,25 @@ export function Interview() {
       document.removeEventListener('keyup', handleKeyUp);
     };
   }, [interviewState, handlePushToTalkDown, handlePushToTalkUp]);
+
+  const handleStartClick = useCallback(async () => {
+    const s = microphoneCheck.status;
+    if (s === 'checking' || s === 'error') return;
+    if (s === 'permission-needed' || s === 'idle') {
+      const ok = await micLevel.start();
+      if (!ok) {
+        // Surface the failure in the mic card (will flip to error state).
+        void microphoneCheck.requestPermission();
+        return;
+      }
+      void microphoneCheck.recheck();
+    }
+    micLevel.stop();
+    // Yield a frame so AudioContext.close() flushes before Deepgram acquires a fresh stream.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    initNewSession();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [microphoneCheck.status, micLevel]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -593,18 +635,6 @@ export function Interview() {
     : `Question ${questionNumber || 1}`;
 
   // --- Render ---
-
-  if (!isSupported) {
-    return (
-      <div className="page-container">
-        <div className="interview-unsupported card">
-          <h2>Browser Not Supported</h2>
-          <p>Voice input requires Chrome or Edge. Please switch browsers to use mock interviews.</p>
-          <button className="btn btn-primary" onClick={() => navigate(-1)}>Go Back</button>
-        </div>
-      </div>
-    );
-  }
 
   if (interviewState === 'starting' || interviewState === 'loading') {
     return (
@@ -694,7 +724,123 @@ export function Interview() {
               </div>
             </div>
 
-            <button className="btn btn-primary interview-setup__start" onClick={initNewSession}>
+            <div className="interview-setup__mic">
+              <label className="interview-setup__label">Microphone</label>
+
+              {microphoneCheck.status === 'permission-needed' && (
+                <div className="interview-mic-check interview-mic-check--neutral">
+                  <div className="interview-mic-check__icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <rect x="6.5" y="2" width="5" height="9" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M4 9.5c0 2.75 2.25 5 5 5s5-2.25 5-5M9 14.5V17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="interview-mic-check__body">
+                    <strong>Microphone access needed</strong>
+                    <p>Click below to allow microphone access and see your input level.</p>
+                    <button
+                      type="button"
+                      className="interview-mic-check__action"
+                      onClick={async () => {
+                        const ok = await micLevel.start();
+                        if (ok) {
+                          void microphoneCheck.recheck();
+                        } else {
+                          void microphoneCheck.requestPermission();
+                        }
+                      }}
+                    >
+                      Test microphone
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(microphoneCheck.status === 'idle' || microphoneCheck.status === 'checking') && (
+                <div className="interview-mic-check interview-mic-check--neutral">
+                  <div className="interview-mic-check__spinner" />
+                  <div className="interview-mic-check__body">
+                    <strong>Detecting microphone...</strong>
+                    <p>Checking your current input device.</p>
+                  </div>
+                </div>
+              )}
+
+              {microphoneCheck.status === 'ready' && microphoneCheck.defaultMicKind === 'bluetooth' && (
+                <div className="interview-mic-check interview-mic-check--warning" aria-live="polite">
+                  <div className="interview-mic-check__icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M9 2l7 13H2L9 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                      <path d="M9 6.25v4M9 13.25h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="interview-mic-check__body">
+                    <strong>Bluetooth headphones detected ({microphoneCheck.defaultMicLabel})</strong>
+                    <p>
+                      Bluetooth microphones use a low-quality audio codec that can reduce transcription accuracy on technical terms. For best results, switch to your laptop&apos;s built-in microphone in your system sound settings, then recheck.
+                    </p>
+                    <MicLevelMeter bins={micLevel.bins} active={micLevel.status === 'active'} />
+                    <button
+                      type="button"
+                      className="interview-mic-check__action"
+                      onClick={() => void microphoneCheck.recheck()}
+                    >
+                      Recheck
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {microphoneCheck.status === 'ready' && microphoneCheck.defaultMicKind !== 'bluetooth' && (
+                <div className="interview-mic-check interview-mic-check--ok">
+                  <div className="interview-mic-check__icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M15 5L7.5 12.5 3 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div className="interview-mic-check__body">
+                    <strong>{microphoneCheck.defaultMicLabel ?? 'Microphone detected'}</strong>
+                    <p>{microphoneCheck.defaultMicKind === 'wired' ? 'Speak to test — bars should move when sound is detected.' : 'Speak to test — bars should move when sound is detected.'}</p>
+                    <MicLevelMeter bins={micLevel.bins} active={micLevel.status === 'active'} />
+                    <button
+                      type="button"
+                      className="interview-mic-check__action"
+                      onClick={() => void microphoneCheck.recheck()}
+                    >
+                      Recheck
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {microphoneCheck.status === 'error' && (
+                <div className="interview-mic-check interview-mic-check--error">
+                  <div className="interview-mic-check__icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M9 5.5v4M9 12.5h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="interview-mic-check__body">
+                    <strong>Microphone access required</strong>
+                    <p>{microphoneCheck.error ?? 'Could not detect your microphone.'} Allow microphone access in your browser settings, then click Recheck.</p>
+                    <button
+                      type="button"
+                      className="interview-mic-check__action"
+                      onClick={() => void microphoneCheck.recheck()}
+                    >
+                      Recheck
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              className="btn btn-primary interview-setup__start"
+              onClick={handleStartClick}
+              disabled={microphoneCheck.status === 'checking' || microphoneCheck.status === 'error'}
+            >
               Start Interview
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M3 7h8M8 3.5L11 7 8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -842,6 +988,16 @@ export function Interview() {
       </div>
 
       <div ref={conversationEndRef} />
+    </div>
+  );
+}
+
+function MicLevelMeter({ bins, active }: { bins: number[]; active: boolean }) {
+  return (
+    <div className={`mic-meter ${active ? 'mic-meter--active' : ''}`} aria-hidden="true">
+      {bins.map((v, i) => (
+        <span key={i} style={{ height: `${Math.max(8, Math.round(v * 100))}%` }} />
+      ))}
     </div>
   );
 }

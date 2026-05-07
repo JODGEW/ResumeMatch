@@ -76,6 +76,57 @@ function getStatusClass(status?: string): string {
   return 'ih-badge--abandoned';
 }
 
+type Bucket = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'earlier';
+
+const BUCKET_ORDER: Bucket[] = ['today', 'yesterday', 'this_week', 'this_month', 'earlier'];
+
+const BUCKET_LABEL: Record<Bucket, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  this_week: 'Earlier this week',
+  this_month: 'Earlier this month',
+  earlier: 'Earlier',
+};
+
+function startOfLocalDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function getSessionBucket(createdAt: string, now: Date): Bucket {
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return 'earlier';
+  const today = startOfLocalDay(now);
+  const createdDay = startOfLocalDay(created);
+  const dayDiff = Math.round((today.getTime() - createdDay.getTime()) / 86_400_000);
+  if (dayDiff <= 0) return 'today';
+  if (dayDiff === 1) return 'yesterday';
+  if (dayDiff <= 6) return 'this_week';
+  if (dayDiff <= 29) return 'this_month';
+  return 'earlier';
+}
+
+function groupSessionsByBucket(
+  sessions: SessionSummary[]
+): Array<{ bucket: Bucket; sessions: SessionSummary[] }> {
+  const now = new Date();
+  const groups = new Map<Bucket, SessionSummary[]>();
+  for (const session of sessions) {
+    const bucket = getSessionBucket(session.createdAt, now);
+    const arr = groups.get(bucket) ?? [];
+    arr.push(session);
+    groups.set(bucket, arr);
+  }
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  return BUCKET_ORDER.filter((b) => groups.has(b)).map((b) => ({
+    bucket: b,
+    sessions: groups.get(b)!,
+  }));
+}
+
 export function InterviewHistory() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -154,56 +205,66 @@ export function InterviewHistory() {
         </div>
       ) : !loading && (
         <div className="ih-list animate-in stagger-1">
-          {sessions.map((session) => {
-            const matchLabel = formatMatchScore(session.matchScore);
-            const matchValue = parseMatchScore(session.matchScore);
-            const matchTier = matchValue != null ? getScoreTier(matchValue) : null;
-            const company = getCompanyLabel(session);
-            const sourceLabel = company
-              ? `${company} · ${getResumeLabel(session)}`
-              : getResumeLabel(session);
+          {groupSessionsByBucket(sessions).map(({ bucket, sessions: groupSessions }) => (
+            <section key={bucket} className="ih-group">
+              <header className="ih-group__heading">
+                <h2 className="ih-group__title">{BUCKET_LABEL[bucket]}</h2>
+                <span className="ih-group__count">{groupSessions.length}</span>
+              </header>
+              <div className="ih-group__cards">
+                {groupSessions.map((session) => {
+                  const matchLabel = formatMatchScore(session.matchScore);
+                  const matchValue = parseMatchScore(session.matchScore);
+                  const matchTier = matchValue != null ? getScoreTier(matchValue) : null;
+                  const company = getCompanyLabel(session);
+                  const sourceLabel = company
+                    ? `${company} · ${getResumeLabel(session)}`
+                    : getResumeLabel(session);
 
-            return (
-              <article key={session.sessionId} className="ih-card card">
-                <div className="ih-card__top">
-                  <h2 className="ih-card__title">{getRoleLabel(session)}</h2>
-                  {matchLabel && (
-                    <span className={`ih-card__match${matchTier ? ` ih-card__match--${matchTier}` : ''}`}>
-                      {matchLabel}
-                    </span>
-                  )}
-                </div>
+                  return (
+                    <article key={session.sessionId} className="ih-card card">
+                      <div className="ih-card__top">
+                        <h3 className="ih-card__title">{getRoleLabel(session)}</h3>
+                        {matchLabel && (
+                          <span className={`ih-card__match${matchTier ? ` ih-card__match--${matchTier}` : ''}`}>
+                            {matchLabel}
+                          </span>
+                        )}
+                      </div>
 
-                <p className="ih-card__source">{sourceLabel}</p>
+                      <p className="ih-card__source">{sourceLabel}</p>
 
-                <p className="ih-card__meta">
-                  <span>{formatDate(session.createdAt)}</span>
-                  <span className="ih-card__sep">&middot;</span>
-                  <span>{formatTime(session.createdAt)}</span>
-                  <span className="ih-card__sep">&middot;</span>
-                  <span>{formatInterviewType(session.interviewType)}</span>
-                  <span className="ih-card__sep">&middot;</span>
-                  <span>{questionCounts[session.sessionId] ?? session.questionCount ?? '—'} Qs</span>
-                </p>
+                      <p className="ih-card__meta">
+                        <span>{formatDate(session.createdAt)}</span>
+                        <span className="ih-card__sep">&middot;</span>
+                        <span>{formatTime(session.createdAt)}</span>
+                        <span className="ih-card__sep">&middot;</span>
+                        <span>{formatInterviewType(session.interviewType)}</span>
+                        <span className="ih-card__sep">&middot;</span>
+                        <span>{questionCounts[session.sessionId] ?? session.questionCount ?? '—'} Qs</span>
+                      </p>
 
-                <div className="ih-card__footer">
-                  <span className={`ih-badge ${getStatusClass(session.status)}`}>
-                    {formatStatus(session.status)}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn--sm ih-card__view"
-                    onClick={() => navigate(`/interview/results/${session.sessionId}`)}
-                  >
-                    View
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M2.5 6h7M7 3.5L9.5 6 7 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+                      <div className="ih-card__footer">
+                        <span className={`ih-badge ${getStatusClass(session.status)}`}>
+                          {formatStatus(session.status)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn--sm ih-card__view"
+                          onClick={() => navigate(`/interview/results/${session.sessionId}`)}
+                        >
+                          View
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M2.5 6h7M7 3.5L9.5 6 7 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </div>
