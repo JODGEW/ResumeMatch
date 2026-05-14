@@ -20,6 +20,7 @@ import {
   type SavedInterviewPointer,
 } from '../utils/interviewPointer';
 import { isInterviewClosingPrompt, isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
 import './Interview.css';
 
 type InterviewState = 'setup' | 'starting' | 'active' | 'thinking' | 'speaking' | 'completed' | 'loading';
@@ -64,6 +65,7 @@ export function Interview() {
   const [answerDurations, setAnswerDurations] = useState<number[]>([]);
   const [warnedAt2Min, setWarnedAt2Min] = useState(false);
   const [sessionKeyterms, setSessionKeyterms] = useState<string[]>([]);
+  const [savingFinalAnswer, setSavingFinalAnswer] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const answerTimerRef = useRef<ReturnType<typeof setInterval>>();
@@ -75,10 +77,13 @@ export function Interview() {
   const activePointerIdRef = useRef<number | null>(null);
 
   const startInFlightRef = useRef(false);
+  const submitInFlightRef = useRef<Promise<unknown> | null>(null);
 
   const {
     isListening,
+    isArming,
     isSupported,
+    error: speechError,
     startListening,
     stopListening,
     resetTranscript,
@@ -426,74 +431,99 @@ export function Interview() {
     const answer = answerText.trim();
     if (!answer || !sessionId) return;
 
-    // Record answer duration
     clearInterval(answerTimerRef.current);
-    if (answerStartRef.current > 0) {
-      const duration = Math.floor((Date.now() - answerStartRef.current) / 1000);
-      setAnswerDurations(prev => [...prev, duration]);
-    }
+    const answerDuration = answerStartRef.current > 0
+      ? Math.floor((Date.now() - answerStartRef.current) / 1000)
+      : null;
     answerStartRef.current = 0;
     setAnswerElapsed(0);
 
     const newTurn = turnNumber + 1;
-    setTurnNumber(newTurn);
-
-    const userTurn: ConversationTurn = {
-      role: 'user',
-      content: answer,
-      timestamp: Date.now(),
-    };
-    setConversation(prev => [...prev, userTurn]);
     resetTranscript();
+    setError('');
     setInterviewState('thinking');
 
-    try {
-      const res = await submitTurn({
-        sessionId,
-        userAnswer: answer,
-        turnNumber: newTurn,
-      });
+    const submitPromise = submitTurn({
+      sessionId,
+      userAnswer: answer,
+      turnNumber: newTurn,
+    });
+    submitInFlightRef.current = submitPromise;
 
-      const isClosingPrompt = isInterviewClosingPrompt(res.question);
-      setCurrentQuestion(res.question);
+    try {
+      const res = await submitPromise;
+
+      const nextQuestion = res.question?.trim();
+      if (!nextQuestion) {
+        throw new Error('The interviewer did not return a response. Please try your answer again.');
+      }
+
+      // Record answer duration only after the backend accepts the turn.
+      if (answerDuration !== null) {
+        setAnswerDurations(prev => [...prev, answerDuration]);
+      }
+
+      setTurnNumber(newTurn);
+
+      const userTurn: ConversationTurn = {
+        role: 'user',
+        content: answer,
+        timestamp: Date.now(),
+        feedback: res.feedback,
+        fillerWords: res.fillerWords,
+      };
+
+      const isClosingPrompt = isInterviewClosingPrompt(nextQuestion);
+      setCurrentQuestion(nextQuestion);
       setQuestionNumber(prev => {
         const nextQuestionNumber = isClosingPrompt ? prev : prev + 1;
         return totalQuestions > 0 ? Math.min(nextQuestionNumber, totalQuestions) : nextQuestionNumber;
       });
 
-      // Attach feedback to the user's turn (last item before we push the AI turn)
-      if (res.feedback || res.fillerWords) {
-        setConversation(prev => {
-          const updated = [...prev];
-          const lastUserIdx = updated.length - 1;
-          if (updated[lastUserIdx]?.role === 'user') {
-            updated[lastUserIdx] = {
-              ...updated[lastUserIdx],
-              feedback: res.feedback,
-              fillerWords: res.fillerWords,
-            };
-          }
-          return updated;
-        });
-      }
-
       const aiTurn: ConversationTurn = {
         role: 'interviewer',
-        content: res.question,
+        content: nextQuestion,
         timestamp: Date.now(),
       };
-      setConversation(prev => [...prev, aiTurn]);
-      speakQuestion(res.question);
+      setConversation(prev => [...prev, userTurn, aiTurn]);
+      speakQuestion(nextQuestion);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to get next question';
       setError(msg);
       setInterviewState('active');
+    } finally {
+      if (submitInFlightRef.current === submitPromise) {
+        submitInFlightRef.current = null;
+      }
     }
   }, [sessionId, turnNumber, resetTranscript, speakQuestion, totalQuestions]);
 
   const handleEnd = useCallback(async (reason: 'user_ended' | 'timer_expired' | 'all_questions_answered') => {
+    if (reason === 'user_ended' && interviewState === 'thinking') {
+      setError('Your answer is still being processed. Wait for the interviewer response before ending.');
+      return;
+    }
+
+    // If the timer fires (or last question completes) while a submit is still in flight,
+    // await it unbounded — submitTurn p99 is ~10s and a truncated final answer is worse
+    // than a few extra seconds on the spinner. Show a "Saving..." banner after 2s so the
+    // user knows we're not frozen.
+    if (submitInFlightRef.current) {
+      const pending = submitInFlightRef.current;
+      const savingTimer = window.setTimeout(() => setSavingFinalAnswer(true), 3000);
+      try {
+        await awaitPendingTurnSubmission(pending);
+      } finally {
+        window.clearTimeout(savingTimer);
+        setSavingFinalAnswer(false);
+      }
+    }
+
     clearInterval(timerRef.current);
     clearInterval(answerTimerRef.current);
+    if (answerStartRef.current > 0) {
+      setAnswerElapsed(0);
+    }
     answerStartRef.current = 0;
     pushToTalkActiveRef.current = false;
     activePointerIdRef.current = null;
@@ -517,10 +547,14 @@ export function Interview() {
     navigate(`/interview/results/${sessionId}`, {
       replace: true,
     });
-  }, [sessionId, stopListening, navigate]);
+  }, [interviewState, sessionId, stopListening, navigate]);
 
   const handlePushToTalkDown = useCallback(() => {
-    if ((interviewState !== 'active' && interviewState !== 'speaking') || !isSupported || pushToTalkActiveRef.current) {
+    if (
+      (interviewState !== 'active' && interviewState !== 'speaking')
+      || !isSupported
+      || pushToTalkActiveRef.current
+    ) {
       return false;
     }
     pushToTalkActiveRef.current = true;
@@ -627,7 +661,14 @@ export function Interview() {
   };
 
   const remaining = Math.max(0, timeLimit - elapsed);
-  const currentPromptIsClosing = isInterviewClosingPrompt(currentQuestion);
+  const activeError = error || speechError;
+  const controls = getInterviewControlState({
+    currentQuestion,
+    interviewState,
+    isListening,
+    isArming,
+  });
+  const currentPromptIsClosing = controls.isClosingPrompt;
   const questionProgressLabel = currentPromptIsClosing
     ? 'All questions complete'
     : totalQuestions > 0
@@ -928,36 +969,44 @@ export function Interview() {
         )}
       </div>
 
-      {isListening && (
+      {activeError && (
+        <div className="interview-error animate-in" role="alert">
+          <p>{activeError}</p>
+        </div>
+      )}
+
+      {savingFinalAnswer && (
+        <div className="interview-saving animate-in" role="status" aria-live="polite">
+          <span className="loading-spinner interview-saving__spinner" />
+          <span>Saving your last answer...</span>
+        </div>
+      )}
+
+      {(isListening || isArming) && (
         <div className="interview-answer card animate-in interview-answer--recording">
-          <span className="interview-answer__label">Listening...</span>
+          <span className="interview-answer__label">{isArming ? 'Connecting mic...' : 'Listening...'}</span>
         </div>
       )}
 
       <div className="interview-controls">
         <button
           type="button"
-          className={`interview-mic ${isListening ? 'interview-mic--active' : ''}`}
+          className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
           onPointerDown={handlePushToTalkPointerDown}
           onPointerUp={handlePushToTalkPointerUp}
           onPointerCancel={handlePushToTalkPointerUp}
-          disabled={interviewState === 'thinking'}
+          disabled={controls.micDisabled}
+          aria-label={currentPromptIsClosing ? 'Interview questions complete' : 'Hold to speak'}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <rect x="8" y="2" width="8" height="12" rx="4" stroke="currentColor" strokeWidth="2" />
             <path d="M5 11c0 3.866 3.134 7 7 7s7-3.134 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             <path d="M12 18v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          {isListening ? <span className="interview-mic__pulse" /> : null}
+          {controls.micActive ? <span className="interview-mic__pulse" /> : null}
         </button>
         <p className="interview-controls__hint">
-          {interviewState === 'thinking'
-            ? 'Processing your answer...'
-            : interviewState === 'speaking'
-              ? 'Interviewer is speaking... hold mic or Space to interrupt'
-              : isListening
-                ? 'Listening... release to submit'
-                : 'Hold mic or Space to speak'}
+          {controls.hint}
         </p>
         <div className="interview-controls__row">
           <button
@@ -979,10 +1028,11 @@ export function Interview() {
             )}
           </button>
           <button
-            className="btn btn-ghost interview-end-btn"
-            onClick={() => handleEnd('user_ended')}
+            className={`btn ${currentPromptIsClosing ? 'btn-primary' : 'btn-ghost'} interview-end-btn`}
+            onClick={() => handleEnd(controls.endReason)}
+            disabled={controls.endDisabled}
           >
-            End Interview
+            {controls.endButtonLabel}
           </button>
         </div>
       </div>

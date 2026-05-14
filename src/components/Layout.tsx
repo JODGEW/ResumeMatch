@@ -48,8 +48,11 @@ export function Layout() {
 
   async function handleLogout() {
     closeMenu();
-    await logout();
-    navigate('/login');
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Sign out failed:', err);
+    }
   }
 
   const isDashboardVisible =

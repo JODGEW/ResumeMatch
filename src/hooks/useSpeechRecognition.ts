@@ -70,6 +70,7 @@ export interface UseSpeechRecognitionReturn {
   transcript: string;
   interimTranscript: string;
   isListening: boolean;
+  isArming: boolean;
   isSupported: boolean;
   error: string | null;
   startListening: (sessionId: string, keyterms?: string[]) => void;
@@ -103,6 +104,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [isArming, setIsArming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const transcriptRef = useRef('');
@@ -119,6 +121,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       setTranscript(finalText);
       setInterimTranscript('');
       setIsListening(false);
+      setIsArming(false);
       currentAttemptRef.current = null;
     }
     attempt.stopResolver?.(finalText);
@@ -142,6 +145,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     if (currentAttemptRef.current?.id === attempt.id) {
       currentAttemptRef.current = null;
       setIsListening(false);
+      setIsArming(false);
     }
   }, []);
 
@@ -185,6 +189,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       stopResolver: null,
     };
     currentAttemptRef.current = attempt;
+    setIsArming(true);
 
     void (async () => {
       try {
@@ -292,6 +297,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         }
 
         if (currentAttemptRef.current?.id === attempt.id) {
+          setIsArming(false);
           setIsListening(true);
         }
       } catch (err) {
@@ -299,6 +305,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
           console.error('startListening failed:', err);
           const message = err instanceof Error ? err.message : 'Failed to start recording';
           setError(message);
+        }
+        if (currentAttemptRef.current?.id === attempt.id) {
+          setIsArming(false);
         }
         const finalText = getFinalText(transcriptRef.current, interimRef.current);
         attempt.stopResolver?.(finalText);
@@ -362,6 +371,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     transcript,
     interimTranscript,
     isListening,
+    isArming,
     isSupported,
     error,
     startListening,

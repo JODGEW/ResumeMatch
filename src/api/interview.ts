@@ -102,6 +102,13 @@ export interface AssessmentCategory {
   comment: string;
 }
 
+export interface TranscriptClarityStats {
+  candidateTurnCount: number;
+  clearTurnCount: number;
+  unclearTurnCount: number;
+  clarityRatio: number;
+}
+
 export interface Assessment {
   overallScore: number;
   overallRating: string;
@@ -109,6 +116,8 @@ export interface Assessment {
   categories: AssessmentCategory[];
   strengths: string[];
   improvements: string[];
+  transcriptClarityStats?: TranscriptClarityStats;
+  clarityAdjusted?: boolean;
 }
 
 export interface EndResponse {
@@ -125,6 +134,7 @@ export interface ConversationTurn {
   duration?: number;
   feedback?: TurnFeedback | null;
   fillerWords?: Record<string, number> | null;
+  transcriptClarity?: 'clear' | 'unclear';
 }
 
 export async function startInterview(req: StartInterviewRequest): Promise<StartInterviewResponse> {

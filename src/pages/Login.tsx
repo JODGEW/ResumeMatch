@@ -13,7 +13,7 @@ export function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
-  const { login, user } = useAuth();
+  const { login, user, isLoading, authError, clearAuthError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as { signupSuccess?: boolean; resetSuccess?: boolean } | null;
@@ -21,14 +21,15 @@ export function Login() {
   const resetSuccess = locationState?.resetSuccess;
 
   useEffect(() => {
-    if (user) {
+    if (!isLoading && user) {
       navigate('/upload', { replace: true });
     }
-  }, [navigate, user]);
+  }, [isLoading, navigate, user]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    clearAuthError();
     setLoading(true);
 
     // Read from DOM to capture browser-autofilled values that bypass onChange
@@ -78,13 +79,13 @@ export function Login() {
           </div>
         )}
 
-        {error && (
+        {(error || authError) && (
           <div className="login-card__error animate-in">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
               <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            {error}
+            {error || authError}
           </div>
         )}
 

@@ -3,6 +3,8 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
+  useCallback,
   type ReactNode,
 } from 'react';
 import {
@@ -25,6 +27,9 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  loadingMessage: string | null;
+  authError: string | null;
+  clearAuthError: () => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
@@ -34,6 +39,9 @@ interface AuthContextType {
 }
 
 const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
+const HOSTED_UI_SIGN_IN_KEY = 'amplify-signin-with-hostedUI';
+const COGNITO_STORAGE_PREFIX = 'CognitoIdentityServiceProvider';
+const HOSTED_UI_LOGOUT_TIMEOUT_MS = 10_000;
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -44,8 +52,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Only show loading spinner if there might be an active session to restore.
   // OAuth callback (?code=) always needs loading; otherwise, check if tokens exist in storage.
   const hasOAuthCode = !DEV_MODE && new URLSearchParams(window.location.search).has('code');
-  const hasTokens = !DEV_MODE && Object.keys(localStorage).some(k => k.startsWith('CognitoIdentityServiceProvider'));
+  const hasTokens = !DEV_MODE && Object.keys(localStorage).some(k => k.startsWith(COGNITO_STORAGE_PREFIX));
   const [isLoading, setIsLoading] = useState(hasOAuthCode || hasTokens);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const authCheckId = useRef(0);
+  const hostedUiLogoutInProgress = useRef(false);
+  const hostedUiLogoutTimeoutRef = useRef<number | null>(null);
+
+  const clearAuthError = useCallback(() => setAuthError(null), []);
+
+  const clearHostedUiLogoutTimeout = useCallback(() => {
+    if (hostedUiLogoutTimeoutRef.current !== null) {
+      window.clearTimeout(hostedUiLogoutTimeoutRef.current);
+      hostedUiLogoutTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearAuthenticatedUser = useCallback(() => {
+    authCheckId.current += 1;
+    hostedUiLogoutInProgress.current = false;
+    clearHostedUiLogoutTimeout();
+    setUser(null);
+    setIsLoading(false);
+    setLoadingMessage(null);
+  }, [clearHostedUiLogoutTimeout]);
+
+  const getAuthenticatedUser = useCallback(async (): Promise<User | null> => {
+    try {
+      const currentUser = await getCurrentUser();
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.payload;
+      return {
+        email: (idToken?.email as string) || currentUser.signInDetails?.loginId || currentUser.username,
+        name: (idToken?.name as string) || undefined,
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const checkAuth = useCallback(async () => {
+    const requestId = ++authCheckId.current;
+    const authenticatedUser = await getAuthenticatedUser();
+    if (requestId !== authCheckId.current) return;
+    setUser(authenticatedUser);
+    setIsLoading(false);
+    setLoadingMessage(null);
+  }, [getAuthenticatedUser]);
 
   useEffect(() => {
     if (DEV_MODE) return;
@@ -61,6 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('OAuth sign-in failed:', payload.data);
         window.history.replaceState({}, '', window.location.pathname);
         setIsLoading(false);
+        setLoadingMessage(null);
+      }
+      if (payload.event === 'signedOut') {
+        if (hostedUiLogoutInProgress.current) return;
+        clearAuthenticatedUser();
       }
     });
 
@@ -68,27 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
 
     return () => unsubscribe();
-  }, []);
-
-  async function getAuthenticatedUser(): Promise<User | null> {
-    try {
-      const currentUser = await getCurrentUser();
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.payload;
-      return {
-        email: (idToken?.email as string) || currentUser.signInDetails?.loginId || currentUser.username,
-        name: (idToken?.name as string) || undefined,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  async function checkAuth() {
-    const authenticatedUser = await getAuthenticatedUser();
-    setUser(authenticatedUser);
-    setIsLoading(false);
-  }
+  }, [checkAuth, clearAuthenticatedUser]);
 
   function getSignInStepError(step?: string) {
     if (!step) {
@@ -103,12 +142,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return `Sign-in requires additional step: ${step}`;
   }
 
+  function hasHostedUiSession() {
+    if (localStorage.getItem(HOSTED_UI_SIGN_IN_KEY) === 'true') {
+      return true;
+    }
+
+    return Object.keys(localStorage).some(key => {
+      if (!key.startsWith(COGNITO_STORAGE_PREFIX)) return false;
+
+      const value = localStorage.getItem(key);
+      if (key.endsWith('.oauthSignIn')) {
+        return value?.startsWith('true') ?? false;
+      }
+
+      if (!key.endsWith('.oauthMetadata') || !value) {
+        return false;
+      }
+
+      try {
+        return JSON.parse(value)?.oauthSignIn === true;
+      } catch {
+        return false;
+      }
+    });
+  }
+
   async function login(email: string, password: string) {
     if (DEV_MODE) {
       setUser({ email, name: 'Dev User' });
       return;
     }
     setIsLoading(true);
+    setLoadingMessage(null);
     try {
       const result = await signIn({ username: email, password });
 
@@ -124,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(authenticatedUser);
     } finally {
       setIsLoading(false);
+      setLoadingMessage(null);
     }
   }
 
@@ -151,18 +217,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     if (DEV_MODE) {
-      setUser(null);
+      clearAuthenticatedUser();
       return;
     }
-    await signOut({ global: false });
-    // For non-OAuth users, signOut resolves without redirect
-    // For OAuth users, the page redirects to Cognito's logout endpoint
-    // and we never reach here
-    setUser(null);
+
+    const shouldRedirectToHostedUiLogout = hasHostedUiSession();
+    hostedUiLogoutInProgress.current = shouldRedirectToHostedUiLogout;
+    authCheckId.current += 1;
+    setAuthError(null);
+    setIsLoading(true);
+    setLoadingMessage('Logging out...');
+
+    if (shouldRedirectToHostedUiLogout) {
+      clearHostedUiLogoutTimeout();
+      hostedUiLogoutTimeoutRef.current = window.setTimeout(() => {
+        // The Cognito redirect never arrived — recover so the user isn't stuck on the spinner.
+        setAuthError('Sign out is taking longer than expected. You have been signed out locally.');
+        clearAuthenticatedUser();
+      }, HOSTED_UI_LOGOUT_TIMEOUT_MS);
+    }
+
+    try {
+      await signOut({ global: false });
+      if (!shouldRedirectToHostedUiLogout) {
+        clearAuthenticatedUser();
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sign out failed. Please try again.';
+      setAuthError(message);
+      clearAuthenticatedUser();
+      throw err;
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, signup, confirmAccount, forgotPassword, confirmForgotPassword }}>
+    <AuthContext.Provider value={{ user, isLoading, loadingMessage, authError, clearAuthError, login, logout, signup, confirmAccount, forgotPassword, confirmForgotPassword }}>
       {children}
     </AuthContext.Provider>
   );

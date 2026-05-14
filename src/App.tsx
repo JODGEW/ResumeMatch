@@ -27,11 +27,12 @@ function MaybeProtected({ children }: { children: React.ReactNode }) {
 }
 
 function RootGate() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, loadingMessage } = useAuth();
   if (isLoading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
+        {loadingMessage && <p className="loading-screen__text">{loadingMessage}</p>}
       </div>
     );
   }

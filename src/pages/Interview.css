@@ -69,6 +69,26 @@
   margin-bottom: 1rem;
 }
 
+/* ── Saving final answer ─────────────────────────────── */
+.interview-saving {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  background: var(--info-dim);
+  border: 1px solid var(--info-border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.interview-saving__spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
 /* ── Current Question ────────────────────────────────── */
 .interview-question {
   display: flex;

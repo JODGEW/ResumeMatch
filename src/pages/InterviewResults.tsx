@@ -643,6 +643,17 @@ export function InterviewResults() {
       {assessment ? (
         <section id="ir-assessment" className="ir-assessment-section">
           <h2 className="ir-section-title">Assessment</h2>
+          {assessment.clarityAdjusted && assessment.transcriptClarityStats && (
+            <div className="ir-clarity-banner" role="note">
+              <span className="ir-clarity-banner__icon" aria-hidden="true">i</span>
+              <span className="ir-clarity-banner__text">
+                This score was adjusted because{' '}
+                {assessment.transcriptClarityStats.unclearTurnCount} of{' '}
+                {assessment.transcriptClarityStats.candidateTurnCount} answers had
+                transcription errors. Your communication score reflects this.
+              </span>
+            </div>
+          )}
           <div className="ir-overview">
             <div className="ir-score-card card">
               <h3>Overall Score</h3>
@@ -725,20 +736,40 @@ export function InterviewResults() {
             <div className="ir-feedback-col card">
               <h4>
                 Strengths
-                <span className="ir-feedback-count">{assessment.strengths.length} items</span>
+                {assessment.strengths.length > 0 && (
+                  <span className="ir-feedback-count">
+                    {assessment.strengths.length} {assessment.strengths.length === 1 ? 'item' : 'items'}
+                  </span>
+                )}
               </h4>
-              {assessment.strengths.map((s, i) => (
-                <p key={i} className="ir-feedback-item ir-feedback-item--strength">{s}</p>
-              ))}
+              {assessment.strengths.length === 0 ? (
+                <p className="ir-feedback-empty">
+                  No standout strengths identified for this session — see Areas to Improve.
+                </p>
+              ) : (
+                assessment.strengths.map((s, i) => (
+                  <p key={i} className="ir-feedback-item ir-feedback-item--strength">{s}</p>
+                ))
+              )}
             </div>
             <div className="ir-feedback-col card">
               <h4>
                 Areas to Improve
-                <span className="ir-feedback-count">{assessment.improvements.length} items</span>
+                {assessment.improvements.length > 0 && (
+                  <span className="ir-feedback-count">
+                    {assessment.improvements.length} {assessment.improvements.length === 1 ? 'item' : 'items'}
+                  </span>
+                )}
               </h4>
-              {assessment.improvements.map((s, i) => (
-                <p key={i} className="ir-feedback-item ir-feedback-item--improvement">{s}</p>
-              ))}
+              {assessment.improvements.length === 0 ? (
+                <p className="ir-feedback-empty">
+                  No specific areas to improve identified.
+                </p>
+              ) : (
+                assessment.improvements.map((s, i) => (
+                  <p key={i} className="ir-feedback-item ir-feedback-item--improvement">{s}</p>
+                ))
+              )}
             </div>
           </div>
         </section>
@@ -812,12 +843,23 @@ export function InterviewResults() {
             const speakerClass = turn.role === 'interviewer' ? 'interviewer' : 'user';
             const isCandidateTurn = turn.role === 'user' || turn.role === 'candidate';
 
+            const isUnclear = isCandidateTurn && turn.transcriptClarity === 'unclear';
+
             return (
               <div key={i} className={`ir-transcript__turn ir-transcript__turn--${speakerClass}`}>
                 <span className="ir-transcript__label">
                   {turn.role === 'interviewer' ? 'INTERVIEWER' : 'YOU'}
                 </span>
                 <p>{turn.content}</p>
+                {isUnclear && (
+                  <div className="ir-clarity-warning" role="note">
+                    <span className="ir-clarity-warning__icon" aria-hidden="true">!</span>
+                    <span>
+                      Speech-to-text had trouble with this answer.
+                      It was discounted in your communication score.
+                    </span>
+                  </div>
+                )}
                 {isCandidateTurn && turn.feedback && (
                   <FeedbackBlock feedback={turn.feedback} fillerWords={turn.fillerWords} />
                 )}
