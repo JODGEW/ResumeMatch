@@ -1,0 +1,8 @@
+# Run the entitlements drift guard only when a source-of-truth file is staged.
+# Keeps commits fast — the full Vitest suite is NOT run here.
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+if printf '%s\n' "$staged" | grep -qE '^(src/utils/entitlements\.ts|aws/entitlements_constants\.py)$'; then
+  echo "husky › entitlements source changed — running drift tests…"
+  npm test -- entitlements
+fi
