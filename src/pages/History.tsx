@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getAnalysisHistory, getAnalysis } from '../api/analysis';
 import { useAuth } from '../auth/AuthContext';
+import { useEntitlements } from '../hooks/useEntitlements';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
 import { getTrackerPrefill } from '../utils/trackerPrefill';
@@ -38,8 +39,20 @@ export function History() {
   const currentPage = getPageFromSearchParams(searchParams);
   const pendingAnalysisId = (location.state as { pendingAnalysisId?: string } | null)?.pendingAnalysisId;
   const { user } = useAuth();
+  const { entitlements } = useEntitlements();
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
+
+  // Gate on plan === 'free' (not hasPro) so grandfathered Pro users — who
+  // resolve to hasPro:false today but get full history from the backend —
+  // don't incorrectly see the cap notice. Backend doesn't return totalCount,
+  // so we show a generic "you're seeing your 5 most recent" message when the
+  // list length matches the cap.
+  const showHistoryCapNotice =
+    !loading &&
+    !!entitlements &&
+    entitlements.plan === 'free' &&
+    analyses.length >= entitlements.limits.historyVisibleRows;
 
   const goToPage = useCallback((page: number, options?: { replace?: boolean }) => {
     const nextPage = Math.max(1, page);
@@ -544,6 +557,15 @@ export function History() {
                   Next
                 </button>
               </div>
+            )}
+
+            {showHistoryCapNotice && (
+              <p className="history-cap-indicator animate-in">
+                Showing your {entitlements!.limits.historyVisibleRows} most recent analyses.{' '}
+                <Link to="/pricing" className="history-cap-indicator__link">
+                  Upgrade to see your full history.
+                </Link>
+              </p>
             )}
           </>
         );

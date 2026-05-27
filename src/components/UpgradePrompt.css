@@ -1,0 +1,93 @@
+/* Shared paywall component. Used wherever a Free user hits a Pro gate.
+ * Accent-tinted (not danger-red) because this is a paywall, not an error. */
+
+.upgrade-prompt {
+  display: flex;
+  align-items: center;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+}
+
+.upgrade-prompt__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.upgrade-prompt__message {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.upgrade-prompt__cta {
+  flex-shrink: 0;
+}
+
+/* ── Banner: horizontal strip above content ─────────── */
+.upgrade-prompt--banner {
+  flex-direction: row;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.upgrade-prompt--banner .upgrade-prompt__message {
+  flex: 1;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.upgrade-prompt--banner .upgrade-prompt__cta {
+  font-size: 0.8125rem;
+  padding: 0.5rem 1rem;
+}
+
+/* ── Card: vertical centered, used where a feature would be ─── */
+.upgrade-prompt--card {
+  flex-direction: column;
+  text-align: center;
+  gap: 0.875rem;
+  padding: 1.75rem 1.5rem;
+}
+
+.upgrade-prompt--card .upgrade-prompt__icon {
+  width: 36px;
+  height: 36px;
+  background: var(--surface-card);
+  border: 1px solid var(--accent-border);
+  border-radius: 50%;
+}
+
+.upgrade-prompt--card .upgrade-prompt__message {
+  max-width: 480px;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.upgrade-prompt--card .upgrade-prompt__cta {
+  padding: 0.625rem 1.25rem;
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .upgrade-prompt--banner {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .upgrade-prompt--banner .upgrade-prompt__cta {
+    align-self: stretch;
+  }
+}
+
+@media (max-width: 480px) {
+  .upgrade-prompt--card {
+    padding: 1.25rem;
+  }
+}

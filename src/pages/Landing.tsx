@@ -72,28 +72,55 @@ const features = [
 
 const plans = [
   {
-    name: 'Free during beta',
-    body: 'Use the full ResumeMatch workflow today.',
-    cta: 'Start Free',
+    name: 'Free',
+    tagline: 'For testing the waters.',
+    price: '$0',
+    priceNote: 'forever',
+    priceSub: null,
+    priceStrike: null,
+    badge: null,
+    cta: 'Start free',
     features: [
-      '10 resume analyses per day',
-      '5 mock interview sessions per day',
-      'Complete resume analysis',
-      'Keyword and alignment breakdown',
-      'Targeted improvement suggestions',
-      'Mock interview access',
-      'Saved history and session review',
+      '2 analyses / day',
+      '1 interview / day',
+      'Top 3 keyword gaps',
+      'Application tracker',
     ],
+    footnote: 'Good for getting a feel for the product.',
   },
   {
     name: 'Pro',
-    body: 'Coming soon.',
-    cta: 'Coming Soon',
+    tagline: 'For active job searches.',
+    price: '$14.99',
+    priceNote: 'per month, cancel anytime',
+    priceSub: null,
+    priceStrike: null,
+    badge: 'Most popular',
+    cta: 'Subscribe',
     features: [
-      'Expanded limits',
-      'Future premium benefits',
-      'Pricing and details to be announced.',
+      '10 analyses + 5 interviews / day',
+      'Full keyword gap analysis',
+      'DOCX export + rewrite',
+      'All interview modes',
     ],
+    footnote: 'Best for ongoing, multi-month searches.',
+  },
+  {
+    name: 'Career Sprint',
+    tagline: 'For focused 60-day pushes.',
+    price: '$24.99',
+    priceNote: 'once',
+    priceSub: '60 days, no auto-renewal',
+    priceStrike: '$29.98',
+    badge: null,
+    cta: 'Buy once',
+    features: [
+      'Everything in Pro',
+      'One payment, no subscription',
+      '60-day focused window',
+      'No cancellation needed',
+    ],
+    footnote: 'For focused job search sprints.',
   },
 ];
 
@@ -298,44 +325,64 @@ export function Landing() {
           <div className="page-container landing-section__inner">
             <div className="landing-section__header">
               <p className="landing-eyebrow">Pricing</p>
-              <h2>Start free. Everything is included right now.</h2>
+              <h2>Start free, upgrade for the full loop</h2>
             </div>
 
             <div className="landing-reading-wrap landing-pricing__intro">
               <p className="landing-reading-copy">
-                ResumeMatch is currently free during beta. 
-                You can use the full workflow today, with daily limits on analyses and mock interviews. 
-                Pro pricing and added benefits will come later.
+                Free lets you try the core workflow. Pro keeps it going month to
+                month. Career Sprint is a focused one-time push.
               </p>
             </div>
 
             <div className="landing-pricing" role="list">
-              {plans.map((plan, index) => (
-                <article
-                  key={plan.name}
-                  className={`landing-plan${index === 1 ? ' landing-plan--featured' : ''}`}
-                  role="listitem"
-                >
-                  <div>
-                    <h3>{plan.name}</h3>
-                    <p>{plan.body}</p>
-                  </div>
-                  <ul className="landing-plan__features">
-                    {plan.features.map((feature) => (
-                      <li key={feature}>{feature}</li>
-                    ))}
-                  </ul>
-                  {index === 1 ? (
-                    <button type="button" className="btn btn-primary" disabled aria-disabled="true">
-                      {plan.cta}
-                    </button>
-                  ) : (
-                    <Link to={appHref} className="btn btn-ghost">
+              {plans.map((plan) => {
+                const featured = plan.badge !== null;
+                return (
+                  <article
+                    key={plan.name}
+                    className={`landing-plan${featured ? ' landing-plan--featured' : ''}`}
+                    role="listitem"
+                  >
+                    {plan.badge ? (
+                      <span className="landing-plan__badge">{plan.badge}</span>
+                    ) : null}
+
+                    <div className="landing-plan__head">
+                      <h3>{plan.name}</h3>
+                      <p className="landing-plan__tagline">{plan.tagline}</p>
+                    </div>
+
+                    <div className="landing-plan__price">
+                      <span className="landing-plan__price-amount">{plan.price}</span>
+                      <span className="landing-plan__price-note">{plan.priceNote}</span>
+                    </div>
+                    {plan.priceSub ? (
+                      <p className="landing-plan__price-sub">
+                        {plan.priceStrike ? (
+                          <s className="landing-plan__price-strike">{plan.priceStrike}</s>
+                        ) : null}
+                        {plan.priceSub}
+                      </p>
+                    ) : null}
+
+                    <ul className="landing-plan__features">
+                      {plan.features.map((feature) => (
+                        <li key={feature}>{feature}</li>
+                      ))}
+                    </ul>
+
+                    <Link
+                      to={appHref}
+                      className={`btn landing-plan__cta ${featured ? 'btn-primary' : 'btn-ghost'}`}
+                    >
                       {plan.cta}
                     </Link>
-                  )}
-                </article>
-              ))}
+
+                    <p className="landing-plan__footnote">{plan.footnote}</p>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>

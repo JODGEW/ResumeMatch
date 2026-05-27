@@ -13,6 +13,7 @@ export type SubscriptionStatus =
   | 'active'
   | 'past_due'
   | 'canceled'
+  | 'grandfathered'
   | 'sprint_active'
   | 'sprint_expired';
 
@@ -29,7 +30,7 @@ export interface UserSubscription {
 
   billingProvider?: string;
   billingCustomerId?: string;
-  billingSubscriptionId?: string; // monthly only
+  stripeSubscriptionId?: string; // monthly only; the Stripe webhook writes this exact field
   billingPaymentIntentId?: string; // sprint only
   currentPeriodStart?: string; // ISO 8601
   currentPeriodEnd?: string; // ISO 8601; sprint = purchase + 60d
@@ -68,6 +69,11 @@ export interface PlanLimits {
 export interface Entitlements {
   plan: Plan;
   subscriptionStatus: SubscriptionStatus;
+  /** Passed through from the raw row — Layout uses this to decide whether to
+   *  surface the "Manage subscription" link (Stripe Customer Portal). Sprint
+   *  and grandfathered users have no subscription to manage, so this is
+   *  undefined for them. */
+  stripeSubscriptionId?: string;
   /** pro_monthly and pro_sprint normalized to a single gating boolean. */
   hasPro: boolean;
   limits: PlanLimits;

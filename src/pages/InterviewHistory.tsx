@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getSession, listSessions, type SessionSummary } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { useEntitlements } from '../hooks/useEntitlements';
 import './InterviewHistory.css';
 
 function formatDate(dateStr: string): string {
@@ -129,10 +130,21 @@ function groupSessionsByBucket(
 
 export function InterviewHistory() {
   const navigate = useNavigate();
+  const { entitlements } = useEntitlements();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Same cap-notice gate as History: plan === 'free' (not hasPro) so
+  // grandfathered users don't see a false-positive notice. Backend may or
+  // may not cap listSessions today — the indicator triggers when row count
+  // meets the documented Free cap so it's correct once enforcement lands.
+  const showSessionCapNotice =
+    !loading &&
+    !!entitlements &&
+    entitlements.plan === 'free' &&
+    sessions.length >= entitlements.limits.historyVisibleRows;
 
   useEffect(() => {
     let cancelled = false;
@@ -204,6 +216,7 @@ export function InterviewHistory() {
           </Link>
         </div>
       ) : !loading && (
+        <>
         <div className="ih-list animate-in stagger-1">
           {groupSessionsByBucket(sessions).map(({ bucket, sessions: groupSessions }) => (
             <section key={bucket} className="ih-group">
@@ -266,6 +279,15 @@ export function InterviewHistory() {
             </section>
           ))}
         </div>
+        {showSessionCapNotice && (
+          <p className="ih-cap-indicator animate-in">
+            Showing your {entitlements!.limits.historyVisibleRows} most recent interviews.{' '}
+            <Link to="/pricing" className="ih-cap-indicator__link">
+              Upgrade to see your full history.
+            </Link>
+          </p>
+        )}
+        </>
       )}
     </div>
   );

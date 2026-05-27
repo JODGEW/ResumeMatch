@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useEntitlements } from '../hooks/useEntitlements';
 import { ThemeToggle } from './ThemeToggle';
+import { createPortalSession } from '../api/portal';
 import { useState, useEffect, useCallback } from 'react';
 import './Layout.css';
 
@@ -8,11 +10,41 @@ const DEMO_EMAIL = 'demo123@resumeapp.com';
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { entitlements } = useEntitlements();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [portalRedirecting, setPortalRedirecting] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'dark'
   );
+
+  // Only users with an active Stripe subscription have something to manage in
+  // the Customer Portal. Grandfathered users (no Stripe customer) and Sprint
+  // users (one-time payment, no subscription ID) are intentionally excluded.
+  const canManageSubscription = !!entitlements?.stripeSubscriptionId;
+
+  async function handleManageSubscription() {
+    if (portalRedirecting) return;
+    setPortalError(null);
+    setPortalRedirecting(true);
+    try {
+      const { portalUrl } = await createPortalSession();
+      window.location.href = portalUrl;
+    } catch (err: unknown) {
+      const axiosErr = err as {
+        response?: { data?: { error?: string; message?: string } };
+      };
+      const data = axiosErr?.response?.data;
+      const message =
+        data?.message ||
+        data?.error ||
+        (err instanceof Error ? err.message : null) ||
+        'Could not open the billing portal. Please try again.';
+      setPortalError(message);
+      setPortalRedirecting(false);
+    }
+  }
 
   // Keep label in sync when ThemeToggle changes the data-theme attribute
   useEffect(() => {
@@ -133,6 +165,16 @@ export function Layout() {
             <div className="nav__user">
               <ThemeToggle />
               <span className="nav__email">{user?.email}</span>
+              {canManageSubscription && (
+                <button
+                  onClick={handleManageSubscription}
+                  className="btn btn-ghost nav__manage-sub"
+                  disabled={portalRedirecting}
+                  title="Open the Stripe Customer Portal"
+                >
+                  {portalRedirecting ? 'Opening…' : 'Manage subscription'}
+                </button>
+              )}
               <button onClick={handleLogout} className="btn btn-ghost nav__logout">
                 Sign out
               </button>
@@ -178,10 +220,26 @@ export function Layout() {
 
         <div className="nav__drawer-divider" />
 
+        {canManageSubscription && (
+          <button
+            onClick={() => { closeMenu(); handleManageSubscription(); }}
+            className="btn btn-ghost nav__drawer-manage-sub"
+            disabled={portalRedirecting}
+          >
+            {portalRedirecting ? 'Opening…' : 'Manage subscription'}
+          </button>
+        )}
+
         <button onClick={handleLogout} className="btn btn-ghost nav__drawer-signout">
           Sign out
         </button>
       </div>
+
+      {portalError && (
+        <div className="nav__portal-error" role="alert">
+          {portalError}
+        </div>
+      )}
 
       <main className="main">
         <Outlet />

@@ -205,3 +205,20 @@
     align-items: stretch;
   }
 }
+
+/* ── Free-tier interview-history cap notice ─────────── */
+.ih-cap-indicator {
+  margin: 1.5rem auto 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.ih-cap-indicator__link {
+  color: var(--accent);
+  font-weight: 510;
+}
+
+.ih-cap-indicator__link:hover {
+  color: var(--accent-hover);
+}

@@ -6,6 +6,7 @@ import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
 import { SignupPromptModal } from '../components/SignupPromptModal';
+import { UpgradePrompt } from '../components/UpgradePrompt';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
 import { getSession, isMissingInterviewSessionError, listSessions } from '../api/interview';
@@ -682,6 +683,18 @@ export function Results() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Suggestions paywall — backend filtered suggestions + suggestedText for
+       *  Free users and set upgradeRequired:true. Shown in the same slot as the
+       *  Suggestions / Detailed Changes / Download blocks so the gap is obvious. */}
+      {analysis.upgradeRequired === true && (
+        <div className="results-section animate-in stagger-3">
+          <UpgradePrompt
+            variant="card"
+            message="AI resume rewrite suggestions are available with Pro. See exactly what to edit and export the rewritten resume as DOCX."
+          />
         </div>
       )}
 

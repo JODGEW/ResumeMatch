@@ -21,6 +21,10 @@ export interface Analysis {
   jobTitle?: string;
   roleName?: string;
   companyName?: string;
+  /** Set to true by the backend when the analysis row was filtered for a Free
+   *  user (suggestions + suggestedText omitted). Drives the Results page's
+   *  Suggestions-area paywall. */
+  upgradeRequired?: boolean;
   experienceCheck?: {
     requiredYears: string | null;
     resumeStatedYears: string | null;

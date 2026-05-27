@@ -1,0 +1,36 @@
+.upgrade-cancel-content {
+  max-width: 480px;
+  margin: 4rem auto 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.upgrade-cancel-content p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.upgrade-cancel-secondary {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.upgrade-cancel-secondary:hover {
+  color: var(--accent-hover);
+}
+
+@media (max-width: 480px) {
+  .upgrade-cancel-content {
+    margin-top: 2rem;
+  }
+}

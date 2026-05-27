@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { FileDropzone } from '../components/FileDropzone';
 import { LastResumeCard } from '../components/LastResumeCard';
+import { UpgradePrompt } from '../components/UpgradePrompt';
 import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, fetchLastResume } from '../api/upload';
 import '../components/LastResumeCard.css';
 import './Upload.css';
@@ -32,6 +33,7 @@ export function Upload() {
   const [jobDescription, setJobDescription] = useState('');
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
+  const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ jd?: string; resume?: string }>({});
   const [touched, setTouched] = useState<{ jd?: boolean; resume?: boolean }>({});
   const [submitError, setSubmitError] = useState('');
@@ -109,6 +111,7 @@ export function Upload() {
     setSubmitError('');
     setFieldErrors({});
     setError('');
+    setUpgradeMessage(null);
 
     try {
       if (isReusing && lastResume) {
@@ -149,17 +152,24 @@ export function Upload() {
         navigate(`/results/${analysisId}`);
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number; data?: { error?: string; errorMessage?: string; message?: string } } };
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string; errorMessage?: string; message?: string; upgradeRequired?: boolean } } };
       const status = axiosErr?.response?.status;
+      const axiosData = axiosErr?.response?.data;
 
-      // If reuse fails with 404, the original resume is gone — clear and fall back to dropzone
-      if (isReusing && status === 404) {
+      // Quota gate: backend returns 429 + upgradeRequired:true when Free's
+      // daily analysis cap is hit. Render the upgrade paywall instead of the
+      // generic red error banner so the next action (upgrade) is obvious.
+      if (status === 429 && axiosData?.upgradeRequired === true) {
+        setUpgradeMessage(
+          "You've used your 2 analyses for today. Upgrade to Pro Monthly for 10 analyses per day.",
+        );
+      } else if (isReusing && status === 404) {
+        // If reuse fails with 404, the original resume is gone — clear and fall back to dropzone
         localStorage.removeItem(STORAGE_KEY);
         setLastResume(null);
         setIsChangingResume(false);
         setError('Previous resume is no longer available. Please upload again.');
       } else {
-        const axiosData = axiosErr?.response?.data;
         const message = axiosData?.error
           || axiosData?.errorMessage
           || axiosData?.message
@@ -190,6 +200,10 @@ export function Upload() {
         <h1>New Analysis</h1>
         <p>Upload your resume and paste the job description to get started</p>
       </div>
+
+      {upgradeMessage && (
+        <UpgradePrompt message={upgradeMessage} cta="Upgrade to Pro Monthly" />
+      )}
 
       {error && (
         <div className="upload-error animate-in">

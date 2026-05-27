@@ -393,3 +393,20 @@
     display: none;
   }
 }
+
+/* ── Free-tier history cap notice ───────────────────── */
+.history-cap-indicator {
+  margin: 1.5rem auto 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.history-cap-indicator__link {
+  color: var(--accent);
+  font-weight: 510;
+}
+
+.history-cap-indicator__link:hover {
+  color: var(--accent-hover);
+}

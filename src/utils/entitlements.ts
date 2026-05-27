@@ -187,6 +187,7 @@ export function resolveEntitlements(
   return {
     plan,
     subscriptionStatus,
+    stripeSubscriptionId: user?.stripeSubscriptionId,
     hasPro,
     limits,
     usage: {

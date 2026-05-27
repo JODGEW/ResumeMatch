@@ -21,6 +21,7 @@ import {
 } from '../utils/interviewPointer';
 import { isInterviewClosingPrompt, isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
+import { UpgradePrompt } from '../components/UpgradePrompt';
 import './Interview.css';
 
 type InterviewState = 'setup' | 'starting' | 'active' | 'thinking' | 'speaking' | 'completed' | 'loading';
@@ -59,6 +60,7 @@ export function Interview() {
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [turnNumber, setTurnNumber] = useState(0);
   const [error, setError] = useState('');
+  const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null);
   const [timeLimit, setTimeLimit] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [answerElapsed, setAnswerElapsed] = useState(0);
@@ -357,8 +359,34 @@ export function Interview() {
         }, 1000);
       } catch (err) {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Failed to start interview';
-        setError(msg);
+        // Narrow axios error to detect the two paywall paths:
+        //   429 + upgradeRequired:true        → daily interview quota hit
+        //   403 + technical_interview_pro_only → technical mode is Pro-only
+        // Mirror the response-shape pattern from Upload.tsx.
+        const axiosErr = err as {
+          response?: {
+            status?: number;
+            data?: { error?: string; upgradeRequired?: boolean };
+          };
+        };
+        const status = axiosErr?.response?.status;
+        const code = axiosErr?.response?.data?.error;
+        const upgradeRequired = axiosErr?.response?.data?.upgradeRequired === true;
+
+        if (status === 429 && upgradeRequired) {
+          setUpgradeMessage(
+            'Daily interview limit reached. Upgrade for 5 interviews per day with up to 10 questions each.',
+          );
+          setError('');
+        } else if (status === 403 && code === 'technical_interview_pro_only') {
+          setUpgradeMessage(
+            'Technical interviews require Pro. Upgrade to practice both behavioral and technical.',
+          );
+          setError('');
+        } else {
+          const msg = err instanceof Error ? err.message : 'Failed to start interview';
+          setError(msg);
+        }
         setInterviewState('setup');
       } finally {
         startInFlightRef.current = false;
@@ -722,6 +750,10 @@ export function Interview() {
               Practice a realistic interview tailored to this role, with live follow-up questions and instant feedback.
             </p>
 
+            {upgradeMessage && (
+              <UpgradePrompt message={upgradeMessage} cta="Upgrade to Pro" />
+            )}
+
             {error && (
               <div className="interview-error" style={{ marginBottom: '1rem' }}>
                 <p>{error}</p>
@@ -734,7 +766,7 @@ export function Interview() {
                 <button
                   type="button"
                   className={`interview-setup__option ${selectedType === 'behavioral' ? 'interview-setup__option--active' : ''}`}
-                  onClick={() => setSelectedType('behavioral')}
+                  onClick={() => { setSelectedType('behavioral'); setUpgradeMessage(null); }}
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -750,7 +782,7 @@ export function Interview() {
                 <button
                   type="button"
                   className={`interview-setup__option ${selectedType === 'technical' ? 'interview-setup__option--active' : ''}`}
-                  onClick={() => setSelectedType('technical')}
+                  onClick={() => { setSelectedType('technical'); setUpgradeMessage(null); }}
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
