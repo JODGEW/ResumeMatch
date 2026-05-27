@@ -22,9 +22,14 @@ import {
 import { isInterviewClosingPrompt, isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
 import { UpgradePrompt } from '../components/UpgradePrompt';
+import { FREE_LIMITS, PRO_LIMITS } from '../utils/entitlements';
+import { useEntitlements } from '../hooks/useEntitlements';
 import './Interview.css';
 
 type InterviewState = 'setup' | 'starting' | 'active' | 'thinking' | 'speaking' | 'completed' | 'loading';
+
+const DAILY_LIMIT_MESSAGE = `Daily interview limit reached. Upgrade for ${PRO_LIMITS.interviewsPerDay} interviews per day with up to ${PRO_LIMITS.interviewQuestions} questions each.`;
+const TECHNICAL_PRO_MESSAGE = 'Technical interviews require Pro. Upgrade to practice both behavioral and technical.';
 
 interface LocationState {
   resumeText?: string;
@@ -46,6 +51,7 @@ function getPositiveNumber(value: unknown): number | null {
 export function Interview() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { entitlements, isLoading: entitlementsLoading } = useEntitlements();
   const state = location.state as LocationState | null;
   const setupJobTitle = state?.jobTitle?.trim() || 'Current analysis';
 
@@ -374,14 +380,10 @@ export function Interview() {
         const upgradeRequired = axiosErr?.response?.data?.upgradeRequired === true;
 
         if (status === 429 && upgradeRequired) {
-          setUpgradeMessage(
-            'Daily interview limit reached. Upgrade for 5 interviews per day with up to 10 questions each.',
-          );
+          setUpgradeMessage(DAILY_LIMIT_MESSAGE);
           setError('');
         } else if (status === 403 && code === 'technical_interview_pro_only') {
-          setUpgradeMessage(
-            'Technical interviews require Pro. Upgrade to practice both behavioral and technical.',
-          );
+          setUpgradeMessage(TECHNICAL_PRO_MESSAGE);
           setError('');
         } else {
           const msg = err instanceof Error ? err.message : 'Failed to start interview';
@@ -697,11 +699,36 @@ export function Interview() {
     isArming,
   });
   const currentPromptIsClosing = controls.isClosingPrompt;
+  const isDailyLimitBlocked = upgradeMessage === DAILY_LIMIT_MESSAGE;
+  const isStartBlocked = !!upgradeMessage;
+
+  // Backend currently returns totalQuestions = 10 in startInterview even for
+  // Free users (it still enforces the 5-question cap server-side, so the
+  // interview ends at Q5 — but the progress label would mislead until then).
+  // Clamp the display by the user's plan. Gate on `plan` directly rather than
+  // `hasPro` to avoid the latent grandfathered resolver bug (a grandfathered
+  // user has plan='pro_monthly' but hasPro=false today — we want them on the
+  // Pro 10-question display either way). When entitlements are still loading
+  // or the hook errored out, trust the backend value to avoid jitter / a
+  // wrong cap for Pro users.
+  const planQuestionCap =
+    entitlementsLoading || !entitlements
+      ? totalQuestions
+      : entitlements.plan === 'free'
+      ? FREE_LIMITS.interviewQuestions
+      : PRO_LIMITS.interviewQuestions;
+  const displayedTotalQuestions =
+    totalQuestions > 0 ? Math.min(totalQuestions, planQuestionCap) : totalQuestions;
+  const displayedQuestionNumber =
+    displayedTotalQuestions > 0
+      ? Math.min(questionNumber, displayedTotalQuestions)
+      : questionNumber;
+
   const questionProgressLabel = currentPromptIsClosing
     ? 'All questions complete'
-    : totalQuestions > 0
-    ? `Question ${questionNumber} of ${totalQuestions}`
-    : `Question ${questionNumber || 1}`;
+    : displayedTotalQuestions > 0
+    ? `Question ${displayedQuestionNumber} of ${displayedTotalQuestions}`
+    : `Question ${displayedQuestionNumber || 1}`;
 
   // --- Render ---
 
@@ -751,7 +778,7 @@ export function Interview() {
             </p>
 
             {upgradeMessage && (
-              <UpgradePrompt message={upgradeMessage} cta="Upgrade to Pro" />
+              <UpgradePrompt message={upgradeMessage} />
             )}
 
             {error && (
@@ -766,7 +793,10 @@ export function Interview() {
                 <button
                   type="button"
                   className={`interview-setup__option ${selectedType === 'behavioral' ? 'interview-setup__option--active' : ''}`}
-                  onClick={() => { setSelectedType('behavioral'); setUpgradeMessage(null); }}
+                  onClick={() => {
+                    setSelectedType('behavioral');
+                    if (!isDailyLimitBlocked) setUpgradeMessage(null);
+                  }}
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -782,7 +812,9 @@ export function Interview() {
                 <button
                   type="button"
                   className={`interview-setup__option ${selectedType === 'technical' ? 'interview-setup__option--active' : ''}`}
-                  onClick={() => { setSelectedType('technical'); setUpgradeMessage(null); }}
+                  onClick={() => {
+                    setSelectedType('technical');
+                  }}
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -912,12 +944,14 @@ export function Interview() {
             <button
               className="btn btn-primary interview-setup__start"
               onClick={handleStartClick}
-              disabled={microphoneCheck.status === 'checking' || microphoneCheck.status === 'error'}
+              disabled={microphoneCheck.status === 'checking' || microphoneCheck.status === 'error' || isStartBlocked}
             >
-              Start Interview
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M3 7h8M8 3.5L11 7 8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              {isStartBlocked ? 'Upgrade required' : 'Start Interview'}
+              {!isStartBlocked && (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M3 7h8M8 3.5L11 7 8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
             </button>
 
             <div className="interview-setup__meta">

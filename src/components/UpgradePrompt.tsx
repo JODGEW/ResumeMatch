@@ -9,7 +9,7 @@ interface UpgradePromptProps {
 
 export function UpgradePrompt({
   message,
-  cta = 'Upgrade to Pro',
+  cta = 'View plans',
   variant = 'banner',
 }: UpgradePromptProps) {
   const navigate = useNavigate();

@@ -2,7 +2,7 @@
 .upload-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 1.25rem;
   align-items: start;
 }
 
@@ -15,14 +15,15 @@
 .upload-grid__col {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 /* ── Panel ───────────────────────────────────────────── */
 .upload-panel {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
+  padding: 1.5rem;
 }
 
 .upload-panel__header {
@@ -56,7 +57,7 @@
 }
 
 .upload-panel__textarea {
-  min-height: 320px;
+  min-height: 300px;
   font-size: 0.875rem;
 }
 
@@ -70,8 +71,17 @@
 /* ── Submit Button ───────────────────────────────────── */
 .upload-submit {
   width: 100%;
-  padding: 1rem;
+  min-height: 54px;
+  padding: 0.75rem 1rem;
   font-size: 0.9375rem;
+}
+
+.upload-submit__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.25;
 }
 
 .upload-submit__hint {
@@ -188,6 +198,10 @@
 
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
+  .upload-panel {
+    padding: 1.25rem;
+  }
+
   .upload-panel__textarea {
     min-height: 200px;
   }

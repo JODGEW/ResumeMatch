@@ -98,3 +98,16 @@
   background: var(--danger);
   color: var(--text-on-accent);
 }
+
+/* Variant: primary (upgrade / continue) */
+.confirm-modal__confirm--primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: 1px solid var(--accent);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.confirm-modal__confirm--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}

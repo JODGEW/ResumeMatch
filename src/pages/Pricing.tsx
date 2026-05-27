@@ -146,6 +146,7 @@ export function Pricing() {
           <div className="pricing-card__head">
             <h3 className="pricing-card__title">Free</h3>
             <div className="pricing-card__price">$0 / forever</div>
+            <p className="pricing-card__subtitle">Core matching for occasional applications.</p>
             {isOnFree && (
               <span className="pricing-card__current-badge">Current plan</span>
             )}
@@ -162,6 +163,7 @@ export function Pricing() {
           <div className="pricing-card__head">
             <h3 className="pricing-card__title">Pro Monthly</h3>
             <div className="pricing-card__price">$14.99 / month</div>
+            <p className="pricing-card__subtitle">Recurring Pro access for an ongoing search.</p>
             {isGrandfathered && (
               <span className="pricing-card__current-badge">Current plan (Beta)</span>
             )}
@@ -177,7 +179,7 @@ export function Pricing() {
           {!isOnProMonthly && (
             <button
               type="button"
-              className="btn btn-primary pricing-card__cta"
+              className="btn btn-secondary pricing-card__cta"
               disabled={isSubmitting}
               onClick={() => handleCheckout('pro_monthly')}
             >
@@ -194,11 +196,12 @@ export function Pricing() {
         </div>
 
         {/* ── Career Sprint ──────────────────────────── */}
-        <div className="card pricing-card animate-in stagger-3">
+        <div className="card pricing-card pricing-card--featured animate-in stagger-3">
+          <span className="pricing-card__badge">Best value</span>
           <div className="pricing-card__head">
             <h3 className="pricing-card__title">Career Sprint</h3>
             <div className="pricing-card__price">$24.99 / 60 days</div>
-            <p className="pricing-card__subtitle">One-time payment. No recurring charge.</p>
+            <p className="pricing-card__subtitle">One-time Pro access for an active job search.</p>
             {isOnSprint && (
               <span className="pricing-card__current-badge">
                 {sprintActiveUntil ? `Active until ${sprintActiveUntil}` : 'Active'}

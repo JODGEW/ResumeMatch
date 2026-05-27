@@ -1,7 +1,7 @@
 import React from 'react';
 import './ConfirmModal.css';
 
-type ConfirmVariant = 'destructive' | 'warning';
+type ConfirmVariant = 'destructive' | 'warning' | 'primary';
 
 interface ConfirmModalProps {
   title: string;

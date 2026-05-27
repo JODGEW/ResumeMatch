@@ -5,6 +5,8 @@ import { FileDropzone } from '../components/FileDropzone';
 import { LastResumeCard } from '../components/LastResumeCard';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, fetchLastResume } from '../api/upload';
+import { isUploadQuotaError } from '../utils/uploadQuotaGate';
+import { FREE_LIMITS, PRO_LIMITS } from '../utils/entitlements';
 import '../components/LastResumeCard.css';
 import './Upload.css';
 
@@ -152,16 +154,15 @@ export function Upload() {
         navigate(`/results/${analysisId}`);
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number; data?: { error?: string; errorMessage?: string; message?: string; upgradeRequired?: boolean } } };
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string; errorMessage?: string; message?: string } } };
       const status = axiosErr?.response?.status;
       const axiosData = axiosErr?.response?.data;
 
-      // Quota gate: backend returns 429 + upgradeRequired:true when Free's
-      // daily analysis cap is hit. Render the upgrade paywall instead of the
-      // generic red error banner so the next action (upgrade) is obvious.
-      if (status === 429 && axiosData?.upgradeRequired === true) {
+      // Quota gate: older and newer backend paths differ on whether they send
+      // upgradeRequired, but upload 429s should still render the paywall.
+      if (isUploadQuotaError(err)) {
         setUpgradeMessage(
-          "You've used your 2 analyses for today. Upgrade to Pro Monthly for 10 analyses per day.",
+          `You've used your ${FREE_LIMITS.analysesPerDay} analyses for today. Upgrade for ${PRO_LIMITS.analysesPerDay} analyses per day.`,
         );
       } else if (isReusing && status === 404) {
         // If reuse fails with 404, the original resume is gone — clear and fall back to dropzone
@@ -202,7 +203,7 @@ export function Upload() {
       </div>
 
       {upgradeMessage && (
-        <UpgradePrompt message={upgradeMessage} cta="Upgrade to Pro Monthly" />
+        <UpgradePrompt message={upgradeMessage} />
       )}
 
       {error && (
@@ -250,7 +251,7 @@ export function Upload() {
               <div className="upload-panel__step">1</div>
               <div>
                 <h3>Job Description</h3>
-                <p className="text-secondary">Paste test from posting</p>
+                <p className="text-secondary">Paste text from the posting</p>
               </div>
             </div>
             <textarea
@@ -356,15 +357,15 @@ export function Upload() {
               </>
             ) : (
               <>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M3 9h12M9 3l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span>
+                <span className="upload-submit__copy">
                   Analyze Resume
                   {isReusing && lastResume && !isChangingResume && (
                     <span className="upload-submit__hint">Using {lastResume.fileName}</span>
                   )}
                 </span>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M3 9h12M9 3l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </>
             )}
           </button>

@@ -9,6 +9,7 @@ import { getTrackerPrefill } from '../utils/trackerPrefill';
 import { isInProgress } from '../hooks/usePolling';
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
+import { ConfirmModal } from '../components/ConfirmModal';
 import './History.css';
 
 function hasInProgress(items: Analysis[]) {
@@ -16,6 +17,11 @@ function hasInProgress(items: Analysis[]) {
 }
 
 type SignupPromptContent = {
+  title: string;
+  body: string;
+};
+
+type UpgradePromptContent = {
   title: string;
   body: string;
 };
@@ -42,6 +48,7 @@ export function History() {
   const { entitlements } = useEntitlements();
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
+  const [upgradePrompt, setUpgradePrompt] = useState<UpgradePromptContent | null>(null);
 
   // Gate on plan === 'free' (not hasPro) so grandfathered Pro users — who
   // resolve to hasPro:false today but get full history from the backend —
@@ -249,7 +256,18 @@ export function History() {
         text = full.suggestedText;
       }
       clearTimeout(timeout);
-      if (!text?.trim()) { setDownloadingId(null); return; }
+      if (!text?.trim()) {
+        setDownloadingId(null);
+        if (entitlements?.plan === 'free') {
+          setUpgradePrompt({
+            title: 'Upgrade to download DOCX',
+            body: 'AI rewrite suggestions and DOCX export are included with Pro. Upgrade to see the edit diff and download the optimized resume.',
+          });
+        } else {
+          setDownloadError('No optimized resume is available for this analysis.');
+        }
+        return;
+      }
       const parsed = parseResume(text);
       await downloadOptimizedResume(parsed);
     } catch (err) {
@@ -560,12 +578,25 @@ export function History() {
             )}
 
             {showHistoryCapNotice && (
-              <p className="history-cap-indicator animate-in">
-                Showing your {entitlements!.limits.historyVisibleRows} most recent analyses.{' '}
-                <Link to="/pricing" className="history-cap-indicator__link">
-                  Upgrade to see your full history.
+              <div className="history-cap-prompt animate-in">
+                <span className="history-cap-prompt__icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+                    <path
+                      d="M9 2l1.8 4.4 4.7.4-3.6 3 1.1 4.6L9 12l-4 2.4 1.1-4.6-3.6-3 4.7-.4L9 2z"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <p>
+                  Free history shows your {entitlements!.limits.historyVisibleRows} most recent analyses.
+                  Upgrade for full history up to 500 analyses.
+                </p>
+                <Link to="/pricing" className="btn btn-secondary history-cap-prompt__cta">
+                  View plans
                 </Link>
-              </p>
+              </div>
             )}
           </>
         );
@@ -576,6 +607,20 @@ export function History() {
           onClose={() => setSignupPrompt(null)}
           title={signupPrompt.title}
           body={signupPrompt.body}
+        />
+      )}
+
+      {upgradePrompt && (
+        <ConfirmModal
+          title={upgradePrompt.title}
+          body={upgradePrompt.body}
+          confirmLabel="View plans"
+          variant="primary"
+          onConfirm={() => {
+            setUpgradePrompt(null);
+            navigate('/pricing');
+          }}
+          onCancel={() => setUpgradePrompt(null)}
         />
       )}
     </div>
