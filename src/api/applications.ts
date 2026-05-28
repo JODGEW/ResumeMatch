@@ -1,6 +1,17 @@
+import axios from 'axios';
 import client from './client';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import type { Application } from '../types/tracker';
+
+/** Surface the backend's validation message ({errors:[]} / {error}) instead of axios's opaque "status code 400". */
+function apiError(err: unknown, fallback: string): Error {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { error?: string; errors?: string[] } | undefined;
+    const message = data?.errors?.join(', ') || data?.error;
+    if (message) return new Error(message);
+  }
+  return err instanceof Error ? err : new Error(fallback);
+}
 
 const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
 
@@ -35,15 +46,19 @@ function toApplication(raw: Omit<Application, 'id'> & { applicationId: string })
 
 export async function createApplication(data: CreatePayload): Promise<Application> {
   const userId = await getUserId();
-  const { data: res } = await client.post<CreateResponse>(`/applications?userId=${userId}`, data);
-  const now = new Date().toISOString();
-  return {
-    ...data,
-    id: res.applicationId,
-    outreachWorth: false, // Will be recalculated by caller
-    createdAt: now,
-    updatedAt: now,
-  };
+  try {
+    const { data: res } = await client.post<CreateResponse>(`/applications?userId=${userId}`, data);
+    const now = new Date().toISOString();
+    return {
+      ...data,
+      id: res.applicationId,
+      outreachWorth: false, // Will be recalculated by caller
+      createdAt: now,
+      updatedAt: now,
+    };
+  } catch (err) {
+    throw apiError(err, 'Failed to add application');
+  }
 }
 
 export async function getApplications(): Promise<Application[]> {
@@ -62,8 +77,12 @@ export async function updateApplication(
   void id;
   void createdAt;
   void updatedAt;
-  const { data } = await client.put<UpdateResponse>(`/applications/${applicationId}?userId=${userId}`, payload);
-  return toApplication(data.application);
+  try {
+    const { data } = await client.put<UpdateResponse>(`/applications/${applicationId}?userId=${userId}`, payload);
+    return toApplication(data.application);
+  } catch (err) {
+    throw apiError(err, 'Failed to update application');
+  }
 }
 
 export async function deleteApplication(applicationId: string): Promise<void> {

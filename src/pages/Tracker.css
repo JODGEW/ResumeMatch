@@ -1294,6 +1294,16 @@
   color-scheme: light;
 }
 
+.tracker-modal__error {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--danger-dim);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
 .tracker-modal__footer {
   display: flex;
   justify-content: flex-end;
@@ -1301,6 +1311,10 @@
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.tracker-modal__error + .tracker-modal__footer {
+  margin-top: 1rem;
 }
 
 /* ── Tablet ─────────────────────────────────────────── */

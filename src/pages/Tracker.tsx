@@ -266,10 +266,12 @@ function ApplicationModal({
 }) {
   const [form, setForm] = useState(initial);
   const [showDiscard, setShowDiscard] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
     setForm(prev => ({ ...prev, [key]: val }));
+    setFormError(null);
   }
 
   function handleOverlayClick() {
@@ -279,9 +281,24 @@ function ApplicationModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.companyName.trim() || !form.roleTitle.trim()) return;
+    const missing: string[] = [];
+    if (!form.companyName.trim()) missing.push('Company Name');
+    if (!form.roleTitle.trim()) missing.push('Role Title');
+    if (!form.dateApplied) missing.push('Date Applied');
+    if (missing.length) {
+      setFormError(`Please fill in: ${missing.join(', ')}`);
+      return;
+    }
+    setFormError(null);
 
     const data = { ...form };
+
+    // Match % may arrive as a string/NaN (e.g. prefill from an analysis); coerce to a valid 0–100 number
+    const mp = Number(data.skillMatch.matchPercentage);
+    data.skillMatch = {
+      ...data.skillMatch,
+      matchPercentage: Number.isFinite(mp) ? Math.min(100, Math.max(0, mp)) : 0,
+    };
 
     // Clear empty contact/response
     if (data.contact && !data.contact.name && !data.contact.email) data.contact = undefined;
@@ -315,11 +332,11 @@ function ApplicationModal({
             <div className="tracker-modal__row">
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Company Name *</label>
-                <input className="tracker-modal__input" value={form.companyName} onChange={e => set('companyName', e.target.value)} required />
+                <input className="tracker-modal__input" value={form.companyName} onChange={e => set('companyName', e.target.value)} />
               </div>
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Role Title *</label>
-                <input className="tracker-modal__input" value={form.roleTitle} onChange={e => set('roleTitle', e.target.value)} required />
+                <input className="tracker-modal__input" value={form.roleTitle} onChange={e => set('roleTitle', e.target.value)} />
               </div>
             </div>
             <div className="tracker-modal__row">
@@ -328,7 +345,7 @@ function ApplicationModal({
                 <input className="tracker-modal__input" value={form.jobPostingUrl || ''} onChange={e => set('jobPostingUrl', e.target.value)} placeholder="https://..." />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Date Applied</label>
+                <label className="tracker-modal__label">Date Applied *</label>
                 <input className="tracker-modal__input" type="date" value={form.dateApplied} onChange={e => set('dateApplied', e.target.value)} />
               </div>
             </div>
@@ -367,7 +384,10 @@ function ApplicationModal({
             <div className="tracker-modal__row">
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Match % (auto-calculated if 0)</label>
-                <input className="tracker-modal__input" type="number" min="0" max="100" value={form.skillMatch.matchPercentage} onChange={e => set('skillMatch', { ...form.skillMatch, matchPercentage: Number(e.target.value) })} />
+                <input className="tracker-modal__input" type="number" min="0" max="100" value={form.skillMatch.matchPercentage} onChange={e => {
+                  const n = Number(e.target.value);
+                  set('skillMatch', { ...form.skillMatch, matchPercentage: Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0 });
+                }} />
               </div>
             </div>
           </div>
@@ -523,6 +543,8 @@ function ApplicationModal({
               <textarea className="tracker-modal__textarea" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Personal notes about this application..." />
             </div>
           </div>
+
+          {formError && <div className="tracker-modal__error" role="alert">{formError}</div>}
 
           <div className="tracker-modal__footer">
             <button type="button" className="btn btn-ghost" onClick={handleOverlayClick}>Cancel</button>
