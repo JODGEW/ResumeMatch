@@ -4,6 +4,7 @@ import { getAnalysis } from '../api/analysis';
 import { endInterview, getSession, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { clearInterviewPointer } from '../utils/interviewPointer';
+import { UpgradePrompt } from '../components/UpgradePrompt';
 import './InterviewResults.css';
 
 type InterviewType = 'behavioral' | 'technical';
@@ -264,6 +265,12 @@ export function InterviewResults() {
             questionCount: endResponse.questionCount,
             assessment: endResponse.assessment,
           });
+        } else if (!cancelled && nextSession.status !== 'completed') {
+          // endInterview succeeded — force local status to 'completed' even if
+          // fetchSession returned 'active'. The backend GetItem can be briefly
+          // eventually-consistent after interviewEnd writes, which would
+          // otherwise leave the "Continue Interview" button on the page.
+          setSession((prev) => (prev ? { ...prev, status: 'completed' } : prev));
         }
 
         if (assessmentReady) {
@@ -675,22 +682,26 @@ export function InterviewResults() {
                   {assessment.overallRating}
                 </span>
               </div>
-              <p className="ir-score-breakdown-hint">
-                {assessment.overallScore}% overall across {assessment.categories.length} categories
-              </p>
+              {assessment.upgradeRequired !== true && (
+                <p className="ir-score-breakdown-hint">
+                  {assessment.overallScore}% overall across {assessment.categories.length} categories
+                </p>
+              )}
             </div>
 
-            <div className="ir-cat-grid" aria-label="Dimension scores">
-              {assessment.categories.map((cat, i) => (
-                <div key={i} className="ir-cat-card">
-                  <span className="ir-cat-card__score" style={{ color: scoreColor(cat.score) }}>
-                    {cat.score}%
-                  </span>
-                  <span className="ir-cat-card__name">{cat.name}</span>
-                  <span className="ir-cat-card__weight">({formatCategoryWeight(cat.weight)})</span>
-                </div>
-              ))}
-            </div>
+            {assessment.upgradeRequired !== true && (
+              <div className="ir-cat-grid" aria-label="Dimension scores">
+                {assessment.categories.map((cat, i) => (
+                  <div key={i} className="ir-cat-card">
+                    <span className="ir-cat-card__score" style={{ color: scoreColor(cat.score) }}>
+                      {cat.score}%
+                    </span>
+                    <span className="ir-cat-card__name">{cat.name}</span>
+                    <span className="ir-cat-card__weight">({formatCategoryWeight(cat.weight)})</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="ir-summary-card card">
               <h3>Assessment Summary</h3>
@@ -707,71 +718,82 @@ export function InterviewResults() {
             </div>
           </div>
 
-          {/* Detailed Dimension Feedback */}
-          <div className="ir-dimensions card">
-            <h3>Detailed Dimension Feedback</h3>
-            <div className="ir-dimensions__list">
-              {assessment.categories.map((cat, i) => (
-                <div key={i} className="ir-dimension">
-                  <div className="ir-dimension__header">
-                    <span className="ir-dimension__name">{cat.name}</span>
-                    <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
-                      {cat.score}%
-                    </span>
-                  </div>
-                  <div className="ir-dimension__bar">
-                    <div
-                      className="ir-dimension__fill"
-                      style={{ width: `${cat.score}%`, background: scoreColor(cat.score) }}
-                    />
-                  </div>
-                  <p className="ir-dimension__comment">{cat.comment}</p>
+          {assessment.upgradeRequired !== true && (
+            <>
+              {/* Detailed Dimension Feedback */}
+              <div className="ir-dimensions card">
+                <h3>Detailed Dimension Feedback</h3>
+                <div className="ir-dimensions__list">
+                  {assessment.categories.map((cat, i) => (
+                    <div key={i} className="ir-dimension">
+                      <div className="ir-dimension__header">
+                        <span className="ir-dimension__name">{cat.name}</span>
+                        <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
+                          {cat.score}%
+                        </span>
+                      </div>
+                      <div className="ir-dimension__bar">
+                        <div
+                          className="ir-dimension__fill"
+                          style={{ width: `${cat.score}%`, background: scoreColor(cat.score) }}
+                        />
+                      </div>
+                      <p className="ir-dimension__comment">{cat.comment}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Strengths / Improvements */}
-          <div className="ir-feedback">
-            <div className="ir-feedback-col card">
-              <h4>
-                Strengths
-                {assessment.strengths.length > 0 && (
-                  <span className="ir-feedback-count">
-                    {assessment.strengths.length} {assessment.strengths.length === 1 ? 'item' : 'items'}
-                  </span>
-                )}
-              </h4>
-              {assessment.strengths.length === 0 ? (
-                <p className="ir-feedback-empty">
-                  No standout strengths identified for this session — see Areas to Improve.
-                </p>
-              ) : (
-                assessment.strengths.map((s, i) => (
-                  <p key={i} className="ir-feedback-item ir-feedback-item--strength">{s}</p>
-                ))
-              )}
-            </div>
-            <div className="ir-feedback-col card">
-              <h4>
-                Areas to Improve
-                {assessment.improvements.length > 0 && (
-                  <span className="ir-feedback-count">
-                    {assessment.improvements.length} {assessment.improvements.length === 1 ? 'item' : 'items'}
-                  </span>
-                )}
-              </h4>
-              {assessment.improvements.length === 0 ? (
-                <p className="ir-feedback-empty">
-                  No specific areas to improve identified.
-                </p>
-              ) : (
-                assessment.improvements.map((s, i) => (
-                  <p key={i} className="ir-feedback-item ir-feedback-item--improvement">{s}</p>
-                ))
-              )}
-            </div>
-          </div>
+              {/* Strengths / Improvements */}
+              <div className="ir-feedback">
+                <div className="ir-feedback-col card">
+                  <h4>
+                    Strengths
+                    {assessment.strengths.length > 0 && (
+                      <span className="ir-feedback-count">
+                        {assessment.strengths.length} {assessment.strengths.length === 1 ? 'item' : 'items'}
+                      </span>
+                    )}
+                  </h4>
+                  {assessment.strengths.length === 0 ? (
+                    <p className="ir-feedback-empty">
+                      No standout strengths identified for this session — see Areas to Improve.
+                    </p>
+                  ) : (
+                    assessment.strengths.map((s, i) => (
+                      <p key={i} className="ir-feedback-item ir-feedback-item--strength">{s}</p>
+                    ))
+                  )}
+                </div>
+                <div className="ir-feedback-col card">
+                  <h4>
+                    Areas to Improve
+                    {assessment.improvements.length > 0 && (
+                      <span className="ir-feedback-count">
+                        {assessment.improvements.length} {assessment.improvements.length === 1 ? 'item' : 'items'}
+                      </span>
+                    )}
+                  </h4>
+                  {assessment.improvements.length === 0 ? (
+                    <p className="ir-feedback-empty">
+                      No specific areas to improve identified.
+                    </p>
+                  ) : (
+                    assessment.improvements.map((s, i) => (
+                      <p key={i} className="ir-feedback-item ir-feedback-item--improvement">{s}</p>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {assessment.upgradeRequired === true && (
+            <UpgradePrompt
+              variant="card"
+              message="Detailed dimension feedback and per-answer breakdowns are available with Pro. See your scores across every category, with strengths and improvements called out for each answer."
+            />
+          )}
         </section>
       ) : (
         <section id="ir-assessment" className="ir-assessment-section ir-assessment-section--empty">

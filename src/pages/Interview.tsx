@@ -22,8 +22,7 @@ import {
 import { isInterviewClosingPrompt, isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
 import { UpgradePrompt } from '../components/UpgradePrompt';
-import { FREE_LIMITS, PRO_LIMITS } from '../utils/entitlements';
-import { useEntitlements } from '../hooks/useEntitlements';
+import { PRO_LIMITS } from '../utils/entitlements';
 import './Interview.css';
 
 type InterviewState = 'setup' | 'starting' | 'active' | 'thinking' | 'speaking' | 'completed' | 'loading';
@@ -51,7 +50,6 @@ function getPositiveNumber(value: unknown): number | null {
 export function Interview() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { entitlements, isLoading: entitlementsLoading } = useEntitlements();
   const state = location.state as LocationState | null;
   const setupJobTitle = state?.jobTitle?.trim() || 'Current analysis';
 
@@ -355,6 +353,16 @@ export function Interview() {
         });
 
         clearStartRequestId(lsKeyRef.current);
+
+        // Scrub startFresh from history state so a hard refresh restores the active
+        // interview via the localStorage pointer instead of bouncing to setup.
+        // All other route-state fields (resumeText, jobDescription, fileName, etc.)
+        // are preserved so the pointer-restore branch has what it needs.
+        if (state) {
+          const { startFresh: _startFresh, ...stateWithoutStartFresh } = state;
+          void _startFresh;
+          navigate(location.pathname, { state: stateWithoutStartFresh, replace: true });
+        }
 
         timerRef.current = setInterval(() => {
           const secs = Math.floor((Date.now() - now) / 1000);
@@ -702,32 +710,15 @@ export function Interview() {
   const isDailyLimitBlocked = upgradeMessage === DAILY_LIMIT_MESSAGE;
   const isStartBlocked = !!upgradeMessage;
 
-  // Backend currently returns totalQuestions = 10 in startInterview even for
-  // Free users (it still enforces the 5-question cap server-side, so the
-  // interview ends at Q5 — but the progress label would mislead until then).
-  // Clamp the display by the user's plan. Gate on `plan` directly rather than
-  // `hasPro` to avoid the latent grandfathered resolver bug (a grandfathered
-  // user has plan='pro_monthly' but hasPro=false today — we want them on the
-  // Pro 10-question display either way). When entitlements are still loading
-  // or the hook errored out, trust the backend value to avoid jitter / a
-  // wrong cap for Pro users.
-  const planQuestionCap =
-    entitlementsLoading || !entitlements
-      ? totalQuestions
-      : entitlements.plan === 'free'
-      ? FREE_LIMITS.interviewQuestions
-      : PRO_LIMITS.interviewQuestions;
-  const displayedTotalQuestions =
-    totalQuestions > 0 ? Math.min(totalQuestions, planQuestionCap) : totalQuestions;
   const displayedQuestionNumber =
-    displayedTotalQuestions > 0
-      ? Math.min(questionNumber, displayedTotalQuestions)
+    totalQuestions > 0
+      ? Math.min(questionNumber, totalQuestions)
       : questionNumber;
 
   const questionProgressLabel = currentPromptIsClosing
     ? 'All questions complete'
-    : displayedTotalQuestions > 0
-    ? `Question ${displayedQuestionNumber} of ${displayedTotalQuestions}`
+    : totalQuestions > 0
+    ? `Question ${displayedQuestionNumber} of ${totalQuestions}`
     : `Question ${displayedQuestionNumber || 1}`;
 
   // --- Render ---

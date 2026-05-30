@@ -118,6 +118,7 @@ export interface Assessment {
   improvements: string[];
   transcriptClarityStats?: TranscriptClarityStats;
   clarityAdjusted?: boolean;
+  upgradeRequired?: boolean;
 }
 
 export interface EndResponse {
