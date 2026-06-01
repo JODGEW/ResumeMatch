@@ -246,6 +246,15 @@ export function InterviewResults() {
       }
     }
 
+    // /interview/end generates the assessment synchronously on the backend. The REST API
+    // Gateway integration timeout (~29s) is shorter than the Lambda timeout (60s), so a slow
+    // assessment returns 504 to the browser even though the Lambda keeps running and persists
+    // the result — the pollForAssessment() fallback below recovers it, so the 504 is cosmetic
+    // (console noise only). As of 2026-06-01, Lambda durations were avg ~20s / max ~33s, well
+    // under 60s, so this is intentionally left as-is. TRIPWIRE: if Lambda max duration climbs to
+    // ~45-50s (headroom to the 60s ceiling under ~10-15s), or real "couldn't generate" failures
+    // appear in prod, migrate /interview/end to async (return 202 + finalizing/failed status,
+    // poll getSession until completed) instead of generating inline.
     async function finalizeInterviewReport(attempt = 1) {
       try {
         const endResponse = await endInterview({
