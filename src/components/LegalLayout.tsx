@@ -55,14 +55,16 @@ export function LegalLayout({ eyebrow, title, intro, children }: LegalLayoutProp
 
         <section className="legal-cta">
           <div className="page-container legal-cta__inner">
-            <p className="legal-eyebrow">Back to ResumeMatch</p>
-            <h2>See how your resume matches the role</h2>
-            <p className="legal-cta__copy">
-              Analyze your resume against a real job description, then practice for the same role.
-            </p>
-            <Link to={actionHref} className="btn btn-primary">
-              Analyze My Resume
-            </Link>
+            <div className="legal-cta__card">
+              <p className="legal-eyebrow">Ready when you are</p>
+              <h2>See how your resume matches the role</h2>
+              <p className="legal-cta__copy">
+                Analyze your resume against a real job description, then practice for the same role.
+              </p>
+              <Link to={actionHref} className="btn btn-primary">
+                Analyze My Resume
+              </Link>
+            </div>
           </div>
         </section>
       </main>

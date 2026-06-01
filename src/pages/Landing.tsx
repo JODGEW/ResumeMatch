@@ -165,12 +165,11 @@ export function Landing() {
 
       <main>
         <section className="landing-hero">
-          <img className="landing-hero__image" src={resultImage} alt="" aria-hidden="true" />
-          <div className="landing-hero__scrim" />
+          <div className="landing-hero__glow" aria-hidden="true" />
           <div className="page-container landing-hero__content">
             <p className="landing-eyebrow">For real job applications</p>
             <h1>Get the interview. Then pass it.</h1>
-            <div className="landing-reading-wrap">
+            <div className="landing-reading-wrap landing-hero__reading">
               <p className="landing-hero__lede">
                 Match your resume to a real job description, improve the application
                 before you send it, and practice for the interview for that same role.
@@ -184,6 +183,7 @@ export function Landing() {
                 See how it works
               </a>
             </div>
+            <p className="landing-hero__trust">No data sold. No model training on your content.</p>
           </div>
         </section>
 
@@ -310,32 +310,35 @@ export function Landing() {
             </div>
 
             <div className="landing-pricing" role="list">
-              {plans.map((plan, index) => (
-                <article
-                  key={plan.name}
-                  className={`landing-plan${index === 1 ? ' landing-plan--featured' : ''}`}
-                  role="listitem"
-                >
-                  <div>
-                    <h3>{plan.name}</h3>
-                    <p>{plan.body}</p>
-                  </div>
-                  <ul className="landing-plan__features">
-                    {plan.features.map((feature) => (
-                      <li key={feature}>{feature}</li>
-                    ))}
-                  </ul>
-                  {index === 1 ? (
-                    <button type="button" className="btn btn-primary" disabled aria-disabled="true">
-                      {plan.cta}
-                    </button>
-                  ) : (
-                    <Link to={appHref} className="btn btn-ghost">
-                      {plan.cta}
-                    </Link>
-                  )}
-                </article>
-              ))}
+              {plans.map((plan, index) => {
+                const isFeatured = index === 0;
+                return (
+                  <article
+                    key={plan.name}
+                    className={`landing-plan${isFeatured ? ' landing-plan--featured' : ' landing-plan--muted'}`}
+                    role="listitem"
+                  >
+                    <div className="landing-plan__head">
+                      <h3>{plan.name}</h3>
+                      <p>{plan.body}</p>
+                    </div>
+                    <ul className="landing-plan__features">
+                      {plan.features.map((feature) => (
+                        <li key={feature}>{feature}</li>
+                      ))}
+                    </ul>
+                    {isFeatured ? (
+                      <Link to={appHref} className="btn btn-primary landing-plan__cta">
+                        {plan.cta}
+                      </Link>
+                    ) : (
+                      <button type="button" className="btn btn-ghost landing-plan__cta" disabled aria-disabled="true">
+                        {plan.cta}
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>

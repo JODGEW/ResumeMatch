@@ -3,6 +3,17 @@
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface-default) 94%, var(--accent) 6%) 0%, var(--surface-default) 18%, var(--surface-default) 100%);
   color: var(--text-primary);
+
+  /* Card depth tokens — shared with the landing system. Dark keeps the doc's
+     whisper borders + flat surfaces; light gets a clearer hairline and a soft
+     ambient shadow so cards read as distinct surfaces instead of flat panels. */
+  --legal-card-border: var(--border-subtle);
+  --legal-card-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .legal-page {
+  --legal-card-border: var(--border);
+  --legal-card-shadow: 0 1px 2px rgba(20, 22, 28, 0.05), 0 8px 20px -12px rgba(20, 22, 28, 0.18);
 }
 
 .legal-header {
@@ -62,9 +73,11 @@
 .legal-eyebrow {
   margin-bottom: 1rem;
   color: var(--accent);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 590;
   line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
 }
 
 .legal-hero h1 {
@@ -157,10 +170,11 @@
 }
 
 .legal-summary {
-  padding: 1.25rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  padding: 1.5rem;
+  border: 1px solid var(--legal-card-border);
+  border-radius: 12px;
+  background: var(--surface-card);
+  box-shadow: var(--legal-card-shadow);
 }
 
 .legal-summary h2 {
@@ -171,15 +185,24 @@
   margin-top: 0;
 }
 
-.legal-cta {
-  border-top: 1px solid var(--border-subtle);
+.legal-cta__inner {
+  max-width: 680px;
+  padding-top: 1.5rem;
+  padding-bottom: 6rem;
 }
 
-.legal-cta__inner {
-  max-width: 760px;
-  padding-top: 3.5rem;
-  padding-bottom: 4.5rem;
+.legal-cta__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+  padding: 3rem 2rem;
+  border: 1px solid var(--legal-card-border);
+  border-radius: 16px;
+  background:
+    radial-gradient(70% 90% at 50% -10%, var(--accent-dim), transparent 70%),
+    var(--surface-card);
+  box-shadow: var(--legal-card-shadow);
 }
 
 .legal-cta__inner h2 {
@@ -237,12 +260,16 @@
   }
 
   .legal-summary {
-    padding: 1rem;
+    padding: 1.25rem;
   }
 
   .legal-cta__inner {
-    padding-top: 3rem;
-    padding-bottom: 3.5rem;
+    padding-top: 1rem;
+    padding-bottom: 4rem;
+  }
+
+  .legal-cta__card {
+    padding: 2rem 1.25rem;
   }
 
   .legal-cta__inner h2 {
