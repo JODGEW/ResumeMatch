@@ -61,7 +61,7 @@ Upload + Paste JD → Cache Check → [hit]  → Return cached result → Result
 ### Mock Interview Practice
 - **Interview generation from analysis results** — start a mock interview directly from a resume/JD analysis
 - **Behavioral and technical formats** — choose the interview style before starting a session
-- **Voice-first interview flow** — push-to-talk recording with browser speech recognition and optional interviewer text-to-speech
+- **Voice-first interview flow** — push-to-talk recording transcribed with Deepgram (live interim text while you speak, plus a higher-accuracy batch transcript on release) and optional interviewer text-to-speech
 - **Live session state** — question progress, countdown timer, answer timing, active-session restore, and continue-interview support
 - **Follow-up aware progress** — follow-up prompts count as interview questions, while closing instructions are excluded from question totals
 - **Interview report** — assessment-first results page with overall score, dimension feedback, strengths, areas to improve, and full transcript

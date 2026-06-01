@@ -1,15 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { awaitPendingTurnSubmission, getInterviewControlState } from './interviewControls';
 
-const closingPrompt = [
-  "That's all the questions I have.",
-  'Please click End Interview to view your assessment and transcript.',
-].join(' ');
-
 describe('getInterviewControlState', () => {
-  it('does not invite push-to-talk on the closing prompt', () => {
+  it('does not invite push-to-talk on the all-questions-answered closing prompt', () => {
     const controls = getInterviewControlState({
-      currentQuestion: closingPrompt,
+      closingKind: 'all_questions_answered',
       interviewState: 'active',
       isListening: false,
     });
@@ -21,9 +16,22 @@ describe('getInterviewControlState', () => {
     expect(controls.endReason).toBe('all_questions_answered');
   });
 
+  it('maps the time-running-out wrap-up to a timer_expired end reason', () => {
+    const controls = getInterviewControlState({
+      closingKind: 'time_running_out',
+      interviewState: 'active',
+      isListening: false,
+    });
+
+    expect(controls.isClosingPrompt).toBe(true);
+    expect(controls.micDisabled).toBe(true);
+    expect(controls.endButtonLabel).toBe('View report');
+    expect(controls.endReason).toBe('timer_expired');
+  });
+
   it('keeps push-to-talk available for normal interview questions', () => {
     const controls = getInterviewControlState({
-      currentQuestion: 'Tell me about a time you handled a difficult stakeholder.',
+      closingKind: null,
       interviewState: 'active',
       isListening: false,
     });
@@ -37,7 +45,7 @@ describe('getInterviewControlState', () => {
 
   it('blocks ending while an answer is being processed', () => {
     const controls = getInterviewControlState({
-      currentQuestion: 'Tell me about a time you handled a difficult stakeholder.',
+      closingKind: null,
       interviewState: 'thinking',
       isListening: false,
     });
@@ -50,7 +58,7 @@ describe('getInterviewControlState', () => {
 
   it('shows a connecting hint while the mic is arming but not yet capturing', () => {
     const controls = getInterviewControlState({
-      currentQuestion: 'Tell me about a time you handled a difficult stakeholder.',
+      closingKind: null,
       interviewState: 'active',
       isListening: false,
       isArming: true,
@@ -63,7 +71,7 @@ describe('getInterviewControlState', () => {
 
   it('prefers the listening hint once capture is live', () => {
     const controls = getInterviewControlState({
-      currentQuestion: 'Tell me about a time you handled a difficult stakeholder.',
+      closingKind: null,
       interviewState: 'active',
       isListening: true,
       isArming: false,

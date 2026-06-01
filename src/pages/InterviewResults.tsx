@@ -201,6 +201,7 @@ export function InterviewResults() {
   const [jobDescriptionOpen, setJobDescriptionOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(true);
   const [activeReportSection, setActiveReportSection] = useState<'assessment' | 'transcript'>('assessment');
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -359,6 +360,7 @@ export function InterviewResults() {
   }
 
   const assessment = session.assessment;
+  const hasCategoryScores = (assessment?.categories.length ?? 0) > 0;
   const questionCount = session.conversation.filter(isInterviewQuestionTurn).length;
   const transcriptQuestionLabel = questionCount === 1 ? '1 question' : `${questionCount} questions`;
   const interviewType = formatInterviewType(session.interviewType);
@@ -643,6 +645,20 @@ export function InterviewResults() {
       {assessment ? (
         <section id="ir-assessment" className="ir-assessment-section">
           <h2 className="ir-section-title">Assessment</h2>
+          <div className="ir-ai-disclaimer">
+            <p className="ir-ai-disclaimer__line">
+              <span className="ir-ai-disclaimer__icon" aria-hidden="true">✦</span>
+              AI-generated assessment
+              <button
+                type="button"
+                className="ir-ai-disclaimer__toggle"
+                aria-expanded={disclaimerOpen}
+                onClick={() => setDisclaimerOpen(open => !open)}
+              >
+                {disclaimerOpen ? 'Hide details' : 'Show details'}
+              </button>
+            </p>
+          </div>
           {assessment.clarityAdjusted && assessment.transcriptClarityStats && (
             <div className="ir-clarity-banner" role="note">
               <span className="ir-clarity-banner__icon" aria-hidden="true">i</span>
@@ -654,43 +670,59 @@ export function InterviewResults() {
               </span>
             </div>
           )}
+          {disclaimerOpen && (
+            <div className="ir-ai-disclaimer__callout" role="note">
+              This assessment is AI-generated and may be inaccurate. Scores are based on your transcript, 
+              which may include speech-to-text errors. Use this as practice guidance, 
+              not a final judgment of your ability.
+            </div>
+          )}
           <div className="ir-overview">
-            <div className="ir-score-card card">
+            <div className={`ir-score-card card${hasCategoryScores ? '' : ' ir-score-card--incomplete'}`}>
               <h3>Overall Score</h3>
               <div className="ir-score-main">
-                <div className="ir-score-ring">
-                  <svg viewBox="0 0 100 100" width="100" height="100">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--border)" strokeWidth="7" />
-                    <circle
-                      cx="50" cy="50" r="42" fill="none"
-                      stroke={scoreColor(assessment.overallScore)}
-                      strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={`${(assessment.overallScore / 100) * 263.9} 263.9`}
-                      transform="rotate(-90 50 50)"
-                    />
-                  </svg>
-                  <span className="ir-score-ring__value">{assessment.overallScore}%</span>
-                </div>
-                <span className="ir-score-rating" style={{ color: scoreColor(assessment.overallScore) }}>
-                  {assessment.overallRating}
+                {hasCategoryScores && (
+                  <div className="ir-score-ring">
+                    <svg viewBox="0 0 100 100" width="100" height="100">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="var(--border)" strokeWidth="7" />
+                      <circle
+                        cx="50" cy="50" r="42" fill="none"
+                        stroke={scoreColor(assessment.overallScore)}
+                        strokeWidth="7" strokeLinecap="round"
+                        strokeDasharray={`${(assessment.overallScore / 100) * 263.9} 263.9`}
+                        transform="rotate(-90 50 50)"
+                      />
+                    </svg>
+                    <span className="ir-score-ring__value">{assessment.overallScore}%</span>
+                  </div>
+                )}
+                <span
+                  className="ir-score-rating"
+                  style={hasCategoryScores ? { color: scoreColor(assessment.overallScore) } : undefined}
+                >
+                  {hasCategoryScores ? assessment.overallRating : 'Assessment incomplete'}
                 </span>
               </div>
               <p className="ir-score-breakdown-hint">
-                {assessment.overallScore}% overall across {assessment.categories.length} categories
+                {hasCategoryScores
+                  ? `${assessment.overallScore}% overall across ${assessment.categories.length} categories`
+                  : 'No category scores were generated for this session.'}
               </p>
             </div>
 
-            <div className="ir-cat-grid" aria-label="Dimension scores">
-              {assessment.categories.map((cat, i) => (
-                <div key={i} className="ir-cat-card">
-                  <span className="ir-cat-card__score" style={{ color: scoreColor(cat.score) }}>
-                    {cat.score}%
-                  </span>
-                  <span className="ir-cat-card__name">{cat.name}</span>
-                  <span className="ir-cat-card__weight">({formatCategoryWeight(cat.weight)})</span>
-                </div>
-              ))}
-            </div>
+            {hasCategoryScores && (
+              <div className="ir-cat-grid" aria-label="Dimension scores">
+                {assessment.categories.map((cat, i) => (
+                  <div key={i} className="ir-cat-card">
+                    <span className="ir-cat-card__score" style={{ color: scoreColor(cat.score) }}>
+                      {cat.score}%
+                    </span>
+                    <span className="ir-cat-card__name">{cat.name}</span>
+                    <span className="ir-cat-card__weight">({formatCategoryWeight(cat.weight)})</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="ir-summary-card card">
               <h3>Assessment Summary</h3>
@@ -708,28 +740,30 @@ export function InterviewResults() {
           </div>
 
           {/* Detailed Dimension Feedback */}
-          <div className="ir-dimensions card">
-            <h3>Detailed Dimension Feedback</h3>
-            <div className="ir-dimensions__list">
-              {assessment.categories.map((cat, i) => (
-                <div key={i} className="ir-dimension">
-                  <div className="ir-dimension__header">
-                    <span className="ir-dimension__name">{cat.name}</span>
-                    <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
-                      {cat.score}%
-                    </span>
+          {hasCategoryScores && (
+            <div className="ir-dimensions card">
+              <h3>Detailed Dimension Feedback</h3>
+              <div className="ir-dimensions__list">
+                {assessment.categories.map((cat, i) => (
+                  <div key={i} className="ir-dimension">
+                    <div className="ir-dimension__header">
+                      <span className="ir-dimension__name">{cat.name}</span>
+                      <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
+                        {cat.score}%
+                      </span>
+                    </div>
+                    <div className="ir-dimension__bar">
+                      <div
+                        className="ir-dimension__fill"
+                        style={{ width: `${cat.score}%`, background: scoreColor(cat.score) }}
+                      />
+                    </div>
+                    <p className="ir-dimension__comment">{cat.comment}</p>
                   </div>
-                  <div className="ir-dimension__bar">
-                    <div
-                      className="ir-dimension__fill"
-                      style={{ width: `${cat.score}%`, background: scoreColor(cat.score) }}
-                    />
-                  </div>
-                  <p className="ir-dimension__comment">{cat.comment}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Strengths / Improvements */}
           <div className="ir-feedback">
@@ -744,7 +778,10 @@ export function InterviewResults() {
               </h4>
               {assessment.strengths.length === 0 ? (
                 <p className="ir-feedback-empty">
-                  No standout strengths identified for this session — see Areas to Improve.
+                  Detailed strengths were not generated for this session.{' '}
+                  {hasCategoryScores
+                    ? 'Review the category scores and transcript feedback for more context.'
+                    : 'Review the assessment summary and transcript feedback for more context.'}
                 </p>
               ) : (
                 assessment.strengths.map((s, i) => (
@@ -763,7 +800,10 @@ export function InterviewResults() {
               </h4>
               {assessment.improvements.length === 0 ? (
                 <p className="ir-feedback-empty">
-                  No specific areas to improve identified.
+                  Detailed improvement notes were not generated for this session.{' '}
+                  {hasCategoryScores
+                    ? 'Review the category scores and transcript feedback for more context.'
+                    : 'Review the assessment summary and transcript feedback for more context.'}
                 </p>
               ) : (
                 assessment.improvements.map((s, i) => (

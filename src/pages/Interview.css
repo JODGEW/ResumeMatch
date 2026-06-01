@@ -14,11 +14,13 @@
   gap: 0.125rem;
 }
 
+/* Secondary indicator, not the focal point — small and muted. The amber ≤2:00
+   warning below still overrides the color so the time-pressure cue stays clear. */
 .interview-timer__value {
   font-family: var(--font-mono);
-  font-size: 1.5rem;
-  font-weight: 510;
-  color: var(--text-primary);
+  font-size: 1.0625rem;
+  font-weight: 450;
+  color: var(--text-secondary);
 }
 
 .interview-timer__value--warning {
@@ -39,11 +41,6 @@
 .interview-timer__answer {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
-  color: var(--accent);
-}
-
-.interview-timer__avg {
-  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -191,6 +188,14 @@
   box-shadow: var(--shadow-glow);
 }
 
+.interview-answer--interrupted {
+  border-color: var(--score-mid);
+}
+
+.interview-answer__finish {
+  margin-top: 0.5rem;
+}
+
 .interview-answer__label {
   display: block;
   font-size: 0.75rem;
@@ -297,10 +302,15 @@
 
 .interview-end-btn {
   font-size: 0.8125rem;
+}
+
+/* Muted/danger coloring applies only to the ghost "End Interview" variant.
+   The primary "View report" variant keeps btn-primary's white text. */
+.interview-end-btn.btn-ghost {
   color: var(--text-muted);
 }
 
-.interview-end-btn:hover {
+.interview-end-btn.btn-ghost:hover {
   color: var(--danger);
 }
 

@@ -136,12 +136,24 @@ export function InterviewHistory() {
 
   useEffect(() => {
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let polls = 0;
+    // A just-ended interview can still read as 'active' for a few seconds while the
+    // backend finalizes it. Re-poll the list (3s, up to ~2 min) so it flips to
+    // "Completed" on its own instead of requiring a manual page refresh.
+    const POLL_INTERVAL_MS = 3000;
+    const MAX_POLLS = 40;
+    // Question counts don't change once fetched, so accumulate them across polls and
+    // only fetch the per-session detail for sessions we haven't counted yet.
+    const counts: Record<string, number> = {};
 
-    async function loadSessions() {
+    async function loadSessions(isInitial: boolean) {
       try {
         const summaries = await listSessions();
+
+        const uncounted = summaries.filter((session) => counts[session.sessionId] === undefined);
         const countResults = await Promise.allSettled(
-          summaries.map(async (session) => {
+          uncounted.map(async (session) => {
             const detail = await getSession(session.sessionId);
             return [
               session.sessionId,
@@ -152,26 +164,33 @@ export function InterviewHistory() {
 
         if (cancelled) return;
 
-        const correctedCounts: Record<string, number> = {};
         countResults.forEach((result) => {
           if (result.status === 'fulfilled') {
             const [sessionId, count] = result.value;
-            correctedCounts[sessionId] = count;
+            counts[sessionId] = count;
           }
         });
 
         setSessions(summaries);
-        setQuestionCounts(correctedCounts);
+        setQuestionCounts({ ...counts });
+
+        if (summaries.some((session) => session.status === 'active') && polls < MAX_POLLS) {
+          polls += 1;
+          pollTimer = setTimeout(() => loadSessions(false), POLL_INTERVAL_MS);
+        }
       } catch {
-        if (!cancelled) setError('Failed to load interview sessions');
+        // Only surface an error for the initial load; a transient poll failure
+        // shouldn't replace an already-rendered list with an error message.
+        if (!cancelled && isInitial) setError('Failed to load interview sessions');
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && isInitial) setLoading(false);
       }
     }
 
-    loadSessions();
+    loadSessions(true);
     return () => {
       cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
     };
   }, []);
 

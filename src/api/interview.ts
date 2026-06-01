@@ -80,8 +80,13 @@ export interface TurnFeedback {
   improvements: string[];
 }
 
+// closingKind is an explicit field returned by the interviewTurn lambda so the
+// frontend can detect the wrap-up state without string-matching the message.
+export type ClosingKind = 'all_questions_answered' | 'time_running_out' | null;
+
 export interface TurnResponse {
   question: string;
+  closingKind: ClosingKind;
   questionNumber: number;
   isFollowUp: boolean;
   elapsedSeconds: number;

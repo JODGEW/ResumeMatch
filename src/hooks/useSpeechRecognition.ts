@@ -1,17 +1,24 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { DeepgramClient } from '@deepgram/sdk';
-import { getDeepgramToken } from '../api/deepgram';
+import { getDeepgramToken, transcribeFinal } from '../api/deepgram';
+import { getTranscriptionAudioStream } from '../utils/audioStream';
+import { applyNonsenseAliases } from '../utils/transcriptCorrection';
 
+// Proper nouns only — generic tokens like "AI"/"LLM" hurt more than they help
+// (Deepgram biases toward them and garbles ordinary speech).
 const UNIVERSAL_KEYTERMS = [
   'OpenAI',
   'ChatGPT',
   'Anthropic',
   'Claude',
-  'LLM',
-  'AI',
 ];
 
-const MAX_KEYTERMS = 50;
+const MAX_KEYTERMS = 25;
+
+// Hard ceiling on how long stopListening() will wait for the final transcript
+// (batch transcription + token mint) before falling back to streaming text. The
+// user is never blocked longer than this.
+const FINALIZE_TIMEOUT_MS = 15000;
 
 const PREFERRED_MIME_TYPES = [
   'audio/webm;codecs=opus',
@@ -64,6 +71,14 @@ interface Attempt {
   connection: DeepgramConnection | null;
   stopRequested: boolean;
   stopResolver: ((text: string) => void) | null;
+  sessionId: string;
+  keyterms: string[];
+  // Full session keyterm array (up to ~50), kept separate from `keyterms` (the
+  // curated 25-term Deepgram prompt). Used only as post-STT correction targets.
+  canonicalKeyterms: string[];
+  mimeType: string;
+  chunks: Blob[];
+  finalizing: boolean;
 }
 
 export interface UseSpeechRecognitionReturn {
@@ -71,6 +86,7 @@ export interface UseSpeechRecognitionReturn {
   interimTranscript: string;
   isListening: boolean;
   isArming: boolean;
+  isFinalizing: boolean;
   isSupported: boolean;
   error: string | null;
   startListening: (sessionId: string, keyterms?: string[]) => void;
@@ -105,6 +121,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isArming, setIsArming] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const transcriptRef = useRef('');
@@ -114,7 +131,12 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const supportStatus = useRef(checkSupport()).current;
   const isSupported = supportStatus.supported;
 
-  const resolveAttempt = useCallback((attempt: Attempt, finalText: string) => {
+  const resolveAttempt = useCallback((attempt: Attempt, rawFinalText: string) => {
+    // Central, idempotent Layer-2 pass: covers every resolution path (batch
+    // success — where it re-runs harmlessly — streaming fallback, unexpected
+    // close, and the finalize timeout). Layer 1 only runs on the batch path
+    // inside transcribeFinal, which needs per-word confidence.
+    const finalText = applyNonsenseAliases(rawFinalText);
     if (currentAttemptRef.current?.id === attempt.id) {
       transcriptRef.current = finalText;
       interimRef.current = '';
@@ -122,6 +144,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       setInterimTranscript('');
       setIsListening(false);
       setIsArming(false);
+      setIsFinalizing(false);
       currentAttemptRef.current = null;
     }
     attempt.stopResolver?.(finalText);
@@ -146,8 +169,35 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       currentAttemptRef.current = null;
       setIsListening(false);
       setIsArming(false);
+      setIsFinalizing(false);
     }
   }, []);
+
+  // Assemble the retained audio chunks into one Blob and run it through Deepgram's
+  // pre-recorded endpoint for the graded transcript. Falls back to the streaming
+  // transcript if the batch path fails or returns nothing, so the user is never
+  // blocked. A fresh token is minted here (at stop) because the ~30s streaming
+  // token is already expired by the time a normal answer ends.
+  const finalizeAttempt = useCallback(async (attempt: Attempt) => {
+    const streamingText = getFinalText(transcriptRef.current, interimRef.current);
+    let finalText = streamingText;
+
+    const blob = attempt.chunks.length > 0
+      ? new Blob(attempt.chunks, { type: attempt.mimeType || attempt.chunks[0].type })
+      : null;
+
+    if (blob && blob.size > 0 && attempt.sessionId) {
+      try {
+        const { accessToken } = await getDeepgramToken(attempt.sessionId);
+        const batchText = await transcribeFinal(blob, attempt.keyterms, accessToken, attempt.canonicalKeyterms);
+        if (batchText) finalText = batchText;
+      } catch (err) {
+        console.error('Batch transcription failed; using streaming transcript:', err);
+      }
+    }
+
+    resolveAttempt(attempt, finalText);
+  }, [resolveAttempt]);
 
   useEffect(() => {
     return () => {
@@ -187,6 +237,12 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       connection: null,
       stopRequested: false,
       stopResolver: null,
+      sessionId,
+      keyterms: [],
+      canonicalKeyterms: keyterms,
+      mimeType: '',
+      chunks: [],
+      finalizing: false,
     };
     currentAttemptRef.current = attempt;
     setIsArming(true);
@@ -197,6 +253,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         if (attempt.cancelled) return;
 
         const deepgramKeyterms = mergeKeyterms(keyterms);
+        attempt.keyterms = deepgramKeyterms;
         const deepgram = new DeepgramClient({ accessToken });
         const connection = await deepgram.listen.v1.connect({
           model: 'nova-3',
@@ -238,6 +295,10 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         });
 
         connection.on('close', () => {
+          // After a stop, finalizeAttempt owns resolution (it runs the batch
+          // transcription). Only resolve here for an unexpected close while still
+          // listening, falling back to whatever streaming text we have.
+          if (attempt.finalizing) return;
           const finalText = getFinalText(transcriptRef.current, interimRef.current);
           resolveAttempt(attempt, finalText);
         });
@@ -256,8 +317,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
         const mimeType = pickMimeType();
         if (!mimeType) throw new Error('No supported audio MIME type');
+        attempt.mimeType = mimeType;
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await getTranscriptionAudioStream();
         if (attempt.cancelled) {
           stream.getTracks().forEach(track => track.stop());
           teardownAttempt(attempt);
@@ -267,7 +329,11 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
         const recorder = new MediaRecorder(stream, { mimeType });
         recorder.ondataavailable = (event) => {
-          if (event.data.size > 0 && attempt.connection) {
+          if (event.data.size === 0) return;
+          // Retain every chunk for the batch (graded) transcript, and also feed the
+          // streaming connection for live interim text.
+          attempt.chunks.push(event.data);
+          if (attempt.connection) {
             try {
               attempt.connection.sendMedia(event.data);
             } catch {
@@ -276,12 +342,20 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
           }
         };
         recorder.onstop = () => {
+          // Flush streaming finals (so the fallback transcript is as complete as
+          // possible), then hand off to the batch path. finalizeAttempt now owns
+          // resolution; the 'close' handler stands down.
+          attempt.finalizing = true;
+          if (currentAttemptRef.current?.id === attempt.id) {
+            setIsListening(false);
+            setIsFinalizing(true);
+          }
           try {
             attempt.connection?.sendCloseStream({ type: 'CloseStream' });
           } catch {
-            const finalText = getFinalText(transcriptRef.current, interimRef.current);
-            resolveAttempt(attempt, finalText);
+            // The WebSocket may already be closing.
           }
+          void finalizeAttempt(attempt);
         };
         attempt.recorder = recorder;
         recorder.start(250);
@@ -315,7 +389,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         teardownAttempt(attempt);
       }
     })();
-  }, [isSupported, resolveAttempt, supportStatus.reason, teardownAttempt]);
+  }, [isSupported, resolveAttempt, finalizeAttempt, supportStatus.reason, teardownAttempt]);
 
   const stopListening = useCallback((): Promise<string> => {
     const attempt = currentAttemptRef.current;
@@ -356,7 +430,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
           }
           resolveAttempt(attempt, finalText);
         }
-      }, 3000);
+      }, FINALIZE_TIMEOUT_MS);
     });
   }, [resolveAttempt, teardownAttempt]);
 
@@ -372,6 +446,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     interimTranscript,
     isListening,
     isArming,
+    isFinalizing,
     isSupported,
     error,
     startListening,

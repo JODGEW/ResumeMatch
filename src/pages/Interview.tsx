@@ -9,6 +9,7 @@ import {
   endInterview,
   getSession,
   isMissingInterviewSessionError,
+  type ClosingKind,
   type ConversationTurn,
   type StartInterviewResponse,
 } from '../api/interview';
@@ -19,7 +20,7 @@ import {
   saveInterviewPointer,
   type SavedInterviewPointer,
 } from '../utils/interviewPointer';
-import { isInterviewClosingPrompt, isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { getInterviewClosingPromptKind, isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
 import './Interview.css';
 
@@ -42,6 +43,35 @@ function getPositiveNumber(value: unknown): number | null {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }
 
+// Pick the interviewer voice. Prefer natural-sounding network voices (e.g. Chrome's
+// "Google US English" or Edge's "…Online (Natural)" voices) because on-device/local
+// voices tend to sound robotic; fall back to local US English voices only if no
+// network voice is available. Returns null until the browser has loaded its voice
+// list (getVoices() is populated asynchronously, after the `voiceschanged` event).
+function pickPreferredVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices.length) return null;
+  const enVoices = voices.filter(v => v.lang.startsWith('en'));
+  const enUSVoices = enVoices.filter(v => v.lang.toLowerCase().startsWith('en-us'));
+  const networkEnUS = enUSVoices.filter(v => !v.localService);
+  const networkEn = enVoices.filter(v => !v.localService);
+  return (
+    // Natural-sounding network US English voices first.
+    networkEnUS.find(v => v.name === 'Google US English')
+    || networkEnUS.find(v => /natural|online|neural|enhanced|premium/i.test(v.name))
+    || networkEnUS[0]
+    || networkEn.find(v => v.name === 'Google US English')
+    || networkEn[0]
+    // Fall back to local on-device voices only if no network voice is available.
+    || enUSVoices.find(v => /siri/i.test(v.name) && /female|zoe|nicky|samantha/i.test(v.name))
+    || enUSVoices.find(v => /siri/i.test(v.name))
+    || enUSVoices.find(v => /samantha|nicky|ava|allison|victoria/i.test(v.name))
+    || enUSVoices.find(v => /enhanced|premium/i.test(v.name))
+    || enUSVoices[0]
+    || enVoices[0]
+    || null
+  );
+}
+
 export function Interview() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -62,10 +92,13 @@ export function Interview() {
   const [timeLimit, setTimeLimit] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [answerElapsed, setAnswerElapsed] = useState(0);
-  const [answerDurations, setAnswerDurations] = useState<number[]>([]);
   const [warnedAt2Min, setWarnedAt2Min] = useState(false);
   const [sessionKeyterms, setSessionKeyterms] = useState<string[]>([]);
   const [savingFinalAnswer, setSavingFinalAnswer] = useState(false);
+  const [recordingInterrupted, setRecordingInterrupted] = useState(false);
+  // Live closing state comes from the submitTurn response's closingKind field (not
+  // message text). On restore it's recovered via getInterviewClosingPromptKind.
+  const [closingKind, setClosingKind] = useState<ClosingKind>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const answerTimerRef = useRef<ReturnType<typeof setInterval>>();
@@ -78,10 +111,12 @@ export function Interview() {
 
   const startInFlightRef = useRef(false);
   const submitInFlightRef = useRef<Promise<unknown> | null>(null);
+  const endingRef = useRef(false);
 
   const {
     isListening,
     isArming,
+    isFinalizing,
     isSupported,
     error: speechError,
     startListening,
@@ -97,6 +132,21 @@ export function Interview() {
   });
   const ttsEnabledRef = useRef(ttsEnabled);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  // Browser voices load asynchronously: getVoices() is empty on the first call and
+  // only fills in after `voiceschanged` fires. Resolve the voice once here and cache
+  // it so every question (including the first) uses the same one.
+  useEffect(() => {
+    if (typeof speechSynthesis === 'undefined') return;
+    const resolve = () => {
+      const voice = pickPreferredVoice(speechSynthesis.getVoices());
+      if (voice) preferredVoiceRef.current = voice;
+    };
+    resolve();
+    speechSynthesis.addEventListener('voiceschanged', resolve);
+    return () => speechSynthesis.removeEventListener('voiceschanged', resolve);
+  }, []);
 
   function toggleTts() {
     const next = !ttsEnabled;
@@ -122,24 +172,13 @@ export function Interview() {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    // Pick the best available US English voice.
-    const voices = speechSynthesis.getVoices();
-    const enVoices = voices.filter(v => v.lang.startsWith('en'));
-    const enUSVoices = enVoices.filter(v => v.lang.toLowerCase().startsWith('en-us'));
+    // Use the cached voice; resolve inline as a fallback if voices loaded late.
     const preferred =
-      // Chrome network voice
-      enUSVoices.find(v => v.name === 'Google US English')
-      // macOS US voices
-      || enUSVoices.find(v => /siri/i.test(v.name) && /female|zoe|nicky|samantha/i.test(v.name))
-      || enUSVoices.find(v => /siri/i.test(v.name))
-      || enUSVoices.find(v => /samantha|nicky|ava|allison|victoria/i.test(v.name))
-      || enUSVoices.find(v => /enhanced|premium/i.test(v.name))
-      || enUSVoices[0]
-      // Chrome network voices (higher quality than local)
-      || enVoices.find(v => v.name === 'Google US English')
-      // Any English voice
-      || enVoices[0];
-    if (preferred) utterance.voice = preferred;
+      preferredVoiceRef.current || pickPreferredVoice(speechSynthesis.getVoices());
+    if (preferred) {
+      preferredVoiceRef.current = preferred;
+      utterance.voice = preferred;
+    }
 
     utterance.onend = () => {
       utteranceRef.current = null;
@@ -248,15 +287,23 @@ export function Interview() {
           if (lastInterviewerTurn) {
             setCurrentQuestion(lastInterviewerTurn.content);
           }
+          // getSession does not persist closingKind, so recover the closing state
+          // from the last interviewer message (restore-only fallback).
+          const restoredClosingKind = getInterviewClosingPromptKind(lastInterviewerTurn?.content || '');
+          setClosingKind(restoredClosingKind);
           speakQuestion(lastInterviewerTurn?.content || '');
 
-          timerRef.current = setInterval(() => {
-            const secs = Math.floor((Date.now() - createdEpochMs) / 1000);
-            setElapsed(secs);
-            if (secs >= session.timeLimit) {
-              clearInterval(timerRef.current);
-            }
-          }, 1000);
+          // On a closing prompt, freeze: do not resume the countdown. The control
+          // state (driven by closingKind) shows "View report".
+          if (restoredClosingKind === null) {
+            timerRef.current = setInterval(() => {
+              const secs = Math.floor((Date.now() - createdEpochMs) / 1000);
+              setElapsed(secs);
+              if (secs >= session.timeLimit) {
+                clearInterval(timerRef.current);
+              }
+            }, 1000);
+          }
         }
       }
     } catch (err) {
@@ -376,11 +423,11 @@ export function Interview() {
 
   // Auto-end when timer expires
   useEffect(() => {
-    if (timeLimit > 0 && elapsed >= timeLimit && (interviewState === 'active' || interviewState === 'thinking' || interviewState === 'speaking')) {
+    if (timeLimit > 0 && elapsed >= timeLimit && closingKind === null && (interviewState === 'active' || interviewState === 'thinking' || interviewState === 'speaking')) {
       handleEnd('timer_expired');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsed, timeLimit, interviewState]);
+  }, [elapsed, timeLimit, interviewState, closingKind]);
 
   // 2-minute warning — subtle audio beep
   useEffect(() => {
@@ -418,8 +465,12 @@ export function Interview() {
   useEffect(() => {
     if (interviewState !== 'setup') return;
     if (isIOS) return;
-    if (microphoneCheck.status === 'ready' && micLevel.status !== 'active' && micLevel.status !== 'starting') {
-      void micLevel.start();
+    if (microphoneCheck.status === 'ready') {
+      // Probe the live input for narrowband/Bluetooth quality (non-blocking warning).
+      void microphoneCheck.inspectInputQuality();
+      if (micLevel.status !== 'active' && micLevel.status !== 'starting') {
+        void micLevel.start();
+      }
     }
     return () => {
       micLevel.stop();
@@ -432,9 +483,6 @@ export function Interview() {
     if (!answer || !sessionId) return;
 
     clearInterval(answerTimerRef.current);
-    const answerDuration = answerStartRef.current > 0
-      ? Math.floor((Date.now() - answerStartRef.current) / 1000)
-      : null;
     answerStartRef.current = 0;
     setAnswerElapsed(0);
 
@@ -458,11 +506,6 @@ export function Interview() {
         throw new Error('The interviewer did not return a response. Please try your answer again.');
       }
 
-      // Record answer duration only after the backend accepts the turn.
-      if (answerDuration !== null) {
-        setAnswerDurations(prev => [...prev, answerDuration]);
-      }
-
       setTurnNumber(newTurn);
 
       const userTurn: ConversationTurn = {
@@ -473,7 +516,13 @@ export function Interview() {
         fillerWords: res.fillerWords,
       };
 
-      const isClosingPrompt = isInterviewClosingPrompt(nextQuestion);
+      // Drive the closing/freeze state off the lambda's explicit field, not text.
+      const responseClosingKind = res.closingKind ?? null;
+      const isClosingPrompt = responseClosingKind !== null;
+      setClosingKind(responseClosingKind);
+      if (isClosingPrompt) {
+        clearInterval(timerRef.current);
+      }
       setCurrentQuestion(nextQuestion);
       setQuestionNumber(prev => {
         const nextQuestionNumber = isClosingPrompt ? prev : prev + 1;
@@ -504,18 +553,43 @@ export function Interview() {
       return;
     }
 
-    // If the timer fires (or last question completes) while a submit is still in flight,
-    // await it unbounded — submitTurn p99 is ~10s and a truncated final answer is worse
-    // than a few extra seconds on the spinner. Show a "Saving..." banner after 2s so the
-    // user knows we're not frozen.
-    if (submitInFlightRef.current) {
-      const pending = submitInFlightRef.current;
+    // Re-entrancy guard: handleEnd now awaits transcription + submit, widening the
+    // window in which the timer effect or the End button could fire it again.
+    if (endingRef.current) return;
+    endingRef.current = true;
+
+    // Never discard an in-progress answer. If the candidate is mid-answer when the
+    // session ends (e.g. the timer expires while they're still talking), stop
+    // listening, await the final transcript, and submit it on the normal turn path
+    // BEFORE finalizing — the answer must survive into the transcript/grade. If a
+    // submit is already in flight, await that instead. Empty transcript => finalize
+    // normally. submitTurn p99 is ~10s, so show a "Saving..." banner after 3s.
+    const turnInProgress = pushToTalkActiveRef.current;
+    if (turnInProgress) {
+      pushToTalkActiveRef.current = false;
+      activePointerIdRef.current = null;
+      setRecordingInterrupted(false);
+    }
+    if (turnInProgress || submitInFlightRef.current) {
       const savingTimer = window.setTimeout(() => setSavingFinalAnswer(true), 3000);
       try {
-        await awaitPendingTurnSubmission(pending);
+        if (turnInProgress) {
+          const finalText = (await stopListening()).trim();
+          if (finalText && !submitInFlightRef.current) {
+            submitInFlightRef.current = submitTurn({
+              sessionId,
+              userAnswer: finalText,
+              turnNumber: turnNumber + 1,
+            });
+          }
+        }
+        if (submitInFlightRef.current) {
+          await awaitPendingTurnSubmission(submitInFlightRef.current);
+        }
       } finally {
         window.clearTimeout(savingTimer);
         setSavingFinalAnswer(false);
+        submitInFlightRef.current = null;
       }
     }
 
@@ -527,6 +601,7 @@ export function Interview() {
     answerStartRef.current = 0;
     pushToTalkActiveRef.current = false;
     activePointerIdRef.current = null;
+    setRecordingInterrupted(false);
     cancelTts();
     void stopListening();
 
@@ -547,7 +622,7 @@ export function Interview() {
     navigate(`/interview/results/${sessionId}`, {
       replace: true,
     });
-  }, [interviewState, sessionId, stopListening, navigate]);
+  }, [interviewState, sessionId, stopListening, navigate, turnNumber]);
 
   const handlePushToTalkDown = useCallback(() => {
     if (
@@ -558,6 +633,7 @@ export function Interview() {
       return false;
     }
     pushToTalkActiveRef.current = true;
+    setRecordingInterrupted(false);
     cancelTts();
     setInterviewState('active');
     // Start per-answer timer
@@ -611,6 +687,26 @@ export function Interview() {
     void handlePushToTalkUp();
   }, [handlePushToTalkUp]);
 
+  // A pointercancel is an OS-level interruption (notification, gesture, the pointer
+  // leaving the button), NOT an intentional release. Per "the candidate owns when
+  // their turn ends": do not submit and do not stop the recorder — keep the turn
+  // alive (audio keeps being captured) and require an explicit Finish action.
+  const handlePushToTalkCancel = useCallback((e: PointerEvent<HTMLButtonElement>) => {
+    if (activePointerIdRef.current === null || e.pointerId !== activePointerIdRef.current) return;
+    e.preventDefault();
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Browser may have already released capture.
+    }
+    activePointerIdRef.current = null;
+    if (pushToTalkActiveRef.current) {
+      setRecordingInterrupted(true);
+    }
+  }, []);
+
   // Keyboard: hold Space to speak
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -663,10 +759,11 @@ export function Interview() {
   const remaining = Math.max(0, timeLimit - elapsed);
   const activeError = error || speechError;
   const controls = getInterviewControlState({
-    currentQuestion,
+    closingKind,
     interviewState,
     isListening,
     isArming,
+    isFinalizing,
   });
   const currentPromptIsClosing = controls.isClosingPrompt;
   const questionProgressLabel = currentPromptIsClosing
@@ -875,6 +972,28 @@ export function Interview() {
                   </div>
                 </div>
               )}
+
+              {/* Low-quality input warning from the live track (narrowband sample rate
+                  or headset/hands-free label). Non-blocking, and only shown when the
+                  label-based Bluetooth card above isn't already covering it. */}
+              {microphoneCheck.status === 'ready'
+                && microphoneCheck.lowQualityWarning
+                && microphoneCheck.defaultMicKind !== 'bluetooth' && (
+                <div className="interview-mic-check interview-mic-check--warning" aria-live="polite">
+                  <div className="interview-mic-check__icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M9 2l7 13H2L9 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                      <path d="M9 6.25v4M9 13.25h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="interview-mic-check__body">
+                    <strong>Low-quality microphone input detected</strong>
+                    <p>
+                      Your mic appears to be running in a narrowband or Bluetooth (hands-free) mode, which lowers transcription accuracy. Your laptop&apos;s built-in microphone or wired earbuds will produce more accurate transcripts. You can still continue.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
@@ -928,18 +1047,11 @@ export function Interview() {
             {formatTime(remaining)}
           </span>
           <span className="interview-timer__label">remaining</span>
-          {(answerElapsed > 0 || answerDurations.length > 0) && (
+          {answerElapsed > 0 && (
             <div className="interview-timer__stats">
-              {answerElapsed > 0 && (
-                <span className="interview-timer__answer">
-                  {formatTime(answerElapsed)}
-                </span>
-              )}
-              {answerDurations.length > 0 && (
-                <span className="interview-timer__avg">
-                  avg {formatTime(Math.round(answerDurations.reduce((a, b) => a + b, 0) / answerDurations.length))}
-                </span>
-              )}
+              <span className="interview-timer__answer">
+                {formatTime(answerElapsed)}
+              </span>
             </div>
           )}
         </div>
@@ -982,9 +1094,21 @@ export function Interview() {
         </div>
       )}
 
-      {(isListening || isArming) && (
-        <div className="interview-answer card animate-in interview-answer--recording">
-          <span className="interview-answer__label">{isArming ? 'Connecting mic...' : 'Listening...'}</span>
+      {/* The per-phase status (arming -> listening -> transcribing -> thinking) is
+          shown once, by the controls hint line below. This card is reserved for the
+          pointercancel recovery state so the two never compete. */}
+      {recordingInterrupted && (
+        <div className="interview-answer card animate-in interview-answer--recording interview-answer--interrupted">
+          <span className="interview-answer__label">
+            Mic hold was interrupted — but you&apos;re still being recorded and nothing was lost. Keep talking, then tap Finish to submit your answer.
+          </span>
+          <button
+            type="button"
+            className="btn btn-primary btn--sm interview-answer__finish"
+            onClick={() => { setRecordingInterrupted(false); void handlePushToTalkUp(); }}
+          >
+            Finish answer
+          </button>
         </div>
       )}
 
@@ -994,7 +1118,7 @@ export function Interview() {
           className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
           onPointerDown={handlePushToTalkPointerDown}
           onPointerUp={handlePushToTalkPointerUp}
-          onPointerCancel={handlePushToTalkPointerUp}
+          onPointerCancel={handlePushToTalkCancel}
           disabled={controls.micDisabled}
           aria-label={currentPromptIsClosing ? 'Interview questions complete' : 'Hold to speak'}
         >
@@ -1005,9 +1129,11 @@ export function Interview() {
           </svg>
           {controls.micActive ? <span className="interview-mic__pulse" /> : null}
         </button>
-        <p className="interview-controls__hint">
-          {controls.hint}
-        </p>
+        {!recordingInterrupted && (
+          <p className="interview-controls__hint">
+            {controls.hint}
+          </p>
+        )}
         <div className="interview-controls__row">
           <button
             type="button"

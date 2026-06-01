@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getTranscriptionAudioStream } from '../utils/audioStream';
 
 export type MicrophoneCheckStatus = 'idle' | 'checking' | 'ready' | 'permission-needed' | 'error';
 export type MicrophoneKind = 'bluetooth' | 'wired' | 'unknown';
@@ -8,9 +9,29 @@ export interface UseMicrophoneCheckReturn {
   defaultMicLabel: string | null;
   defaultMicKind: MicrophoneKind | null;
   allMics: MediaDeviceInfo[];
+  lowQualityWarning: boolean;
   requestPermission: () => Promise<void>;
   recheck: () => Promise<void>;
+  inspectInputQuality: () => Promise<void>;
   error: string | null;
+}
+
+// A track running at or below 16 kHz is almost certainly a Bluetooth headset in
+// narrowband (HFP) mode, which badly degrades transcription accuracy.
+const NARROWBAND_SAMPLE_RATE_HZ = 16000;
+const LOW_QUALITY_LABEL_PATTERN = /airpods|bluetooth|headset|hands-free/i;
+
+// Inspect the live audio track to decide whether the current input is likely to
+// produce poor transcripts. Heuristic only — meant to warn, never to block.
+function isLowQualityInput(stream: MediaStream): boolean {
+  const track = stream.getAudioTracks()[0];
+  if (!track) return false;
+
+  const sampleRate = track.getSettings().sampleRate;
+  if (typeof sampleRate === 'number' && sampleRate <= NARROWBAND_SAMPLE_RATE_HZ) {
+    return true;
+  }
+  return LOW_QUALITY_LABEL_PATTERN.test(track.label || '');
 }
 
 const BLUETOOTH_PATTERNS = [
@@ -79,6 +100,7 @@ export function useMicrophoneCheck(): UseMicrophoneCheckReturn {
   const [defaultMicLabel, setDefaultMicLabel] = useState<string | null>(null);
   const [defaultMicKind, setDefaultMicKind] = useState<MicrophoneKind | null>(null);
   const [allMics, setAllMics] = useState<MediaDeviceInfo[]>([]);
+  const [lowQualityWarning, setLowQualityWarning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const enumerateMicrophones = useCallback(async () => {
@@ -126,6 +148,18 @@ export function useMicrophoneCheck(): UseMicrophoneCheckReturn {
     }
   }, []);
 
+  // Acquire a stream (with the transcription constraints), read its active track,
+  // flag low-quality input, then release the stream. Throws on acquire failure so
+  // callers can decide whether to surface it.
+  const runQualityInspection = useCallback(async () => {
+    const stream = await getTranscriptionAudioStream();
+    try {
+      setLowQualityWarning(isLowQualityInput(stream));
+    } finally {
+      stream.getTracks().forEach(track => track.stop());
+    }
+  }, []);
+
   const requestPermission = useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       setStatus('error');
@@ -137,8 +171,7 @@ export function useMicrophoneCheck(): UseMicrophoneCheckReturn {
     setError(null);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
+      await runQualityInspection();
       await enumerateMicrophones();
     } catch (err) {
       setDefaultMicLabel(null);
@@ -146,7 +179,19 @@ export function useMicrophoneCheck(): UseMicrophoneCheckReturn {
       setStatus('error');
       setError(getErrorMessage(err));
     }
-  }, [enumerateMicrophones]);
+  }, [enumerateMicrophones, runQualityInspection]);
+
+  // Non-blocking quality probe for when permission is already granted (returning
+  // users land on setup as 'ready' without going through requestPermission).
+  // Failures are swallowed — this only powers a soft warning.
+  const inspectInputQuality = useCallback(async () => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+    try {
+      await runQualityInspection();
+    } catch {
+      // Best-effort: a failed probe just leaves the warning unset.
+    }
+  }, [runQualityInspection]);
 
   useEffect(() => {
     void enumerateMicrophones();
@@ -168,8 +213,10 @@ export function useMicrophoneCheck(): UseMicrophoneCheckReturn {
     defaultMicLabel,
     defaultMicKind,
     allMics,
+    lowQualityWarning,
     requestPermission,
     recheck: enumerateMicrophones,
+    inspectInputQuality,
     error,
   };
 }

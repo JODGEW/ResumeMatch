@@ -421,6 +421,12 @@
   margin: 0;
 }
 
+/* Incomplete assessment: no category scores were generated. The score ring is
+   hidden; show a neutral label instead of a graded verdict (not a performance state). */
+.ir-score-card--incomplete .ir-score-rating {
+  color: var(--text-secondary);
+}
+
 /* Category mini-cards grid */
 .ir-cat-grid {
   display: grid;
@@ -1017,6 +1023,57 @@
   margin: 0;
   color: var(--text-muted);
   font-size: 0.875rem;
+}
+
+.ir-ai-disclaimer {
+  margin-bottom: 1rem;
+}
+
+.ir-ai-disclaimer__line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.ir-ai-disclaimer__icon {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.ir-ai-disclaimer__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.ir-ai-disclaimer__toggle:hover {
+  color: var(--accent-hover);
+}
+
+.ir-ai-disclaimer__callout {
+  max-width: 520px;
+  margin-bottom: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+[data-theme="light"] .ir-ai-disclaimer__callout {
+  background: var(--bg-secondary);
+  border-color: var(--border-light);
 }
 
 .ir-clarity-banner {
