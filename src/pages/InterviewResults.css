@@ -901,6 +901,13 @@
   pointer-events: none;
 }
 
+.ir-transcript__empty {
+  margin: 0;
+  padding: 0.5rem 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
 .ir-transcript__turn {
   padding: 0.15rem 0 0.15rem 0.875rem;
   border-left: 3px solid var(--border);

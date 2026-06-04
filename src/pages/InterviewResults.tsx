@@ -369,8 +369,11 @@ export function InterviewResults() {
   }
 
   const assessment = session.assessment;
+  // Null-safe: a malformed/legacy session row could lack a conversation array.
+  // Default to [] so the page renders an empty-transcript state instead of crashing.
+  const conversation = session.conversation ?? [];
   const hasCategoryScores = (assessment?.categories.length ?? 0) > 0;
-  const questionCount = session.conversation.filter(isInterviewQuestionTurn).length;
+  const questionCount = conversation.filter(isInterviewQuestionTurn).length;
   const transcriptQuestionLabel = questionCount === 1 ? '1 question' : `${questionCount} questions`;
   const interviewType = formatInterviewType(session.interviewType);
   const typeBadge = `${interviewType} Interview`;
@@ -421,7 +424,7 @@ export function InterviewResults() {
     }
     lines.push('## Transcript');
     lines.push('');
-    session!.conversation.forEach((turn) => {
+    conversation.forEach((turn) => {
       lines.push(`**${getTranscriptLabel(turn, true)}**`);
       lines.push(turn.content);
       const detailLines = getTurnDetailLines(turn);
@@ -443,7 +446,7 @@ export function InterviewResults() {
   }
 
   function copyTranscript() {
-    const lines = session!.conversation.flatMap((turn) => {
+    const lines = conversation.flatMap((turn) => {
       return [`${getTranscriptLabel(turn)}: ${turn.content}`];
     });
     navigator.clipboard.writeText(lines.join('\n\n'));
@@ -888,7 +891,10 @@ export function InterviewResults() {
           </svg>
         </button>
         <div className={`ir-transcript__body ${transcriptOpen ? '' : 'ir-transcript__body--collapsed'}`}>
-          {session.conversation.map((turn, i) => {
+          {conversation.length === 0 && (
+            <p className="ir-transcript__empty">No transcript available for this session.</p>
+          )}
+          {conversation.map((turn, i) => {
             const speakerClass = turn.role === 'interviewer' ? 'interviewer' : 'user';
             const isCandidateTurn = turn.role === 'user' || turn.role === 'candidate';
 
@@ -904,8 +910,7 @@ export function InterviewResults() {
                   <div className="ir-clarity-warning" role="note">
                     <span className="ir-clarity-warning__icon" aria-hidden="true">!</span>
                     <span>
-                      Speech-to-text had trouble with this answer.
-                      It was discounted in your communication score.
+                      Low audio quality (transcription may be imperfect).
                     </span>
                   </div>
                 )}
