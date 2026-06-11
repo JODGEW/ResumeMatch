@@ -4,6 +4,17 @@
   flex-direction: column;
 }
 
+/* ── Shared public-page details ────────────────────── */
+.layout :is(a, button):focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.layout ::selection {
+  background: var(--accent-glow);
+  color: var(--text-primary);
+}
+
 /* ── Demo banner ───────────────────────────────────── */
 .demo-banner {
   display: flex;
@@ -63,6 +74,11 @@
   align-items: center;
   gap: 0.625rem;
   flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.nav__brand:hover {
+  color: var(--text-primary);
 }
 
 .nav__logo {
@@ -76,11 +92,7 @@
   font-weight: 590;
   font-size: 1.125rem;
   letter-spacing: -0.396px;
-  background: linear-gradient(135deg, #5e6ad2 0%, #828fff 60%, rgba(130, 143, 255, 0.72) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  color: var(--text-primary);
 }
 
 .nav__links {
@@ -122,7 +134,7 @@
 }
 
 .nav__link--active {
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
   background: var(--surface-card);
   border-color: var(--border);
 }

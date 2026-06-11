@@ -202,6 +202,7 @@ export function InterviewResults() {
   const [transcriptOpen, setTranscriptOpen] = useState(true);
   const [activeReportSection, setActiveReportSection] = useState<'assessment' | 'transcript'>('assessment');
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
+  const reportJumpTargetRef = useRef<'assessment' | 'transcript' | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -342,6 +343,54 @@ export function InterviewResults() {
       if (pollTimeout) clearTimeout(pollTimeout);
     };
   }, [sessionId, shouldFinalizeInterview, finalizationEndReason, retryAssessmentCount]);
+
+  // Scroll-spy: keep the Assessment/Transcript switcher in sync with the
+  // section the user is actually reading, not just the last one clicked.
+  useEffect(() => {
+    let raf = 0;
+
+    function computeActiveSection(): 'assessment' | 'transcript' | null {
+      const transcriptEl = document.getElementById('ir-transcript');
+      if (!transcriptEl) return null;
+      const atPageBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      if (atPageBottom) return 'transcript';
+      // Threshold sits just below the sections' scroll-margin-top (8rem).
+      return transcriptEl.getBoundingClientRect().top <= 160 ? 'transcript' : 'assessment';
+    }
+
+    function clearJumpSuppression() {
+      reportJumpTargetRef.current = null;
+    }
+
+    function onScroll() {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const next = computeActiveSection();
+        if (!next) return;
+        const jumpTarget = reportJumpTargetRef.current;
+        if (jumpTarget) {
+          // A click-initiated smooth scroll is in flight: hold the clicked
+          // state steady and release once the target section arrives.
+          if (next === jumpTarget) reportJumpTargetRef.current = null;
+          return;
+        }
+        setActiveReportSection(prev => (prev === next ? prev : next));
+      });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    // If the user takes over mid-jump (wheel/touch), hand control back to the spy.
+    window.addEventListener('wheel', clearJumpSuppression, { passive: true });
+    window.addEventListener('touchstart', clearJumpSuppression, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('wheel', clearJumpSuppression);
+      window.removeEventListener('touchstart', clearJumpSuppression);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -517,6 +566,7 @@ export function InterviewResults() {
 
   function jumpToReportSection(section: 'assessment' | 'transcript') {
     setActiveReportSection(section);
+    reportJumpTargetRef.current = section;
     if (section === 'transcript') {
       setTranscriptOpen(true);
     }
@@ -534,7 +584,7 @@ export function InterviewResults() {
         Back
       </button>
 
-      <header className="ir-session-header">
+      <header className="ir-session-header animate-in">
         <div className="ir-session-header__top">
           <h1>{getSessionTitle(session)}</h1>
           {matchLabel && (
@@ -559,7 +609,6 @@ export function InterviewResults() {
           </div>
 
           <div className="ir-session-header__actions">
-            <span className="ir-session-header__actions-label">Actions</span>
             <div className="ir-session-header__actions-row">
               {isActiveSession ? (
                 <button
@@ -597,7 +646,7 @@ export function InterviewResults() {
       </header>
 
       {hasContextLinks && (
-        <section className="ir-context">
+        <section className="ir-context animate-in stagger-1">
           <h2 className="ir-context__title">{contextTitle}</h2>
           <div className="ir-context__actions">
             {session.analysisId && (
@@ -635,7 +684,7 @@ export function InterviewResults() {
         </section>
       )}
 
-      <nav className="ir-report-nav" aria-label="Interview report sections">
+      <nav className="ir-report-nav animate-in stagger-1" aria-label="Interview report sections">
         <button
           type="button"
           className={`ir-report-nav__item ${activeReportSection === 'assessment' ? 'ir-report-nav__item--active' : ''}`}
@@ -655,7 +704,7 @@ export function InterviewResults() {
       </nav>
 
       {assessment ? (
-        <section id="ir-assessment" className="ir-assessment-section">
+        <section id="ir-assessment" className="ir-assessment-section animate-in stagger-2">
           <h2 className="ir-section-title">Assessment</h2>
           <div className="ir-ai-disclaimer">
             <p className="ir-ai-disclaimer__line">
@@ -826,7 +875,7 @@ export function InterviewResults() {
           </div>
         </section>
       ) : (
-        <section id="ir-assessment" className="ir-assessment-section ir-assessment-section--empty">
+        <section id="ir-assessment" className="ir-assessment-section ir-assessment-section--empty animate-in stagger-2">
           <h2 className="ir-section-title">Assessment</h2>
           {finalizing ? (
             <div className="ir-assessment-loading-banner" role="status" aria-live="polite">
@@ -868,7 +917,7 @@ export function InterviewResults() {
         </section>
       )}
 
-      <section id="ir-transcript" className={`ir-transcript ${transcriptOpen ? '' : 'ir-transcript--collapsed'}`}>
+      <section id="ir-transcript" className="ir-transcript animate-in stagger-3">
         <button
           type="button"
           className="ir-section-heading ir-transcript__header-toggle"

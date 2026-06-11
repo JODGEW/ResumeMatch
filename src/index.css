@@ -305,6 +305,7 @@ label {
   background: var(--accent);
   color: var(--text-on-accent);
   border-color: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 .btn-primary:visited {
   color: var(--text-on-accent);
@@ -313,7 +314,7 @@ label {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
   color: var(--text-on-accent);
-  box-shadow: var(--shadow-glow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), var(--shadow-glow);
 }
 
 .btn-secondary {
@@ -362,11 +363,6 @@ label {
   box-shadow: var(--shadow-sm);
 }
 
-.card-elevated {
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-md);
-}
-
 /* ── Layout Helpers ─────────────────────────────────── */
 .page-container {
   max-width: var(--container-max);
@@ -410,6 +406,12 @@ label {
   flex-shrink: 0;
 }
 
+.loading-spinner--sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
 .loading-screen__text {
   margin: 0;
   font-size: 0.9375rem;
@@ -444,7 +446,6 @@ label {
 .stagger-2 { animation-delay: 0.1s; }
 .stagger-3 { animation-delay: 0.15s; }
 .stagger-4 { animation-delay: 0.2s; }
-.stagger-5 { animation-delay: 0.25s; }
 
 /* ── Status Badges ──────────────────────────────────── */
 .status-badge {
@@ -510,7 +511,6 @@ label {
 
 .text-muted { color: var(--text-muted); }
 .text-secondary { color: var(--text-secondary); }
-.text-accent { color: var(--accent); }
 .text-success { color: var(--success); }
 .text-danger { color: var(--danger); }
 

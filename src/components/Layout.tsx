@@ -1,5 +1,6 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { LogoMark } from './LogoMark';
 import { ThemeToggle } from './ThemeToggle';
 import { useState, useEffect, useCallback } from 'react';
 import './Layout.css';
@@ -77,15 +78,12 @@ export function Layout() {
               </svg>
             </button>
 
-            <div className="nav__brand">
+            <Link to="/upload" className="nav__brand" aria-label="ResumeMatch home">
               <div className="nav__logo">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                  <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
-                  <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-                </svg>
+                <LogoMark />
               </div>
               <span className="nav__title">ResumeMatch</span>
-            </div>
+            </Link>
 
             <div className="nav__links">
               <NavLink to="/upload" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>

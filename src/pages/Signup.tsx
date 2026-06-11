@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { CodeInput } from '../components/CodeInput';
+import { LogoMark } from '../components/LogoMark';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useResendTimer } from '../hooks/useResendTimer';
 import './Login.css';
 
@@ -107,15 +109,18 @@ export function Signup() {
         <div className="login-page__glow" />
       </div>
 
+      <div className="login-page__theme">
+        <ThemeToggle />
+      </div>
+
       <div className="login-card animate-in">
         <div className="login-card__header">
-          <div className="login-card__logo">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
-              <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h1>ResumeMatch</h1>
+          <Link to="/" className="login-card__brand" aria-label="ResumeMatch home">
+            <div className="login-card__logo">
+              <LogoMark />
+            </div>
+            <h1>ResumeMatch</h1>
+          </Link>
           <p>
             {step === 'register'
               ? 'Create your account'
@@ -265,13 +270,18 @@ export function Signup() {
             >
               {loading ? (
                 <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  <span className="loading-spinner loading-spinner--sm" />
                   Creating account...
                 </>
               ) : (
                 'Create account'
               )}
             </button>
+
+            <p className="login-card__consent">
+              By creating an account, you agree to our <Link to="/terms">Terms</Link> and{' '}
+              <Link to="/privacy">Privacy Policy</Link>.
+            </p>
 
             <p className="login-card__link">
               Already have an account? <Link to="/login">Sign in</Link>
@@ -297,7 +307,7 @@ export function Signup() {
             >
               {loading ? (
                 <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  <span className="loading-spinner loading-spinner--sm" />
                   Verifying...
                 </>
               ) : (

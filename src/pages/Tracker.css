@@ -884,12 +884,6 @@
   color: var(--text-secondary);
 }
 
-.tracker-detail__score-pts {
-  font-weight: 510;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-}
-
 .tracker-detail__timeline {
   display: flex;
   align-items: center;
@@ -1168,10 +1162,6 @@
   flex-direction: column;
   gap: 0.25rem;
   margin-bottom: 0.75rem;
-}
-
-.tracker-modal__field--full {
-  grid-column: 1 / -1;
 }
 
 .tracker-modal__label {

@@ -178,14 +178,6 @@
   margin: 0;
 }
 
-.upload-submit-error {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--danger);
-  text-align: center;
-  margin: 0.5rem 0 0;
-}
-
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
   .upload-panel__textarea {

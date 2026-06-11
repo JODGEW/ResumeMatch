@@ -79,6 +79,73 @@
   gap: 0.625rem;
 }
 
+.landing-nav__menu-btn {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.landing-nav__menu-btn:hover {
+  background: var(--surface-card-hover);
+  border-color: var(--border);
+}
+
+.landing-nav__menu-btn span {
+  display: block;
+  width: 0.875rem;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--text-secondary);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.landing-nav__menu-btn[aria-expanded="true"] span:nth-child(1) {
+  transform: translateY(5.5px) rotate(45deg);
+}
+
+.landing-nav__menu-btn[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0;
+}
+
+.landing-nav__menu-btn[aria-expanded="true"] span:nth-child(3) {
+  transform: translateY(-5.5px) rotate(-45deg);
+}
+
+.landing-nav__mobile {
+  display: none;
+}
+
+/* ── Accessibility & anchor behavior ────────────────── */
+.landing-page :is(a, button):focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.landing-page ::selection {
+  background: var(--accent-glow);
+  color: var(--text-primary);
+}
+
+/* Keep anchored section headings clear of the sticky header. */
+.landing-section[id] {
+  scroll-margin-top: 4.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.landing-page) {
+    scroll-behavior: smooth;
+  }
+}
+
 /* ── Hero ───────────────────────────────────────────── */
 .landing-hero {
   position: relative;
@@ -129,6 +196,37 @@
   letter-spacing: -0.022em;
   margin-bottom: 1.5rem;
   text-wrap: balance;
+}
+
+/* Luminous headline: white fading toward the canvas, theme-aware and achromatic. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .landing-hero h1 {
+    background: linear-gradient(
+      180deg,
+      var(--text-primary) 30%,
+      color-mix(in srgb, var(--text-primary) 68%, var(--surface-default)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* Page-load choreography: a single staggered reveal, motion-safe. */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-hero__content > * {
+    animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .landing-hero__content > *:nth-child(2) { animation-delay: 0.07s; }
+  .landing-hero__content > *:nth-child(3) { animation-delay: 0.14s; }
+  .landing-hero__content > *:nth-child(4) { animation-delay: 0.21s; }
+  .landing-hero__content > *:nth-child(5) { animation-delay: 0.28s; }
+
+  .landing-shot--hero {
+    animation: fadeInUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+  }
 }
 
 .landing-reading-wrap {
@@ -185,12 +283,39 @@
   padding-inline: 1.25rem;
 }
 
+/* Trust markers as the spec's "neutral pill" component. */
 .landing-hero__trust {
-  margin-top: 1.375rem;
-  color: var(--text-tertiary);
-  font-size: 0.8125rem;
-  line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-hero__trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 510;
+  line-height: 1.4;
   letter-spacing: -0.006em;
+}
+
+.landing-hero__trust li::before {
+  content: "";
+  width: 0.3rem;
+  height: 0.55rem;
+  margin-top: -0.2em;
+  border: solid var(--text-muted);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
 }
 
 /* ── Product showcase ───────────────────────────────── */
@@ -301,6 +426,8 @@
 .landing-step:hover {
   background: var(--surface-card-hover);
   border-color: var(--landing-card-border-hover);
+  box-shadow: var(--landing-card-shadow-hover);
+  transform: translateY(-2px);
 }
 
 .landing-feature:hover {
@@ -389,6 +516,16 @@
   height: auto;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .landing-shot--preview img {
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .landing-preview-card:hover .landing-shot--preview img {
+    transform: scale(1.02);
+  }
+}
+
 .landing-shot--preview-wide {
   min-height: 0;
   padding: 0;
@@ -458,14 +595,51 @@
   width: 100%;
 }
 
-.landing-plan__head h3 {
+.landing-plan__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
   margin-bottom: 0.5rem;
 }
 
+.landing-plan__title h3 {
+  margin-bottom: 0;
+}
+
+.landing-plan__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.625rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 9999px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-weight: 590;
+  line-height: 1.4;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .landing-plan--featured {
+  position: relative;
   border-color: var(--accent-border);
   background: color-mix(in srgb, var(--surface-card) 92%, var(--accent) 8%);
   box-shadow: var(--shadow-md);
+}
+
+/* Hairline accent glow along the featured card's top edge. */
+.landing-plan--featured::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-hover), transparent);
+  opacity: 0.65;
+  pointer-events: none;
 }
 
 .landing-plan--muted {
@@ -596,6 +770,35 @@
     display: none;
   }
 
+  .landing-nav__menu-btn {
+    display: inline-flex;
+  }
+
+  .landing-nav__mobile {
+    display: flex;
+    flex-direction: column;
+    padding: 0.25rem var(--container-pad-x) 0.75rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .landing-nav__mobile a {
+    padding: 0.75rem 0;
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    font-weight: 510;
+    letter-spacing: -0.006em;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: color 0.18s ease;
+  }
+
+  .landing-nav__mobile a:last-child {
+    border-bottom: 0;
+  }
+
+  .landing-nav__mobile a:hover {
+    color: var(--text-primary);
+  }
+
   .landing-showcase {
     margin-top: -2rem;
   }
@@ -684,5 +887,12 @@
   .landing-cta__actions .btn,
   .landing-hero__actions .btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Match .page-container's reduced horizontal padding at this width. */
+  .landing-nav__mobile {
+    padding-inline: 1rem;
   }
 }

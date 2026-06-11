@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signInWithRedirect } from 'aws-amplify/auth';
 import { useAuth } from '../auth/AuthContext';
+import { LogoMark } from '../components/LogoMark';
+import { ThemeToggle } from '../components/ThemeToggle';
 import './Login.css';
 
 export function Login() {
@@ -55,15 +57,18 @@ export function Login() {
         <div className="login-page__glow" />
       </div>
 
+      <div className="login-page__theme">
+        <ThemeToggle />
+      </div>
+
       <div className="login-card animate-in">
         <div className="login-card__header">
-          <div className="login-card__logo">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
-              <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h1>ResumeMatch</h1>
+          <Link to="/" className="login-card__brand" aria-label="ResumeMatch home">
+            <div className="login-card__logo">
+              <LogoMark />
+            </div>
+            <h1>ResumeMatch</h1>
+          </Link>
           <p>Instantly analyze how well your resume matches a job description</p>
         </div>
 
@@ -186,7 +191,7 @@ export function Login() {
             >
               {demoLoading ? (
                 <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  <span className="loading-spinner loading-spinner--sm" />
                   Signing in...
                 </>
               ) : (
@@ -203,7 +208,7 @@ export function Login() {
           >
             {loading ? (
               <>
-                <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                <span className="loading-spinner loading-spinner--sm" />
                 Signing in...
               </>
             ) : (

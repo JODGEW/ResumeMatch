@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { CodeInput } from '../components/CodeInput';
+import { LogoMark } from '../components/LogoMark';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useResendTimer } from '../hooks/useResendTimer';
 import './Login.css';
 
@@ -119,15 +121,18 @@ export function ForgotPassword() {
         <div className="login-page__glow" />
       </div>
 
+      <div className="login-page__theme">
+        <ThemeToggle />
+      </div>
+
       <div className="login-card animate-in">
         <div className="login-card__header">
-          <div className="login-card__logo">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
-              <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h1>ResumeMatch</h1>
+          <Link to="/" className="login-card__brand" aria-label="ResumeMatch home">
+            <div className="login-card__logo">
+              <LogoMark />
+            </div>
+            <h1>ResumeMatch</h1>
+          </Link>
           <p>
             {step === 'request'
               ? 'Enter your email and we\u2019ll send you a reset code.'
@@ -169,7 +174,7 @@ export function ForgotPassword() {
             >
               {loading ? (
                 <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  <span className="loading-spinner loading-spinner--sm" />
                   Sending code...
                 </>
               ) : (
@@ -181,7 +186,7 @@ export function ForgotPassword() {
         ) : (
           <form onSubmit={handleReset} className="login-card__form">
             {!error && !resending && (
-              <p className="login-card__success animate-in" style={{ display: 'block', textAlign: 'center' }}>
+              <p className="login-card__success login-card__success--block animate-in">
                 {resent ? 'A new code has been sent to your email.' : <>We&apos;ve sent a reset code to <strong>{email}</strong></>}
               </p>
             )}
@@ -292,7 +297,7 @@ export function ForgotPassword() {
             >
               {loading ? (
                 <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  <span className="loading-spinner loading-spinner--sm" />
                   Resetting...
                 </>
               ) : (
@@ -303,8 +308,8 @@ export function ForgotPassword() {
           </form>
         )}
 
-        <p className="login-card__link" style={{ marginTop: '1.25rem' }}>
-          <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+        <p className="login-card__link login-card__back">
+          <Link to="/login">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="M12 5l-7 7 7 7" /></svg>
             Back to log in
           </Link>

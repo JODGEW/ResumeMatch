@@ -1,9 +1,18 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { PublicFooter } from '../components/PublicFooter';
 import { LogoMark } from '../components/LogoMark';
 import { useAuth } from '../auth/AuthContext';
 import './Landing.css';
+
+const navLinks = [
+  { href: '#why', label: 'Why ResumeMatch' },
+  { href: '#how-it-works', label: 'How it works' },
+  { href: '#features', label: 'Features' },
+  { href: '#pricing', label: 'Pricing' },
+  { href: '#faq', label: 'FAQ' },
+];
 
 const resultImage = new URL('../../screenshots/landing_result.JPG', import.meta.url).href;
 const suggestionImage = new URL('../../screenshots/landing_suggestion.JPG', import.meta.url).href;
@@ -122,6 +131,7 @@ const faqs = [
 
 export function Landing() {
   const { user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
   const appHref = user ? '/upload' : '/login';
   const primaryLabel = user ? 'Open App' : 'Analyze My Resume';
   const finalCtaLabel = user ? 'Go to Upload' : 'Analyze My Resume';
@@ -136,11 +146,11 @@ export function Landing() {
           </Link>
 
           <nav className="landing-nav__links" aria-label="Landing page">
-            <a href="#why">Why ResumeMatch</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#features">Features</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#faq">FAQ</a>
+            {navLinks.map((link) => (
+              <a key={link.href} href={link.href}>
+                {link.label}
+              </a>
+            ))}
           </nav>
 
           <div className="landing-nav__actions">
@@ -159,8 +169,30 @@ export function Landing() {
                 </Link>
               </>
             )}
+            <button
+              type="button"
+              className="landing-nav__menu-btn"
+              aria-expanded={menuOpen}
+              aria-controls="landing-mobile-nav"
+              aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+            </button>
           </div>
         </div>
+
+        {menuOpen && (
+          <nav id="landing-mobile-nav" className="landing-nav__mobile" aria-label="Landing page sections">
+            {navLinks.map((link) => (
+              <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        )}
       </header>
 
       <main>
@@ -183,7 +215,10 @@ export function Landing() {
                 See how it works
               </a>
             </div>
-            <p className="landing-hero__trust">No data sold. No model training on your content.</p>
+            <ul className="landing-hero__trust" aria-label="Privacy assurances">
+              <li>No data sold</li>
+              <li>No model training on your content</li>
+            </ul>
           </div>
         </section>
 
@@ -319,7 +354,10 @@ export function Landing() {
                     role="listitem"
                   >
                     <div className="landing-plan__head">
-                      <h3>{plan.name}</h3>
+                      <div className="landing-plan__title">
+                        <h3>{plan.name}</h3>
+                        {isFeatured && <span className="landing-plan__badge">Available now</span>}
+                      </div>
                       <p>{plan.body}</p>
                     </div>
                     <ul className="landing-plan__features">
