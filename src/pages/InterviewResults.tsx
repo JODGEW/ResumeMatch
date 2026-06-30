@@ -162,10 +162,17 @@ function getTurnDetailLines(turn: TranscriptTurn): string[] {
 
   const lines: string[] = [];
   if (turn.feedback) {
-    const star = (['situation', 'task', 'action', 'result'] as const)
-      .map(key => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${turn.feedback!.star[key] ? 'yes' : 'no'}`)
-      .join(' | ');
-    lines.push(`STAR: ${star}`);
+    if (turn.feedback.star) {
+      const star = (['situation', 'task', 'action', 'result'] as const)
+        .map(key => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${turn.feedback!.star![key] ? 'yes' : 'no'}`)
+        .join(' | ');
+      lines.push(`STAR: ${star}`);
+    } else if (turn.feedback.technical) {
+      const technical = (['accuracy', 'tradeoffs', 'depth'] as const)
+        .map(key => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${turn.feedback!.technical![key] ? 'yes' : 'no'}`)
+        .join(' | ');
+      lines.push(`Technical: ${technical}`);
+    }
 
     if (turn.feedback.strengths.length > 0) {
       lines.push('Strengths:');
@@ -807,17 +814,19 @@ export function InterviewResults() {
               <div className="ir-dimensions__list">
                 {assessment.categories.map((cat, i) => (
                   <div key={i} className="ir-dimension">
-                    <div className="ir-dimension__header">
-                      <span className="ir-dimension__name">{cat.name}</span>
-                      <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
-                        {cat.score}%
-                      </span>
-                    </div>
-                    <div className="ir-dimension__bar">
-                      <div
-                        className="ir-dimension__fill"
-                        style={{ width: `${cat.score}%`, background: scoreColor(cat.score) }}
-                      />
+                    <div className="ir-dimension__meta">
+                      <div className="ir-dimension__header">
+                        <span className="ir-dimension__name">{cat.name}</span>
+                        <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
+                          {cat.score}%
+                        </span>
+                      </div>
+                      <div className="ir-dimension__bar">
+                        <div
+                          className="ir-dimension__fill"
+                          style={{ width: `${cat.score}%`, background: scoreColor(cat.score) }}
+                        />
+                      </div>
                     </div>
                     <p className="ir-dimension__comment">{cat.comment}</p>
                   </div>
@@ -983,13 +992,24 @@ export function InterviewResults() {
 function FeedbackBlock({ feedback, fillerWords }: { feedback: TurnFeedback; fillerWords?: Record<string, number> | null }) {
   return (
     <div className="ir-turn-feedback">
-      <div className="ir-turn-feedback__star">
-        {(['situation', 'task', 'action', 'result'] as const).map(key => (
-          <span key={key} className={`ir-star-item ${feedback.star[key] ? 'ir-star-item--pass' : ''}`}>
-            {feedback.star[key] ? '\u2713' : '\u2717'} {key.charAt(0).toUpperCase() + key.slice(1)}
-          </span>
-        ))}
-      </div>
+      {feedback.star && (
+        <div className="ir-turn-feedback__star">
+          {(['situation', 'task', 'action', 'result'] as const).map(key => (
+            <span key={key} className={`ir-star-item ${feedback.star![key] ? 'ir-star-item--pass' : ''}`}>
+              {feedback.star![key] ? '\u2713' : '\u2717'} {key.charAt(0).toUpperCase() + key.slice(1)}
+            </span>
+          ))}
+        </div>
+      )}
+      {feedback.technical && (
+        <div className="ir-turn-feedback__star">
+          {(['accuracy', 'tradeoffs', 'depth'] as const).map(key => (
+            <span key={key} className={`ir-star-item ${feedback.technical![key] ? 'ir-star-item--pass' : ''}`}>
+              {feedback.technical![key] ? '\u2713' : '\u2717'} {key.charAt(0).toUpperCase() + key.slice(1)}
+            </span>
+          ))}
+        </div>
+      )}
       {feedback.strengths.length > 0 && (
         <div className="ir-turn-feedback__list ir-turn-feedback__list--strengths">
           {feedback.strengths.map((s, j) => <span key={j}>{s}</span>)}

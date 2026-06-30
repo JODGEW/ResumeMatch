@@ -115,6 +115,143 @@
   padding-top: 0.5rem;
 }
 
+/* ── Follow-up / clarification indicators ────────────── */
+.interview-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.interview-status__progress {
+  margin: 0;
+}
+
+.interview-status__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 590;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.125rem 0.5rem;
+  border-radius: 100px;
+  border: 1px solid transparent;
+}
+
+.interview-status__badge--followup {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.interview-status__badge--clarification {
+  background: var(--warning-dim);
+  color: var(--warning);
+  border-color: var(--warning-border);
+}
+
+.interview-question__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.interview-question__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 510;
+  margin-bottom: 0.5rem;
+}
+
+.interview-question__tag--followup { color: var(--accent); }
+.interview-question__tag--clarification { color: var(--warning); }
+
+/* Follow-up: subtle accent edge (a deeper-but-normal question). Clarification:
+   amber tint to read as a different intent (restate, not a new question). */
+.interview-question--followup {
+  border-color: var(--accent-border);
+}
+
+.interview-question--clarification {
+  border-color: var(--warning-border);
+  background: var(--warning-dim);
+}
+
+/* ── Last-answer coaching panel ──────────────────────── */
+.interview-feedback {
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+  border-left: 2px solid var(--accent-border);
+}
+
+.interview-feedback__label {
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 590;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* STAR coverage is the focal element — full-size, met items in success green. */
+.interview-feedback__star {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
+}
+
+.interview-feedback__star-item {
+  font-size: 0.8125rem;
+  font-weight: 510;
+  color: var(--text-muted);
+}
+
+.interview-feedback__star-item--met {
+  color: var(--success);
+}
+
+.interview-feedback__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.interview-feedback__list span {
+  position: relative;
+  padding-left: 1.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.interview-feedback__list span::before {
+  position: absolute;
+  left: 0;
+  font-weight: 590;
+}
+
+.interview-feedback__list--strengths span::before {
+  content: '+';
+  color: var(--success);
+}
+
+.interview-feedback__list--improvements span::before {
+  content: '\2192';
+  color: var(--warning);
+}
+
+/* Secondary — small, muted, italic so it never competes with STAR. */
+.interview-feedback__fillers {
+  margin: 0.625rem 0 0;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 /* ── Speaking state ──────────────────────────────────── */
 .interview-question--speaking {
   border-color: var(--accent);

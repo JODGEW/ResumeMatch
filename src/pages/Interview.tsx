@@ -12,6 +12,7 @@ import {
   type ClosingKind,
   type ConversationTurn,
   type StartInterviewResponse,
+  type TurnFeedback,
 } from '../api/interview';
 import {
   clearInterviewPointerKey,
@@ -86,6 +87,15 @@ export function Interview() {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionNumber, setQuestionNumber] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  // Metadata for the *current* interviewer question, surfaced from submitTurn so the
+  // live UI can distinguish a real follow-up from a clarification/restate request.
+  const [currentIsFollowUp, setCurrentIsFollowUp] = useState(false);
+  const [currentClarity, setCurrentClarity] = useState<'clear' | 'unclear'>('clear');
+  // Per-answer coaching about the *previous* answer, surfaced from submitTurn. Null whenever
+  // the backend returns no feedback (intro / short / unclear / closing / model-fail) — all
+  // shown identically as "no panel". Reset on the opening question and on every null response.
+  const [currentFeedback, setCurrentFeedback] = useState<TurnFeedback | null>(null);
+  const [currentFillerWords, setCurrentFillerWords] = useState<Record<string, number> | null>(null);
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [turnNumber, setTurnNumber] = useState(0);
   const [error, setError] = useState('');
@@ -287,6 +297,14 @@ export function Interview() {
           if (lastInterviewerTurn) {
             setCurrentQuestion(lastInterviewerTurn.content);
           }
+          // KNOWN LIMITATION: getSession does not persist per-question isFollowUp, so a
+          // restored session can't show the follow-up/clarification badge until the next
+          // turn — fall back to a plain main question. Pending a backend follow-up flag on
+          // the persisted conversation turns, after which this can be recovered on restore.
+          setCurrentIsFollowUp(false);
+          setCurrentClarity('clear');
+          setCurrentFeedback(null);
+          setCurrentFillerWords(null);
           // getSession does not persist closingKind, so recover the closing state
           // from the last interviewer message (restore-only fallback).
           const restoredClosingKind = getInterviewClosingPromptKind(lastInterviewerTurn?.content || '');
@@ -382,6 +400,11 @@ export function Interview() {
         setSessionId(res.sessionId);
         setSessionKeyterms(res.keyterms ?? []);
         setCurrentQuestion(res.question);
+        // The opening question has no prior answer to drill into — always a main question.
+        setCurrentIsFollowUp(false);
+        setCurrentClarity('clear');
+        setCurrentFeedback(null);
+        setCurrentFillerWords(null);
         setQuestionNumber(firstConversation.filter(isInterviewQuestionTurn).length);
         setTotalQuestions(res.totalQuestions);
         setTimeLimit(res.timeLimit);
@@ -524,6 +547,10 @@ export function Interview() {
         clearInterval(timerRef.current);
       }
       setCurrentQuestion(nextQuestion);
+      setCurrentIsFollowUp(res.isFollowUp ?? false);
+      setCurrentClarity(res.transcriptClarity ?? 'clear');
+      setCurrentFeedback(res.feedback);
+      setCurrentFillerWords(res.fillerWords);
       setQuestionNumber(prev => {
         const nextQuestionNumber = isClosingPrompt ? prev : prev + 1;
         return totalQuestions > 0 ? Math.min(nextQuestionNumber, totalQuestions) : nextQuestionNumber;
@@ -771,6 +798,24 @@ export function Interview() {
     : totalQuestions > 0
     ? `Question ${questionNumber} of ${totalQuestions}`
     : `Question ${questionNumber || 1}`;
+
+  // A follow-up/clarification only applies to a live, non-thinking, non-closing
+  // question. questionNumber intentionally does NOT advance on these (the backend
+  // keeps drilling the same main question), so "Question 3 of 10 · Follow-up" is correct.
+  const currentQuestionKind: 'main' | 'followup' | 'clarification' =
+    interviewState === 'thinking' || currentPromptIsClosing
+      ? 'main'
+      : currentIsFollowUp && currentClarity === 'unclear'
+        ? 'clarification'
+        : currentIsFollowUp
+          ? 'followup'
+          : 'main';
+  const questionKindClass =
+    currentQuestionKind === 'followup'
+      ? ' interview-question--followup'
+      : currentQuestionKind === 'clarification'
+        ? ' interview-question--clarification'
+        : '';
 
   // --- Render ---
 
@@ -1040,7 +1085,15 @@ export function Interview() {
       <div className="interview-header animate-in">
         <div>
           <h1>Mock Interview</h1>
-          <p className="text-secondary">{questionProgressLabel}</p>
+          <div className="interview-status">
+            <p className="text-secondary interview-status__progress">{questionProgressLabel}</p>
+            {currentQuestionKind === 'followup' && (
+              <span className="interview-status__badge interview-status__badge--followup">Follow-up</span>
+            )}
+            {currentQuestionKind === 'clarification' && (
+              <span className="interview-status__badge interview-status__badge--clarification">Clarification</span>
+            )}
+          </div>
         </div>
         <div className="interview-timer">
           <span className={`interview-timer__value ${remaining <= 120 ? 'interview-timer__value--warning' : ''}`}>
@@ -1057,7 +1110,7 @@ export function Interview() {
         </div>
       </div>
 
-      <div className={`interview-question card animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}`}>
+      <div className={`interview-question card animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}${questionKindClass}`}>
         <div className="interview-question__avatar">
           {interviewState === 'speaking' ? (
             <div className="interview-speaking-bars">
@@ -1077,9 +1130,73 @@ export function Interview() {
             <span className="interview-thinking__dot" />
           </div>
         ) : (
-          <p className="interview-question__text">{currentQuestion}</p>
+          <div className="interview-question__body">
+            {currentQuestionKind === 'followup' && (
+              <span className="interview-question__tag interview-question__tag--followup">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d="M2 4h6a3 3 0 013 3v3M8.5 7.5L11 10l-2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Follow-up — going deeper on your last answer
+              </span>
+            )}
+            {currentQuestionKind === 'clarification' && (
+              <span className="interview-question__tag interview-question__tag--clarification">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d="M7 1.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M5.5 5.2a1.5 1.5 0 012.9.5c0 1-1.4 1.3-1.4 2.1M7 10.2h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                The transcription couldn&apos;t make out your last answer — please say it again
+              </span>
+            )}
+            <p className="interview-question__text">{currentQuestion}</p>
+          </div>
         )}
       </div>
+
+      {currentFeedback && (
+        <div className="interview-feedback card animate-in" aria-live="polite">
+          <p className="interview-feedback__label">On your last answer</p>
+          {currentFeedback.star && (
+            <div className="interview-feedback__star">
+              {(['situation', 'task', 'action', 'result'] as const).map(key => (
+                <span
+                  key={key}
+                  className={`interview-feedback__star-item${currentFeedback.star![key] ? ' interview-feedback__star-item--met' : ''}`}
+                >
+                  {currentFeedback.star![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
+          {currentFeedback.technical && (
+            <div className="interview-feedback__star">
+              {(['accuracy', 'tradeoffs', 'depth'] as const).map(key => (
+                <span
+                  key={key}
+                  className={`interview-feedback__star-item${currentFeedback.technical![key] ? ' interview-feedback__star-item--met' : ''}`}
+                >
+                  {currentFeedback.technical![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
+          {currentFeedback.strengths.length > 0 && (
+            <div className="interview-feedback__list interview-feedback__list--strengths">
+              {currentFeedback.strengths.map((s, i) => <span key={i}>{s}</span>)}
+            </div>
+          )}
+          {currentFeedback.improvements.length > 0 && (
+            <div className="interview-feedback__list interview-feedback__list--improvements">
+              {currentFeedback.improvements.map((s, i) => <span key={i}>{s}</span>)}
+            </div>
+          )}
+          {currentFillerWords && Object.keys(currentFillerWords).length > 0 && (
+            <p className="interview-feedback__fillers">
+              Filler words: {Object.entries(currentFillerWords).map(([word, count]) => `"${word}" (${count})`).join(', ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {activeError && (
         <div className="interview-error animate-in" role="alert">

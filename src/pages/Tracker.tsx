@@ -73,7 +73,8 @@ function getAppStageAction(app: Application, step: Application['applicationStatu
   switch (step) {
     case 'applied':     return age >= 14 ? `No update in ${age}d — follow up?` : null;
     case 'screening':   return age >= 7  ? `Screening for ${age}d — check in?` : null;
-    case 'interviewing': return age >= 10 ? `No update in ${age}d — follow up?` : null;
+    // No 'interviewing' nudge: age tracks time-in-stage, not time-since-last-contact,
+    // and active interview loops legitimately run weeks — a "no update" claim here is unreliable.
     default: return null;
   }
 }
@@ -274,9 +275,24 @@ function ApplicationModal({
     setFormError(null);
   }
 
-  function handleOverlayClick() {
+  const overlayMouseDownRef = useRef(false);
+
+  // Intentional dismiss (backdrop click, X, or Cancel): confirm only if there are unsaved edits.
+  function attemptClose() {
     if (!isDirty) { onClose(); return; }
     setShowDiscard(true);
+  }
+
+  // Record whether the press *started* on the backdrop. A text selection that begins inside
+  // the form and is released over the backdrop also dispatches a click on the overlay (the
+  // click target is the nearest common ancestor of mousedown/mouseup) — that must NOT dismiss.
+  function handleOverlayMouseDown(e: React.MouseEvent) {
+    overlayMouseDownRef.current = e.target === e.currentTarget;
+  }
+
+  function handleOverlayClick(e: React.MouseEvent) {
+    if (e.target === e.currentTarget && overlayMouseDownRef.current) attemptClose();
+    overlayMouseDownRef.current = false;
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -314,11 +330,15 @@ function ApplicationModal({
   }
 
   return (
-    <div className="tracker-modal-overlay" onClick={handleOverlayClick}>
+    <div
+      className="tracker-modal-overlay"
+      onMouseDown={handleOverlayMouseDown}
+      onClick={handleOverlayClick}
+    >
       <div className="tracker-modal" onClick={e => e.stopPropagation()}>
         <div className="tracker-modal__header">
           <h2>{isEdit ? 'Edit Application' : 'Add Application'}</h2>
-          <button className="tracker-modal__close" onClick={handleOverlayClick}>
+          <button className="tracker-modal__close" onClick={attemptClose}>
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
@@ -547,7 +567,7 @@ function ApplicationModal({
           {formError && <div className="tracker-modal__error" role="alert">{formError}</div>}
 
           <div className="tracker-modal__footer">
-            <button type="button" className="btn btn-ghost" onClick={handleOverlayClick}>Cancel</button>
+            <button type="button" className="btn btn-ghost" onClick={attemptClose}>Cancel</button>
             <button type="submit" className="btn btn-primary">{isEdit ? 'Save Changes' : 'Add Application'}</button>
           </div>
         </form>

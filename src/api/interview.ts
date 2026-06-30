@@ -74,8 +74,17 @@ export interface StarFeedback {
   result: boolean;
 }
 
+export interface TechnicalFeedback {
+  accuracy: boolean;
+  tradeoffs: boolean;
+  depth: boolean;
+}
+
 export interface TurnFeedback {
-  star: StarFeedback;
+  // Exactly one of star (behavioral) / technical (technical) is present when feedback is
+  // non-null; both optional so each rubric type-checks independently.
+  star?: StarFeedback;
+  technical?: TechnicalFeedback;
   strengths: string[];
   improvements: string[];
 }
@@ -93,6 +102,10 @@ export interface TurnResponse {
   remainingSeconds: number;
   feedback: TurnFeedback | null;
   fillerWords: Record<string, number> | null;
+  // Classifies res.question together with isFollowUp: isFollowUp + 'clear' => a real
+  // follow-up; isFollowUp + 'unclear' => a restate request after unparseable speech.
+  // Optional so a missing value is treated as 'clear' per the backend contract.
+  transcriptClarity?: 'clear' | 'unclear';
 }
 
 export interface EndRequest {
