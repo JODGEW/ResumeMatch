@@ -96,6 +96,10 @@ export function Interview() {
   // shown identically as "no panel". Reset on the opening question and on every null response.
   const [currentFeedback, setCurrentFeedback] = useState<TurnFeedback | null>(null);
   const [currentFillerWords, setCurrentFillerWords] = useState<Record<string, number> | null>(null);
+  // Candidate's private scratchpad. Client-only: never sent to the backend, never
+  // part of the conversation/transcript, intentionally lost on refresh. Persists
+  // across turns; cleared only when a session starts or is restored.
+  const [scratchpadNotes, setScratchpadNotes] = useState('');
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [turnNumber, setTurnNumber] = useState(0);
   const [error, setError] = useState('');
@@ -117,6 +121,9 @@ export function Interview() {
   const startedAtRef = useRef(0);
   const lsKeyRef = useRef('');
   const pushToTalkActiveRef = useRef(false);
+  // True only while a recording started BY the Space key is held. Gates the keyup
+  // handler's end-the-hold-regardless-of-focus path; typing can never set it.
+  const spaceHoldActiveRef = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
 
   const startInFlightRef = useRef(false);
@@ -305,6 +312,7 @@ export function Interview() {
           setCurrentClarity('clear');
           setCurrentFeedback(null);
           setCurrentFillerWords(null);
+          setScratchpadNotes('');
           // getSession does not persist closingKind, so recover the closing state
           // from the last interviewer message (restore-only fallback).
           const restoredClosingKind = getInterviewClosingPromptKind(lastInterviewerTurn?.content || '');
@@ -405,6 +413,7 @@ export function Interview() {
         setCurrentClarity('clear');
         setCurrentFeedback(null);
         setCurrentFillerWords(null);
+        setScratchpadNotes('');
         setQuestionNumber(firstConversation.filter(isInterviewQuestionTurn).length);
         setTotalQuestions(res.totalQuestions);
         setTimeLimit(res.timeLimit);
@@ -627,6 +636,7 @@ export function Interview() {
     }
     answerStartRef.current = 0;
     pushToTalkActiveRef.current = false;
+    spaceHoldActiveRef.current = false;
     activePointerIdRef.current = null;
     setRecordingInterrupted(false);
     cancelTts();
@@ -740,12 +750,24 @@ export function Interview() {
       if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
       e.preventDefault();
       if (!e.repeat && (interviewState === 'active' || interviewState === 'speaking') && !pushToTalkActiveRef.current) {
-        handlePushToTalkDown();
+        if (handlePushToTalkDown()) {
+          spaceHoldActiveRef.current = true;
+        }
       }
     }
     function handleKeyUp(e: KeyboardEvent) {
-      if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+      if (e.code !== 'Space') return;
+      // A Space-initiated hold must end on Space release even if focus moved into
+      // the notes scratchpad mid-hold — otherwise the swallowed keyup would leave
+      // the mic recording with no way to stop it. Gated strictly on
+      // spaceHoldActiveRef: typing can never set it, so a Space keyup while typing
+      // still returns early here and cannot stop a mic-button-initiated recording.
+      if (
+        !spaceHoldActiveRef.current
+        && ((e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT')
+      ) return;
       e.preventDefault();
+      spaceHoldActiveRef.current = false;
       if (pushToTalkActiveRef.current) {
         void handlePushToTalkUp();
       }
@@ -1278,6 +1300,18 @@ export function Interview() {
             {controls.endButtonLabel}
           </button>
         </div>
+      </div>
+
+      <div className="interview-scratchpad card animate-in">
+        <label className="interview-scratchpad__label" htmlFor="interview-scratchpad-input">Notes</label>
+        <textarea
+          id="interview-scratchpad-input"
+          className="interview-scratchpad__input"
+          value={scratchpadNotes}
+          onChange={(e) => setScratchpadNotes(e.target.value)}
+          placeholder="Jot notes while you think — just for you, never saved or scored."
+          rows={4}
+        />
       </div>
 
       <div ref={conversationEndRef} />

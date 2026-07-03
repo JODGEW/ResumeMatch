@@ -438,6 +438,28 @@
   color: var(--danger);
 }
 
+/* ── Scratchpad (private notes) ──────────────────────── */
+.interview-scratchpad {
+  padding: 1rem 1.25rem 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.interview-scratchpad__label {
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 590;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.interview-scratchpad__input {
+  min-height: 96px;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  background: var(--surface-subtle);
+}
+
 /* ── Setup Screen ───────────────────────────────────── */
 .interview-setup-page {
   padding-top: 1rem;
@@ -849,6 +871,10 @@
     padding: 1rem;
   }
 
+  .interview-scratchpad {
+    padding: 1rem;
+  }
+
   .interview-mic {
     width: 56px;
     height: 56px;
@@ -856,5 +882,13 @@
 
   .interview-controls__hint {
     font-size: 0.75rem;
+  }
+}
+
+/* ≤480px: keep the notes textarea at 16px so iOS Safari doesn't auto-zoom on
+   focus (matches the global input/textarea safeguard in index.css). */
+@media (max-width: 480px) {
+  .interview-scratchpad__input {
+    font-size: 1rem;
   }
 }
