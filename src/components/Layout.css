@@ -89,12 +89,24 @@
   gap: 0.25rem;
   flex: 1;
   flex-wrap: nowrap;
+  /* The tab row absorbs width pressure by scrolling instead of pushing the
+     page wider — the header can never cause horizontal page overflow. */
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav__links::-webkit-scrollbar {
+  display: none;
 }
 
 .nav__link {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
+  white-space: nowrap;
+  flex-shrink: 0;
   font-family: var(--font-display);
   font-size: 0.8125rem;
   font-weight: 510;
@@ -131,16 +143,41 @@
   opacity: 1;
 }
 
+/* "Something new here" dot on a nav link. Absolutely positioned so it adds
+   zero width — it can never clip or overflow the scrollable tab row. */
+.nav__link-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
 .nav__user {
   display: flex;
   align-items: center;
   gap: 1rem;
+  min-width: 0;
+}
+
+/* Buttons and the theme toggle keep their intrinsic size; the email is the
+   one flexible item — it truncates first so the link tabs never clip. */
+.nav__user > * {
   flex-shrink: 0;
 }
 
 .nav__email {
   font-size: 0.8125rem;
   color: var(--text-muted);
+  flex-shrink: 1;
+  min-width: 48px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav__logout {
@@ -162,6 +199,27 @@
   justify-content: flex-start;
   color: var(--text-secondary);
   border-radius: 0;
+}
+
+.nav__drawer-pricing {
+  padding: 0 1.25rem;
+  margin: 0;
+  font-size: 0.875rem;
+  min-height: 44px;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  border-radius: 0;
+}
+
+.nav__drawer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+  flex-shrink: 0;
 }
 
 .nav__portal-error {
@@ -291,6 +349,21 @@
 /* ── Main Content ───────────────────────────────────── */
 .main {
   flex: 1;
+}
+
+/* ── Tablet / narrow desktop ────────────────────────── */
+/* Below ~1180px the full link row + account actions can't share the 60px
+   header (pre-existing overflow, worsened as links were added). Reuse the
+   mobile pattern: account actions move to the hamburger drawer, primary
+   tabs stay visible and scroll horizontally. */
+@media (max-width: 1180px) {
+  .nav__hamburger {
+    display: flex;
+  }
+
+  .nav__user {
+    display: none;
+  }
 }
 
 /* ── Mobile ────────────────────────────────────────── */

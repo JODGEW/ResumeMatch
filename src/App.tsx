@@ -21,6 +21,7 @@ import { Pricing } from './pages/Pricing';
 import { UpgradeCancel } from './pages/UpgradeCancel';
 import { UpgradeSuccess } from './pages/UpgradeSuccess';
 import { ResultsPreview } from './pages/ResultsPreview';
+import { BILLING_UI_ENABLED } from './config/billing';
 
 const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
 
@@ -82,9 +83,13 @@ export default function App() {
             <Route path="/interview" element={<Interview />} />
             <Route path="/interview/history" element={<InterviewHistory />} />
             <Route path="/interview/results/:sessionId" element={<InterviewResults />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/upgrade/success" element={<UpgradeSuccess />} />
-            <Route path="/upgrade/cancel" element={<UpgradeCancel />} />
+            {BILLING_UI_ENABLED && (
+              <>
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/upgrade/success" element={<UpgradeSuccess />} />
+                <Route path="/upgrade/cancel" element={<UpgradeCancel />} />
+              </>
+            )}
             {DEV_MODE && (
               <Route path="/preview" element={<ResultsPreview />} />
             )}

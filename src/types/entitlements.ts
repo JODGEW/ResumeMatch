@@ -33,7 +33,10 @@ export interface UserSubscription {
   stripeSubscriptionId?: string; // monthly only; the Stripe webhook writes this exact field
   billingPaymentIntentId?: string; // sprint only
   currentPeriodStart?: string; // ISO 8601
-  currentPeriodEnd?: string; // ISO 8601; sprint = purchase + 60d
+  // Epoch SECONDS from the deployed webhook (may arrive as number or numeric
+  // string) or ISO 8601 from older rows; sprint = purchase + 60d. The resolver
+  // normalizes via parsePeriodEnd — never feed this to `new Date()` raw.
+  currentPeriodEnd?: string | number;
   cancelAtPeriodEnd?: boolean; // monthly only
   sprintPurchaseCount?: number;
 
@@ -98,5 +101,9 @@ export interface Entitlements {
     isActive: boolean;
     /** Whole days left on a Career Sprint, or null if not on a sprint. */
     daysRemaining: number | null;
+    /** ISO timestamp of the sprint period end (parsed from the Users row),
+     *  or null when not on a sprint / no valid period end. Prefer this over
+     *  reconstructing a date from daysRemaining. */
+    activeUntil: string | null;
   };
 }

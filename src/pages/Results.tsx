@@ -7,6 +7,7 @@ import { DiffView } from '../components/DiffView';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { UpgradePrompt } from '../components/UpgradePrompt';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
 import { getSession, isMissingInterviewSessionError, listSessions } from '../api/interview';
@@ -689,7 +690,7 @@ export function Results() {
       {/* Suggestions paywall — backend filtered suggestions + suggestedText for
        *  Free users and set upgradeRequired:true. Shown in the same slot as the
        *  Suggestions / Detailed Changes / Download blocks so the gap is obvious. */}
-      {analysis.upgradeRequired === true && (
+      {BILLING_UI_ENABLED && analysis.upgradeRequired === true && (
         <div className="results-section animate-in stagger-3">
           <UpgradePrompt
             variant="card"

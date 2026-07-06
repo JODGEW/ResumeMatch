@@ -3,6 +3,7 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { PublicFooter } from '../components/PublicFooter';
 import { LogoMark } from '../components/LogoMark';
 import { useAuth } from '../auth/AuthContext';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import './Landing.css';
 
 const resultImage = new URL('../../screenshots/landing_result.JPG', import.meta.url).href;
@@ -78,6 +79,7 @@ const plans = [
     priceNote: 'forever',
     priceSub: null,
     priceStrike: null,
+    foundingNote: null,
     badge: null,
     cta: 'Start free',
     features: [
@@ -95,7 +97,8 @@ const plans = [
     priceNote: 'per month, cancel anytime',
     priceSub: null,
     priceStrike: null,
-    badge: 'Most popular',
+    foundingNote: null,
+    badge: null,
     cta: 'Subscribe',
     features: [
       '10 analyses + 5 interviews / day',
@@ -108,11 +111,13 @@ const plans = [
   {
     name: 'Career Sprint',
     tagline: 'For focused 60-day pushes.',
-    price: '$24.99',
+    price: '$19.99',
     priceNote: 'once',
     priceSub: '60 days, no auto-renewal',
-    priceStrike: '$29.98',
-    badge: null,
+    priceStrike: '$24.99',
+    foundingNote:
+      'Founding price: $19.99 for the 60-day Career Sprint, available through October 31, 2026.',
+    badge: 'Best value',
     cta: 'Buy once',
     features: [
       'Everything in Pro',
@@ -166,7 +171,7 @@ export function Landing() {
             <a href="#why">Why ResumeMatch</a>
             <a href="#how-it-works">How it works</a>
             <a href="#features">Features</a>
-            <a href="#pricing">Pricing</a>
+            {BILLING_UI_ENABLED && <a href="#pricing">Pricing</a>}
             <a href="#faq">FAQ</a>
           </nav>
 
@@ -321,6 +326,7 @@ export function Landing() {
           </div>
         </section>
 
+        {BILLING_UI_ENABLED && (
         <section className="landing-section" id="pricing">
           <div className="page-container landing-section__inner">
             <div className="landing-section__header">
@@ -365,6 +371,9 @@ export function Landing() {
                         {plan.priceSub}
                       </p>
                     ) : null}
+                    {plan.foundingNote ? (
+                      <p className="landing-plan__price-sub">{plan.foundingNote}</p>
+                    ) : null}
 
                     <ul className="landing-plan__features">
                       {plan.features.map((feature) => (
@@ -386,6 +395,7 @@ export function Landing() {
             </div>
           </div>
         </section>
+        )}
 
         <section className="landing-section" id="faq">
           <div className="page-container landing-section__inner landing-section__inner--reading">

@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-do
 import { getAnalysisHistory, getAnalysis } from '../api/analysis';
 import { useAuth } from '../auth/AuthContext';
 import { useEntitlements } from '../hooks/useEntitlements';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
 import { getTrackerPrefill } from '../utils/trackerPrefill';
@@ -56,6 +57,7 @@ export function History() {
   // so we show a generic "you're seeing your 5 most recent" message when the
   // list length matches the cap.
   const showHistoryCapNotice =
+    BILLING_UI_ENABLED &&
     !loading &&
     !!entitlements &&
     entitlements.plan === 'free' &&
@@ -258,7 +260,7 @@ export function History() {
       clearTimeout(timeout);
       if (!text?.trim()) {
         setDownloadingId(null);
-        if (entitlements?.plan === 'free') {
+        if (BILLING_UI_ENABLED && entitlements?.plan === 'free') {
           setUpgradePrompt({
             title: 'Upgrade to download DOCX',
             body: 'AI rewrite suggestions and DOCX export are included with Pro. Upgrade to see the edit diff and download the optimized resume.',

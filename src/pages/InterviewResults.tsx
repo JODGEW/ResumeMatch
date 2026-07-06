@@ -5,6 +5,7 @@ import { endInterview, getSession, type EndRequest, type SessionResponse, type T
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { clearInterviewPointer } from '../utils/interviewPointer';
 import { UpgradePrompt } from '../components/UpgradePrompt';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import './InterviewResults.css';
 
 type InterviewType = 'behavioral' | 'technical';
@@ -788,7 +789,7 @@ export function InterviewResults() {
             </>
           )}
 
-          {assessment.upgradeRequired === true && (
+          {BILLING_UI_ENABLED && assessment.upgradeRequired === true && (
             <UpgradePrompt
               variant="card"
               message="Detailed dimension feedback and per-answer breakdowns are available with Pro. See your scores across every category, with strengths and improvements called out for each answer."

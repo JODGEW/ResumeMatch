@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getSession, listSessions, type SessionSummary } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { useEntitlements } from '../hooks/useEntitlements';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import './InterviewHistory.css';
 
 function formatDate(dateStr: string): string {
@@ -141,6 +142,7 @@ export function InterviewHistory() {
   // may not cap listSessions today — the indicator triggers when row count
   // meets the documented Free cap so it's correct once enforcement lands.
   const showSessionCapNotice =
+    BILLING_UI_ENABLED &&
     !loading &&
     !!entitlements &&
     entitlements.plan === 'free' &&

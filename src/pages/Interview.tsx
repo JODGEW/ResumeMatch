@@ -23,6 +23,7 @@ import { isInterviewClosingPrompt, isInterviewQuestionTurn } from '../utils/inte
 import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { PRO_LIMITS } from '../utils/entitlements';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import './Interview.css';
 
 type InterviewState = 'setup' | 'starting' | 'active' | 'thinking' | 'speaking' | 'completed' | 'loading';
@@ -387,10 +388,14 @@ export function Interview() {
         const code = axiosErr?.response?.data?.error;
         const upgradeRequired = axiosErr?.response?.data?.upgradeRequired === true;
 
-        if (status === 429 && upgradeRequired) {
+        if (BILLING_UI_ENABLED && status === 429 && upgradeRequired) {
           setUpgradeMessage(DAILY_LIMIT_MESSAGE);
           setError('');
-        } else if (status === 403 && code === 'technical_interview_pro_only') {
+        } else if (
+          BILLING_UI_ENABLED &&
+          status === 403 &&
+          code === 'technical_interview_pro_only'
+        ) {
           setUpgradeMessage(TECHNICAL_PRO_MESSAGE);
           setError('');
         } else {

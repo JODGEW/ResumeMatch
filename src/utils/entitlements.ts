@@ -112,6 +112,32 @@ function daysBetween(from: Date, to: Date): number {
 }
 
 /**
+ * Parse the raw `currentPeriodEnd` into a Date.
+ *
+ * The deployed Stripe webhook writes epoch SECONDS (verified against live
+ * Users rows, e.g. 1788493724); the original frontend contract and older
+ * fixtures used ISO 8601 strings. Accept both: numeric values below 1e12 are
+ * epoch seconds (any real date in epoch ms is ≥ ~1.7e12), larger numbers are
+ * already ms, and non-numeric strings fall through to ISO parsing. Feeding
+ * epoch seconds straight to `new Date()` misreads them as ms (→ Jan 1970),
+ * which made fresh Sprints resolve as expired.
+ */
+function parsePeriodEnd(raw: string | number | undefined | null): Date | null {
+  if (raw == null || raw === '') return null;
+  const n =
+    typeof raw === 'number'
+      ? raw
+      : /^\d+(\.\d+)?$/.test(raw)
+        ? Number(raw)
+        : NaN;
+  if (Number.isFinite(n)) {
+    return new Date(n < 1e12 ? n * 1000 : n);
+  }
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
  * Resolve a raw `Users` row into the gating decision object.
  *
  * Safe by construction: null / undefined / malformed / unknown-plan records
@@ -126,10 +152,8 @@ export function resolveEntitlements(
   const plan: Plan =
     rawPlan && VALID_PLANS.has(rawPlan) ? rawPlan : 'free';
 
-  const periodEnd = user?.currentPeriodEnd
-    ? new Date(user.currentPeriodEnd)
-    : null;
-  const periodEndValid = periodEnd && !Number.isNaN(periodEnd.getTime());
+  const periodEnd = parsePeriodEnd(user?.currentPeriodEnd);
+  const periodEndValid = periodEnd !== null;
   const withinPeriod = periodEndValid ? now < periodEnd! : false;
 
   // --- Normalize plan → hasPro (the single gating boolean) ---
@@ -209,6 +233,10 @@ export function resolveEntitlements(
     sprint: {
       isActive: sprintActive,
       daysRemaining: plan === 'pro_sprint' ? sprintDaysRemaining : null,
+      activeUntil:
+        plan === 'pro_sprint' && periodEndValid
+          ? periodEnd!.toISOString()
+          : null,
     },
   };
 }

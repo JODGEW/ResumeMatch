@@ -31,13 +31,12 @@ const SPRINT_FEATURES = [
   'DOCX export with edit diff',
 ];
 
-function activeUntilFromDays(daysRemaining: number | null): string {
-  // useEntitlements only exposes sprint.daysRemaining (not raw currentPeriodEnd),
-  // so we reconstruct the end date as today + daysRemaining. ±24hr imprecision
-  // is acceptable for a display label.
-  if (daysRemaining == null || daysRemaining < 0) return '';
-  const d = new Date();
-  d.setDate(d.getDate() + daysRemaining);
+function formatActiveUntil(activeUntil: string | null): string {
+  // The resolver exposes the exact parsed `currentPeriodEnd` from the Users
+  // row — format it directly instead of reconstructing today+daysRemaining.
+  if (!activeUntil) return '';
+  const d = new Date(activeUntil);
+  if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
@@ -121,7 +120,7 @@ export function Pricing() {
   const isOnProMonthly = plan === 'pro_monthly';
   const isOnSprint = plan === 'pro_sprint';
   const isGrandfathered = isOnProMonthly && status === 'grandfathered';
-  const sprintActiveUntil = activeUntilFromDays(entitlements.sprint.daysRemaining);
+  const sprintActiveUntil = formatActiveUntil(entitlements.sprint.activeUntil);
 
   return (
     <div className="page-container">
@@ -200,7 +199,14 @@ export function Pricing() {
           <span className="pricing-card__badge">Best value</span>
           <div className="pricing-card__head">
             <h3 className="pricing-card__title">Career Sprint</h3>
-            <div className="pricing-card__price">$24.99 / 60 days</div>
+            <div className="pricing-card__price">
+              <s className="pricing-card__price-strike">$24.99</s>
+              $19.99 / 60 days
+            </div>
+            <p className="pricing-card__subtitle">
+              Founding price: $19.99 for the 60-day Career Sprint, available
+              through October 31, 2026.
+            </p>
             <p className="pricing-card__subtitle">One-time Pro access for an active job search.</p>
             {isOnSprint && (
               <span className="pricing-card__current-badge">
@@ -214,13 +220,14 @@ export function Pricing() {
             ))}
           </ul>
           {!isOnSprint && (
+            /* Founding price through 2026-10-31; switch back to 'pro_sprint' after. */
             <button
               type="button"
               className="btn btn-primary pricing-card__cta"
               disabled={isSubmitting}
-              onClick={() => handleCheckout('pro_sprint')}
+              onClick={() => handleCheckout('pro_founding_sprint')}
             >
-              {activePlan === 'pro_sprint' ? (
+              {activePlan === 'pro_founding_sprint' ? (
                 <>
                   <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
                   {stage === 'redirecting' ? 'Redirecting to checkout…' : 'Starting checkout…'}

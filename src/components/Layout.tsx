@@ -1,12 +1,14 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useEntitlements } from '../hooks/useEntitlements';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import { ThemeToggle } from './ThemeToggle';
 import { createPortalSession } from '../api/portal';
 import { useState, useEffect, useCallback } from 'react';
 import './Layout.css';
 
 const DEMO_EMAIL = 'demo123@resumeapp.com';
+const PRICING_SEEN_KEY = 'resumematch_pricing_seen';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -22,7 +24,23 @@ export function Layout() {
   // Only users with an active Stripe subscription have something to manage in
   // the Customer Portal. Grandfathered users (no Stripe customer) and Sprint
   // users (one-time payment, no subscription ID) are intentionally excluded.
-  const canManageSubscription = !!entitlements?.stripeSubscriptionId;
+  const canManageSubscription =
+    BILLING_UI_ENABLED && !!entitlements?.stripeSubscriptionId;
+
+  // "New" indicator on the Pricing nav item so the link gets noticed —
+  // cleared the first time the user actually visits /pricing.
+  const location = useLocation();
+  const [pricingSeen, setPricingSeen] = useState(
+    () => localStorage.getItem(PRICING_SEEN_KEY) === '1',
+  );
+
+  useEffect(() => {
+    if (!BILLING_UI_ENABLED || pricingSeen) return;
+    if (location.pathname === '/pricing') {
+      localStorage.setItem(PRICING_SEEN_KEY, '1');
+      setPricingSeen(true);
+    }
+  }, [location.pathname, pricingSeen]);
 
   async function handleManageSubscription() {
     if (portalRedirecting) return;
@@ -159,6 +177,19 @@ export function Layout() {
                 </svg>
                 Tracker
               </NavLink>
+              {BILLING_UI_ENABLED && (
+                <NavLink to="/pricing" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
+                  <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="1.75" y="3" width="11.5" height="9" rx="1.5" />
+                    <path d="M1.75 6h11.5" />
+                    <path d="M4.25 9.5h3" />
+                  </svg>
+                  Pricing
+                  {!pricingSeen && (
+                    <span className="nav__link-dot" aria-hidden="true" />
+                  )}
+                </NavLink>
+              )}
             </div>
 
             {/* Desktop right side */}
@@ -219,6 +250,16 @@ export function Layout() {
         </div>
 
         <div className="nav__drawer-divider" />
+
+        {BILLING_UI_ENABLED && (
+          <button
+            onClick={() => { closeMenu(); navigate('/pricing'); }}
+            className="btn btn-ghost nav__drawer-pricing"
+          >
+            Pricing
+            {!pricingSeen && <span className="nav__drawer-dot" aria-hidden="true" />}
+          </button>
+        )}
 
         {canManageSubscription && (
           <button

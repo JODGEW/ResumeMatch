@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import './UpgradePrompt.css';
 
 interface UpgradePromptProps {
@@ -13,6 +14,10 @@ export function UpgradePrompt({
   variant = 'banner',
 }: UpgradePromptProps) {
   const navigate = useNavigate();
+
+  // Choke point: with billing UI disabled, no mount of this component may
+  // render, regardless of what condition the call site checked.
+  if (!BILLING_UI_ENABLED) return null;
 
   return (
     <div className={`upgrade-prompt upgrade-prompt--${variant} animate-in`}>

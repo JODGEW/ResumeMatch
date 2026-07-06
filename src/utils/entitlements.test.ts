@@ -136,6 +136,67 @@ describe('resolveEntitlements — representative users (Free-pro-tier.md §2.3)'
     expect(e.sprint.daysRemaining).toBe(0);
   });
 
+  // ── currentPeriodEnd wire-format regressions ─────────────────────────────
+  // The deployed webhook writes epoch SECONDS (live row: 1788493724). Feeding
+  // that to `new Date()` raw misreads it as epoch ms (→ Jan 1970), which made
+  // a fresh Sprint resolve as expired with daysRemaining 0.
+
+  it('epoch-seconds NUMBER currentPeriodEnd (live webhook contract) → Pro, correct countdown', () => {
+    const epochSeconds = Math.floor((NOW.getTime() + 60 * 86_400_000) / 1000);
+    const e = resolveEntitlements(
+      { userId: 'u', plan: 'pro_sprint', currentPeriodEnd: epochSeconds },
+      NOW,
+    );
+    expect(e.hasPro).toBe(true);
+    expect(e.sprint.isActive).toBe(true);
+    expect(e.sprint.daysRemaining).toBe(60);
+    expect(e.subscriptionStatus).toBe('sprint_active');
+    expect(e.sprint.activeUntil).toBe(new Date(epochSeconds * 1000).toISOString());
+  });
+
+  it('epoch-seconds NUMERIC-STRING currentPeriodEnd → Pro, correct countdown', () => {
+    const epochSeconds = Math.floor((NOW.getTime() + 60 * 86_400_000) / 1000);
+    const e = resolveEntitlements(
+      { userId: 'u', plan: 'pro_sprint', currentPeriodEnd: String(epochSeconds) },
+      NOW,
+    );
+    expect(e.hasPro).toBe(true);
+    expect(e.sprint.daysRemaining).toBe(60);
+    expect(e.sprint.activeUntil).toBe(new Date(epochSeconds * 1000).toISOString());
+  });
+
+  it('epoch-seconds currentPeriodEnd in the past → expired, Free', () => {
+    const epochSeconds = Math.floor((NOW.getTime() - 86_400_000) / 1000);
+    const e = resolveEntitlements(
+      { userId: 'u', plan: 'pro_sprint', currentPeriodEnd: epochSeconds },
+      NOW,
+    );
+    expect(e.hasPro).toBe(false);
+    expect(e.sprint.isActive).toBe(false);
+    expect(e.sprint.daysRemaining).toBe(0);
+    expect(e.subscriptionStatus).toBe('sprint_expired');
+    expect(e.limits).toBe(FREE_LIMITS);
+  });
+
+  it('epoch-MILLISECONDS currentPeriodEnd is tolerated (≥1e12 heuristic)', () => {
+    const epochMs = NOW.getTime() + 60 * 86_400_000;
+    const e = resolveEntitlements(
+      { userId: 'u', plan: 'pro_sprint', currentPeriodEnd: epochMs },
+      NOW,
+    );
+    expect(e.hasPro).toBe(true);
+    expect(e.sprint.daysRemaining).toBe(60);
+  });
+
+  it('ISO currentPeriodEnd still exposes activeUntil (back-compat)', () => {
+    const e = resolveEntitlements(
+      { userId: 'u', plan: 'pro_sprint', currentPeriodEnd: daysFromNow(55) },
+      NOW,
+    );
+    expect(e.sprint.activeUntil).toBe(daysFromNow(55));
+    expect(e.sprint.daysRemaining).toBe(55);
+  });
+
   it('past_due monthly → Free (PAST_DUE_RETAINS_PRO default false)', () => {
     const e = resolveEntitlements(
       { userId: 'u', plan: 'pro_monthly', subscriptionStatus: 'past_due' },

@@ -6,6 +6,7 @@ import { LastResumeCard } from '../components/LastResumeCard';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, fetchLastResume } from '../api/upload';
 import { isUploadQuotaError } from '../utils/uploadQuotaGate';
+import { BILLING_UI_ENABLED } from '../config/billing';
 import { FREE_LIMITS, PRO_LIMITS } from '../utils/entitlements';
 import '../components/LastResumeCard.css';
 import './Upload.css';
@@ -160,7 +161,10 @@ export function Upload() {
 
       // Quota gate: older and newer backend paths differ on whether they send
       // upgradeRequired, but upload 429s should still render the paywall.
-      if (isUploadQuotaError(err)) {
+      // isUploadQuotaError accepts ANY 429 (including infra throttles), so it
+      // must be flag-gated: with billing UI off, a 429 falls through to the
+      // normal error path instead of showing a paywall.
+      if (BILLING_UI_ENABLED && isUploadQuotaError(err)) {
         setUpgradeMessage(
           `You've used your ${FREE_LIMITS.analysesPerDay} analyses for today. Upgrade for ${PRO_LIMITS.analysesPerDay} analyses per day.`,
         );
