@@ -5,6 +5,7 @@ import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { KanbanView } from '../components/KanbanView';
+import { OutreachQueue } from '../components/OutreachQueue';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import './Tracker.css';
 
@@ -47,12 +48,12 @@ function getPageFromSearchParams(searchParams: URLSearchParams) {
 }
 
 // Parse "YYYY-MM-DD" as local date (not UTC) to avoid off-by-one timezone issues
-function parseLocalDate(iso: string): Date {
+export function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
-function getFollowUpDue(app: Application): { label: string; overdue: boolean; daysUntil: number } | null {
+export function getFollowUpDue(app: Application): { label: string; overdue: boolean; daysUntil: number } | null {
   if (!app.outreachDate || app.followUpSent || app.outreachStatus === 'replied' || app.outreachStatus === 'no_response' || app.outreachStatus === 'skipped' || app.applicationStatus === 'rejected') return null;
   const due = app.followUpDate ? parseLocalDate(app.followUpDate) : new Date(parseLocalDate(app.outreachDate).getTime() + 7 * 86400000);
   const today = new Date();
@@ -997,11 +998,13 @@ function BulkDeleteBody({ apps }: { apps: Application[] }) {
 // ── Main Tracker Page ──────────────────────────────────
 export function Tracker() {
   const { applications, isReadOnly, isLoading, error, addApplication, updateApplication, deleteApplication } = useApplications();
-  const [view, setView] = useState<'list' | 'board'>(() => {
+  const [view, setView] = useState<'list' | 'board' | 'outreach'>(() => {
     const saved = localStorage.getItem('tracker_view');
-    return saved === 'board' ? 'board' : 'list';
+    if (saved === 'board') return 'board';
+    if (saved === 'outreach') return 'outreach';
+    return 'list';
   });
-  const handleSetView = (v: 'list' | 'board') => {
+  const handleSetView = (v: 'list' | 'board' | 'outreach') => {
     setView(v);
     localStorage.setItem('tracker_view', v);
   };
@@ -1404,6 +1407,17 @@ export function Tracker() {
               </svg>
               Board
             </button>
+            <button
+              className={`tracker-view-toggle__btn${view === 'outreach' ? ' tracker-view-toggle__btn--active' : ''}`}
+              onClick={() => handleSetView('outreach')}
+              title="Outreach view"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="1.5" y="3" width="11" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M2 4l5 3.5L12 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Outreach
+            </button>
           </div>
           <input
             className="tracker-search"
@@ -1471,8 +1485,15 @@ export function Tracker() {
         </div>
       )}
 
-      {/* Application List / Board */}
-      {sorted.length === 0 ? (
+      {/* Application List / Board / Outreach */}
+      {view === 'outreach' ? (
+        <OutreachQueue
+          applications={applications}
+          isReadOnly={isReadOnly}
+          updateApplication={updateApplication}
+          onEdit={(id) => setModalState({ open: true, editId: id })}
+        />
+      ) : sorted.length === 0 ? (
         <div className="tracker-empty animate-in">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
             <rect x="12" y="8" width="40" height="48" rx="6" stroke="var(--border-light)" strokeWidth="2" />
