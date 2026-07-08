@@ -70,6 +70,16 @@ describe('correctTranscript — common-word guard (no confidence override)', () 
     const out = correctTranscript(words(['course', 0.1]), ['Coursera']);
     expect(out).toBe('course');
   });
+
+  it('blocks the domain false positive: a lone "resume" (0.2) is never rewritten to ResumeMatch', () => {
+    const out = correctTranscript(words(['resume', 0.2]), ['ResumeMatch']);
+    expect(out).toBe('resume');
+  });
+
+  it('the "resume" block is single-token-scoped: "resume match" still corrects to ResumeMatch', () => {
+    const out = correctTranscript(words(['resume', 0.2], ['match', 0.2]), ['ResumeMatch']);
+    expect(out).toBe('ResumeMatch');
+  });
 });
 
 describe('correctTranscript — Layer 1 still recovers genuine garbles', () => {

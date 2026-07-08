@@ -403,4 +403,11 @@ const COMMON_WORDS: ReadonlySet<string> = new Set([
   'joint', 'navbox', 'happened', 'literary', 'allowing', 'edward', 'corps', 'logo', 'tue', 'audience', 'ends', 'bronze',
   'mile', 'newly', 'containing', 'application', 'falls', 'medicine', 'florida', 'methods', 'races', 'false', 'properties', 'tools',
   'wars', 'performing', 'du', 'solution', 'succeeded', 'object', 'losing', 'comedy',
+  // Domain addition — not part of the generated top-2000 frequency list above.
+  // 'resume': named block for this app's highest-frequency false positive — a
+  // low-confidence lone "resume" rewrote to the ResumeMatch brand keyterm
+  // (JW 0.909). Correct and incorrect single-token rewrites interleave on JW
+  // and commonness, so no score threshold separates them; any unlisted
+  // inflection or new colliding term defeats this and needs its own entry.
+  'resume',
 ]);
