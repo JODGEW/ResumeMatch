@@ -1,0 +1,173 @@
+/* ── Analysis Progress ───────────────────────────────── */
+.analysis-progress-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 60px = navbar height (Layout.css) */
+  min-height: calc(100vh - 60px - 2 * var(--container-pad-y, 2rem));
+  min-height: calc(100dvh - 60px - 2 * var(--container-pad-y, 2rem));
+}
+
+.analysis-progress-card {
+  --apc-muted: var(--text-muted);
+  --apc-divider: var(--border-subtle);
+  --apc-outline-border: var(--border);
+  width: 100%;
+  max-width: 35rem;
+  text-align: center;
+}
+
+/* Dark mode runs one text/border step brighter here — the default muted/subtle
+   tokens read as disabled on a full-page loading state. */
+:root:not([data-theme="light"]) .analysis-progress-card {
+  --apc-muted: color-mix(in srgb, var(--text-muted) 70%, var(--text-secondary));
+  --apc-divider: var(--border);
+  --apc-outline-border: var(--border-light);
+}
+
+.analysis-progress-card h2 {
+  margin-bottom: 0.5rem;
+}
+
+.analysis-progress-card__desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.analysis-progress-card__status-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.analysis-progress-card__status-icon--danger {
+  background: var(--danger-dim);
+  color: var(--danger);
+}
+
+.analysis-progress-card__status-icon--success {
+  background: var(--success-dim);
+  color: var(--success);
+}
+
+/* Steps checklist */
+.analysis-progress-card__progress {
+  width: max-content;
+  max-width: 100%;
+  margin: 1.75rem auto 0;
+  text-align: left;
+}
+
+.analysis-progress-card__step-label {
+  font-size: 0.6875rem;
+  font-weight: 510;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--apc-muted);
+  margin-bottom: 0.625rem;
+}
+
+.analysis-progress-card__steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+}
+
+.analysis-progress-card__step {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--apc-muted);
+}
+
+.analysis-progress-card__step--done {
+  color: var(--text-secondary);
+}
+
+.analysis-progress-card__step--done .analysis-progress-card__marker {
+  color: var(--success);
+}
+
+.analysis-progress-card__step--active {
+  color: var(--accent);
+  font-weight: 510;
+}
+
+.analysis-progress-card__marker {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.analysis-progress-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+.analysis-progress-card__step--active .analysis-progress-card__dot {
+  opacity: 1;
+  /* statusPulse: the app's shared status-dot keyframes (index.css) */
+  animation: statusPulse 1.5s ease infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analysis-progress-card__step--active .analysis-progress-card__dot {
+    animation: none;
+  }
+}
+
+/* Safe-to-leave note — lightly separated, not a panel */
+.analysis-progress-card__notice {
+  max-width: 26rem;
+  margin: 1.75rem auto 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--apc-divider);
+}
+
+.analysis-progress-card__notice-primary {
+  font-size: 0.8125rem;
+  font-weight: 510;
+  color: var(--text-secondary);
+}
+
+.analysis-progress-card__notice-secondary {
+  font-size: 0.75rem;
+  color: var(--apc-muted);
+  margin-top: 0.25rem;
+}
+
+/* Actions — two equal-width buttons */
+.analysis-progress-card__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+  width: min(100%, 28rem);
+  margin: 1.5rem auto 0;
+}
+
+.analysis-progress-card__actions .btn-outline {
+  border-color: var(--apc-outline-border);
+}
+
+@media (max-width: 480px) {
+  .analysis-progress-card__actions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -17,7 +17,6 @@ import { Tracker } from './pages/Tracker';
 import { Interview } from './pages/Interview';
 import { InterviewHistory } from './pages/InterviewHistory';
 import { InterviewResults } from './pages/InterviewResults';
-import { ResultsPreview } from './pages/ResultsPreview';
 
 const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
 
@@ -79,9 +78,6 @@ export default function App() {
             <Route path="/interview" element={<Interview />} />
             <Route path="/interview/history" element={<InterviewHistory />} />
             <Route path="/interview/results/:sessionId" element={<InterviewResults />} />
-            {DEV_MODE && (
-              <Route path="/preview" element={<ResultsPreview />} />
-            )}
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

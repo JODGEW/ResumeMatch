@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
+import { AnalysisProgressCard } from '../components/AnalysisProgressCard';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
@@ -173,67 +174,10 @@ function getScoreInterpretation(score: number) {
   };
 }
 
-function ResultsLoadingState({
-  title = 'Analyzing your resume',
-  description = 'Comparing keywords, skills, and qualifications...',
-  showActions = false,
-  analysisId,
-}: {
-  title?: string;
-  description?: string;
-  showActions?: boolean;
-  analysisId?: string;
-}) {
+function ProgressPage({ children }: { children: React.ReactNode }) {
   return (
     <div className="page-container">
-      <div className="results-loading">
-        <div className="results-loading__ring">
-          <svg width="80" height="80" viewBox="0 0 80 80">
-            <circle
-              cx="40" cy="40" r="34"
-              fill="none"
-              stroke="var(--border)"
-              strokeWidth="6"
-            />
-            <circle
-              cx="40" cy="40" r="34"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray="60 154"
-              className="results-loading__arc"
-            />
-          </svg>
-        </div>
-        <h2>{title}</h2>
-        <p className="text-secondary">
-          {description}
-        </p>
-        {showActions && (
-          <>
-            <div className="results-loading__steps">
-              <div className="results-loading__step results-loading__step--done">
-                <span className="results-loading__dot" />
-                Upload received
-              </div>
-              <div className="results-loading__step results-loading__step--active">
-                <span className="results-loading__dot" />
-                Processing analysis
-              </div>
-            </div>
-            <div className="results-loading__bg-notice">
-              <p className="results-loading__bg-primary">Analysis is running in the background — you can safely leave.</p>
-              <p className="results-loading__bg-secondary">Results are saved automatically. View them anytime in <strong>History</strong>.</p>
-              <p className="results-loading__bg-tertiary">Usually takes ~30 seconds.</p>
-              <div className="results-loading__actions">
-                <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary btn--sm">Go to History</Link>
-                <Link to="/upload" className="btn btn-outline btn--sm">Do another analysis</Link>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+      <div className="analysis-progress-hero">{children}</div>
     </div>
   );
 }
@@ -262,6 +206,32 @@ export function Results() {
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const navigate = useNavigate();
+
+  // Completion beat: after the user has watched the analysis run, hold a brief
+  // all-steps-done card before revealing the report. Never plays when landing
+  // on an already-finished analysis (e.g. from History).
+  const sawProgressRef = useRef(false);
+  const [completionBeatDone, setCompletionBeatDone] = useState(false);
+  const isComplete = status === 'completed' && analysis?.matchScore != null;
+
+  useEffect(() => {
+    sawProgressRef.current = false;
+    setCompletionBeatDone(false);
+  }, [analysisId]);
+
+  useEffect(() => {
+    if (analysis && (isInProgress(status) || (status === 'completed' && analysis.matchScore == null))) {
+      sawProgressRef.current = true;
+    }
+  }, [analysis, status]);
+
+  const showCompletionBeat = isComplete && !completionBeatDone && sawProgressRef.current;
+
+  useEffect(() => {
+    if (!showCompletionBeat) return;
+    const timer = setTimeout(() => setCompletionBeatDone(true), 1000);
+    return () => clearTimeout(timer);
+  }, [showCompletionBeat]);
 
   const closeModal = useCallback(() => {
     setResumeUrl(null);
@@ -350,50 +320,41 @@ export function Results() {
 
   if (!analysis || isInProgress(status)) {
     if (!timedOut) {
-      return <ResultsLoadingState showActions analysisId={analysisId} />;
+      return (
+        <ProgressPage>
+          <AnalysisProgressCard key={analysisId} mode="active" status={status} analysisId={analysisId} />
+        </ProgressPage>
+      );
     }
 
     return (
-      <div className="page-container">
-        <div className="results-loading">
-          <h2>Still processing</h2>
-          <p className="text-secondary">
-            This is taking longer than expected. Refresh the page to check status.
-          </p>
-          <button
-            className="btn btn-primary"
-            style={{ marginTop: '1rem' }}
-            onClick={() => window.location.reload()}
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+      <ProgressPage>
+        <AnalysisProgressCard mode="timeout" analysisId={analysisId} />
+      </ProgressPage>
     );
   }
 
   if (status === 'failed') {
     return (
-      <div className="page-container">
-        <div className="results-empty">
-          <h2>Analysis failed</h2>
-          <p className="text-secondary">
-            {analysis.errorMessage || 'We couldn\'t process your resume. Please try uploading again.'}
-          </p>
-          <Link to="/upload" className="btn btn-primary" style={{ marginTop: '1rem' }}>
-            {analysis.errorMessage?.toLowerCase().includes('limit') ? 'Back to Upload' : 'Try again'}
-          </Link>
-        </div>
-      </div>
+      <ProgressPage>
+        <AnalysisProgressCard mode="failed" errorMessage={analysis.errorMessage} />
+      </ProgressPage>
     );
   }
 
   if (analysis.matchScore == null) {
     return (
-      <ResultsLoadingState
-        title="Finalizing results"
-        description="Your analysis is still being prepared..."
-      />
+      <ProgressPage>
+        <AnalysisProgressCard mode="finalizing" />
+      </ProgressPage>
+    );
+  }
+
+  if (showCompletionBeat) {
+    return (
+      <ProgressPage>
+        <AnalysisProgressCard mode="complete" onViewReport={() => setCompletionBeatDone(true)} />
+      </ProgressPage>
     );
   }
 
