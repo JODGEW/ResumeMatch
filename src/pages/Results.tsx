@@ -5,7 +5,7 @@ import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
-import { AnalysisProgressCard } from '../components/AnalysisProgressCard';
+import { AnalysisProgressCard, COMPLETION_BEAT_MS } from '../components/AnalysisProgressCard';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
@@ -229,7 +229,7 @@ export function Results() {
 
   useEffect(() => {
     if (!showCompletionBeat) return;
-    const timer = setTimeout(() => setCompletionBeatDone(true), 1000);
+    const timer = setTimeout(() => setCompletionBeatDone(true), COMPLETION_BEAT_MS);
     return () => clearTimeout(timer);
   }, [showCompletionBeat]);
 
@@ -362,7 +362,7 @@ export function Results() {
   const resumeStatedYears = analysis.experienceCheck?.resumeStatedYears || 'Not specified';
 
   return (
-    <div className="page-container results-reading-page">
+    <div className={`page-container results-reading-page${completionBeatDone ? ' results-reading-page--reveal' : ''}`}>
       {/* Header */}
       <div className="page-header animate-in">
         <div className="results-header">

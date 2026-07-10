@@ -194,7 +194,7 @@ export function OutreachQueue({ applications, isReadOnly, updateApplication, onE
             <input
               type="text"
               className="outreach-queue__domain-input"
-              placeholder="Company domain, e.g. withglide.com"
+              placeholder="Company domain, e.g. company.com"
               value={domainInput}
               disabled={retry === 'loading'}
               onChange={e => setDomainInputs(prev => ({ ...prev, [app.id]: e.target.value }))}

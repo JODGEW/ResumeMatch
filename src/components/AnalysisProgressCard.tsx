@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { NormalizedAnalysisStatus } from '../hooks/usePolling';
 import './AnalysisProgressCard.css';
 
 export type AnalysisProgressMode = 'active' | 'finalizing' | 'complete' | 'timeout' | 'failed';
+
+// Single source of truth for the completion beat: Results.tsx holds the
+// complete card for exactly this long, and AnalysisProgressCard.css derives
+// every pop/draw/ripple duration from it via --completion-beat.
+export const COMPLETION_BEAT_MS = 1400;
+
+const COMPLETION_BEAT_STYLE = { '--completion-beat': `${COMPLETION_BEAT_MS}ms` } as CSSProperties;
 
 type StepState = 'done' | 'active' | 'pending';
 
@@ -167,17 +174,30 @@ export function AnalysisProgressCard({
         : 'We\'re comparing your resume against the job description and preparing targeted improvement suggestions.';
 
   return (
-    <section className="analysis-progress-card" role="status" aria-live="polite">
+    <section
+      className={`analysis-progress-card${mode === 'complete' ? ' analysis-progress-card--complete' : ''}`}
+      style={mode === 'complete' ? COMPLETION_BEAT_STYLE : undefined}
+      role="status"
+      aria-live="polite"
+    >
       {mode === 'complete' && (
-        <span className="analysis-progress-card__status-icon analysis-progress-card__status-icon--success" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-            <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <span className="analysis-progress-card__success-check" aria-hidden="true">
+          <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
+            <path
+              className="analysis-progress-card__success-path"
+              pathLength="1"
+              d="M15 27.5l7.5 7.5L37 19.5"
+              stroke="currentColor"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </span>
       )}
       <h2>{title}</h2>
       <p className="analysis-progress-card__desc">{description}</p>
-      {!stalledComplete && <StepChecklist steps={getStepStates(mode, status)} />}
+      <StepChecklist steps={getStepStates(mode, status)} />
       {stalledComplete && (
         <div className="analysis-progress-card__actions">
           <button type="button" className="btn btn-primary" onClick={onViewReport}>
