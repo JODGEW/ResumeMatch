@@ -12,6 +12,12 @@ export interface FoundContact {
   email?: string;
   linkedinUrl?: string;
   source: string;
+  /**
+   * How the Lambda resolved the company. "domain" is an exact lookup;
+   * "company" is fuzzy name matching against Hunter's org index and can hit a
+   * different company with a similar name, so the UI shows a caution.
+   */
+  lookupMethod: 'domain' | 'company';
 }
 
 /**

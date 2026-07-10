@@ -3,9 +3,16 @@ import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import { getFollowUpDue } from '../pages/Tracker';
 import { findContact } from '../api/outreach';
+import type { FoundContact } from '../api/outreach';
 import './OutreachQueue.css';
 
 type LookupState = 'idle' | 'loading' | 'not_found' | 'error';
+
+// State of a domain-corrected re-run, tracked separately from the initial
+// lookup: the panel that hosts the retry only renders when the initial lookup
+// is already back, so the two are never in flight at the same time but need
+// their own messages.
+type RetryState = 'idle' | 'loading' | 'not_found' | 'error';
 
 interface OutreachQueueProps {
   applications: Application[];
@@ -16,6 +23,13 @@ interface OutreachQueueProps {
 
 export function OutreachQueue({ applications, isReadOnly, updateApplication, onEdit }: OutreachQueueProps) {
   const [lookups, setLookups] = useState<Record<string, LookupState>>({});
+  // Contacts returned by a lookup but not yet reviewed. Nothing here has been
+  // written anywhere; the user must save or discard each one.
+  const [pendingContacts, setPendingContacts] = useState<Record<string, FoundContact>>({});
+  // Domain-corrected re-run state, per application. The typed domain is used
+  // for that one lookup only and is never persisted to the Application.
+  const [retries, setRetries] = useState<Record<string, RetryState>>({});
+  const [domainInputs, setDomainInputs] = useState<Record<string, string>>({});
 
   // Derived view over useApplications: only the applications the outreach score
   // already flagged as worth it, highest score first. This does not read the
@@ -36,16 +50,68 @@ export function OutreachQueue({ applications, isReadOnly, updateApplication, onE
         setLookups(prev => ({ ...prev, [app.id]: 'not_found' }));
         return;
       }
-      // A hit is written back through the existing optimistic update path, which
-      // also recomputes outreachWorth (a contact email raises the score). We do
-      // not advance outreachStatus here; the human drives that from the existing
-      // quick actions. Nothing is ever sent from this surface.
-      await updateApplication(app.id, { contact });
+      // A hit is only held locally for review; nothing is written until the
+      // user saves it. Saving goes through the existing optimistic update path,
+      // which also recomputes outreachWorth (a contact email raises the score).
+      // We do not advance outreachStatus here; the human drives that from the
+      // existing quick actions. Nothing is ever sent from this surface.
+      setPendingContacts(prev => ({ ...prev, [app.id]: contact }));
       setLookups(prev => ({ ...prev, [app.id]: 'idle' }));
     } catch {
       // Any non 404 failure means the lookup itself is unavailable.
       setLookups(prev => ({ ...prev, [app.id]: 'error' }));
     }
+  }
+
+  async function handleRetryWithDomain(app: Application) {
+    const domain = (domainInputs[app.id] || '').trim();
+    if (!domain) return;
+    setRetries(prev => ({ ...prev, [app.id]: 'loading' }));
+    try {
+      const contact = await findContact({ applicationId: app.id, companyName: app.companyName, domain });
+      if (!contact) {
+        // 404: nobody at that domain. Keep the previous pending result on
+        // screen rather than silently falling back to it; the user can still
+        // save or discard it.
+        setRetries(prev => ({ ...prev, [app.id]: 'not_found' }));
+        return;
+      }
+      // Replace the pending result, but only if it is still pending; if the
+      // user discarded while this was in flight, do not resurrect the panel.
+      setPendingContacts(prev => (app.id in prev ? { ...prev, [app.id]: contact } : prev));
+      setRetries(prev => ({ ...prev, [app.id]: 'idle' }));
+    } catch {
+      setRetries(prev => ({ ...prev, [app.id]: 'error' }));
+    }
+  }
+
+  function clearReviewState(appId: string) {
+    setPendingContacts(prev => {
+      const next = { ...prev };
+      delete next[appId];
+      return next;
+    });
+    setRetries(prev => {
+      const next = { ...prev };
+      delete next[appId];
+      return next;
+    });
+    setDomainInputs(prev => {
+      const next = { ...prev };
+      delete next[appId];
+      return next;
+    });
+  }
+
+  async function handleSaveContact(app: Application) {
+    const contact = pendingContacts[app.id];
+    if (!contact) return;
+    clearReviewState(app.id);
+    await updateApplication(app.id, { contact });
+  }
+
+  function handleDiscardContact(appId: string) {
+    clearReviewState(appId);
   }
 
   if (queue.length === 0) {
@@ -69,6 +135,9 @@ export function OutreachQueue({ applications, isReadOnly, updateApplication, onE
         const followUp = getFollowUpDue(app);
         const lookup = lookups[app.id] || 'idle';
         const hasContact = !!app.contact?.name;
+        const pendingContact = pendingContacts[app.id];
+        const retry = retries[app.id] || 'idle';
+        const domainInput = domainInputs[app.id] || '';
 
         return (
           <div
@@ -109,6 +178,79 @@ export function OutreachQueue({ applications, isReadOnly, updateApplication, onE
                 </div>
               ) : isReadOnly ? (
                 <span className="text-secondary">No contact yet</span>
+              ) : pendingContact ? (
+                <div className="outreach-queue__contact-review">
+                  <div className="outreach-queue__contact-found">
+                    <span className="outreach-queue__contact-name">{pendingContact.name}</span>
+                    {pendingContact.role && <span className="outreach-queue__contact-role">{pendingContact.role}</span>}
+                    {pendingContact.email && <span className="outreach-queue__contact-email">{pendingContact.email}</span>}
+                    {pendingContact.linkedinUrl && (
+                      <a
+                        className="outreach-queue__contact-link"
+                        href={pendingContact.linkedinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        LinkedIn
+                      </a>
+                    )}
+                    {pendingContact.source && <span className="outreach-queue__contact-source">via {pendingContact.source}</span>}
+                  </div>
+                  {pendingContact.lookupMethod === 'company' && (
+                    <span className="outreach-queue__contact-caution">
+                      Matched by company name only, which can hit a different company with a similar name
+                    </span>
+                  )}
+                  <span className="outreach-queue__contact-msg">
+                    Check this is the right person before saving
+                  </span>
+                  {pendingContact.lookupMethod === 'company' && (
+                    <div className="outreach-queue__domain-retry">
+                      <input
+                        type="text"
+                        className="outreach-queue__domain-input"
+                        placeholder="Company domain, e.g. withglide.com"
+                        value={domainInput}
+                        disabled={retry === 'loading'}
+                        onChange={e => setDomainInputs(prev => ({ ...prev, [app.id]: e.target.value }))}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={retry === 'loading' || !domainInput.trim()}
+                        onClick={() => handleRetryWithDomain(app)}
+                      >
+                        {retry === 'loading' ? 'Looking...' : 'Look up by domain'}
+                      </button>
+                      {retry === 'not_found' && (
+                        <span className="outreach-queue__contact-msg">No contact found at that domain</span>
+                      )}
+                      {retry === 'error' && (
+                        <span className="outreach-queue__contact-msg outreach-queue__contact-msg--error">
+                          Lookup unavailable, try again later
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <div className="outreach-queue__contact-review-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={retry === 'loading'}
+                      onClick={() => handleSaveContact(app)}
+                    >
+                      Save contact
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={retry === 'loading'}
+                      onClick={() => handleDiscardContact(app.id)}
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="outreach-queue__contact-find">
                   <button
