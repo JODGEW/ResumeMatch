@@ -144,6 +144,14 @@
   color: var(--accent);
 }
 
+.outreach-queue__contact-find-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
 .outreach-queue__contact-find {
   display: flex;
   align-items: center;
@@ -165,6 +173,25 @@
 .outreach-queue__contact-link {
   font-size: 0.8rem;
   color: var(--accent);
+}
+
+.outreach-queue__contact-verified {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-md);
+  background: var(--success-dim);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+}
+
+.outreach-queue__contact-bounce {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-md);
+  background: var(--danger-dim);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
 }
 
 .outreach-queue__contact-caution {
