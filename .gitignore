@@ -17,6 +17,12 @@ eval/
 local_lambda/
 CLAUDE.md
 
+# Python venv for the eval harness. Ignored here rather than relying on the
+# venv's own auto-generated .gitignore, which only Python 3.11+ creates.
+.venv/
+__pycache__/
+*.pyc
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

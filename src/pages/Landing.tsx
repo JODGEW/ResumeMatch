@@ -15,8 +15,8 @@ const navLinks = [
 ];
 
 const resultImage = new URL('../../screenshots/landing_result.JPG', import.meta.url).href;
-const suggestionImage = new URL('../../screenshots/landing_suggestion.JPG', import.meta.url).href;
-const interviewImage = new URL('../../screenshots/landing_interview.JPG', import.meta.url).href;
+const suggestionImage = new URL('../../screenshots/landing_suggestion.jpg', import.meta.url).href;
+const interviewImage = new URL('../../screenshots/landing_interview.jpg', import.meta.url).href;
 
 const steps = [
   {
@@ -211,6 +211,11 @@ export function Landing() {
               <Link to={appHref} className="btn btn-primary landing-hero__primary">
                 {primaryLabel}
               </Link>
+              {!user && (
+                <Link to="/sample" className="btn btn-ghost landing-hero__secondary">
+                  See a sample analysis
+                </Link>
+              )}
               <a href="#how-it-works" className="btn btn-ghost landing-hero__secondary">
                 See how it works
               </a>
@@ -231,6 +236,8 @@ export function Landing() {
               <img
                 src={resultImage}
                 alt="Resume analysis results showing an overall match score, breakdown, and role-specific evaluation before applying."
+                fetchPriority="high"
+                decoding="async"
               />
             </figure>
           </div>
@@ -278,7 +285,8 @@ export function Landing() {
 
             <div className="landing-reading-wrap landing-workflow__intro">
               <p className="landing-reading-copy">
-                ResumeMatch turns role-specific gaps into resume edits, then carries the same role into interview practice.
+                Below: the concrete resume edits ResumeMatch suggests for the role,
+                and the mock interview it builds from that same posting.
               </p>
             </div>
 
@@ -322,8 +330,8 @@ export function Landing() {
 
             <div className="landing-reading-wrap landing-section__afterword">
               <p className="landing-reading-copy">
-                Start with resume analysis. Move into interview practice once the
-                application is stronger.
+                Paste a job description to see your match, the gaps that matter,
+                and the edits that close them.
               </p>
             </div>
           </div>

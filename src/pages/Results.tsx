@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
+import { countSafeEdits } from '../utils/resumeDiff';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
 import { AnalysisProgressCard, COMPLETION_BEAT_MS } from '../components/AnalysisProgressCard';
 import { SignupPromptModal } from '../components/SignupPromptModal';
@@ -13,6 +14,7 @@ import { getSession, isMissingInterviewSessionError, listSessions } from '../api
 import { clearInterviewPointer, loadInterviewPointer } from '../utils/interviewPointer';
 import { getTrackerPrefill } from '../utils/trackerPrefill';
 import { useAuth } from '../auth/AuthContext';
+import { SAMPLE_ANALYSIS } from '../types/sampleAnalysis';
 import './Results.css';
 
 type LastInterview = {
@@ -49,6 +51,9 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
 
     async function loadLastInterview() {
       setLastInterviewId(null);
+      // Read-only (shared demo account or signed-out /sample): skip the authed
+      // session lookups (listSessions / getSession) entirely.
+      if (isDemo) return;
       const candidates: LastInterview[] = [];
 
       const pointer = loadInterviewPointer(resumeText, jobDescription);
@@ -98,7 +103,7 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
     return () => {
       cancelled = true;
     };
-  }, [resumeText, jobDescription, analysisId]);
+  }, [resumeText, jobDescription, analysisId, isDemo]);
 
   return (
     <div className="results-interview-action">
@@ -193,9 +198,16 @@ function ResultsRouteLoadingState() {
   );
 }
 
-export function Results() {
+export function Results({ sample = false }: { sample?: boolean }) {
   const { analysisId } = useParams<{ analysisId: string }>();
-  const { analysis, loading, error, timedOut } = usePolling(analysisId ?? null);
+  // In sample mode we render a canned report with no backend: pass `null` to
+  // usePolling so it short-circuits (no getAnalysis call, no stale-state guard),
+  // then override its outputs with the fixture.
+  const poll = usePolling(sample ? null : (analysisId ?? null));
+  const analysis = sample ? SAMPLE_ANALYSIS : poll.analysis;
+  const loading = sample ? false : poll.loading;
+  const error = sample ? null : poll.error;
+  const timedOut = sample ? false : poll.timedOut;
   const status = normalizeAnalysisStatus(analysis?.status);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState(false);
@@ -205,6 +217,9 @@ export function Results() {
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
+  // Read-only covers both the shared demo account and the signed-out /sample page:
+  // every write/action button routes to the signup prompt instead of the backend.
+  const isReadOnly = isDemo || sample;
   const navigate = useNavigate();
 
   // Completion beat: after the user has watched the analysis run, hold a brief
@@ -232,6 +247,15 @@ export function Results() {
     const timer = setTimeout(() => setCompletionBeatDone(true), COMPLETION_BEAT_MS);
     return () => clearTimeout(timer);
   }, [showCompletionBeat]);
+
+  // How many edits the guard let through. Drives the diff caption; 0 means the texts are
+  // identical and the no-safe-rewrites empty state renders instead.
+  const safeEditCount = useMemo(() => {
+    const originalText = analysis?.originalText;
+    const suggestedText = analysis?.suggestedText;
+    if (!originalText || !suggestedText) return 0;
+    return countSafeEdits(originalText, suggestedText);
+  }, [analysis?.originalText, analysis?.suggestedText]);
 
   const closeModal = useCallback(() => {
     setResumeUrl(null);
@@ -363,6 +387,23 @@ export function Results() {
 
   return (
     <div className={`page-container results-reading-page${completionBeatDone ? ' results-reading-page--reveal' : ''}`}>
+      {/* Sample-report banner: /sample renders bare (no app nav), so this is the
+          only persistent affordance for direct visitors. Required, not optional. */}
+      {sample && (
+        <div className="results-sample-banner" role="region" aria-label="Sample report">
+          <div className="results-sample-banner__text">
+            <span className="results-sample-banner__badge">Sample report</span>
+            <span className="results-sample-banner__note">
+              This is an example analysis. Run your own resume against any job — free, no card.
+            </span>
+          </div>
+          <div className="results-sample-banner__actions">
+            <Link to="/" className="btn btn-ghost btn--sm">Back to site</Link>
+            <Link to="/signup" className="btn btn-primary btn--sm">Create a free account</Link>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="page-header animate-in">
         <div className="results-header">
@@ -390,34 +431,36 @@ export function Results() {
                 jobTitle={analysis.jobTitle}
                 matchScore={analysis.matchScore}
                 navigate={navigate}
-                isDemo={isDemo}
+                isDemo={isReadOnly}
                 onDemoAction={setSignupPrompt}
               />
             ) : null}
-            <button
-              className="btn btn-secondary"
-              onClick={handleViewResume}
-              disabled={resumeLoading}
-            >
-              {resumeLoading ? (
-                <>
-                  <span className="btn-spinner" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 10v2h10v-2M7 2v7M4 6l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  View Resume
-                </>
-              )}
-            </button>
+            {!sample && (
+              <button
+                className="btn btn-secondary"
+                onClick={handleViewResume}
+                disabled={resumeLoading}
+              >
+                {resumeLoading ? (
+                  <>
+                    <span className="btn-spinner" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 10v2h10v-2M7 2v7M4 6l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    View Resume
+                  </>
+                )}
+              </button>
+            )}
             <button
               className="btn btn-outline"
-              title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
+              title={isReadOnly ? 'Sign up for full access' : 'Add to Outreach Tracker'}
               onClick={() => {
-                if (isDemo) {
+                if (isReadOnly) {
                   setSignupPrompt({
                     title: 'Add This Role to Your Outreach Tracker',
                     body: 'Create a free account to save roles, track follow-ups, and manage your application pipeline.',
@@ -646,17 +689,39 @@ export function Results() {
         </div>
       )}
 
-      {/* Diff View */}
+      {/* Diff View. The rewrite guard refuses to insert anything your resume doesn't back
+          up, so a clean run legitimately produces zero edits. Say so plainly instead of
+          rendering a "suggested improvements" heading over an unchanged document. */}
       {analysis.originalText && analysis.suggestedText && (
         <div className="results-section animate-in stagger-4">
           <h2>Detailed Changes</h2>
-          <p className="text-secondary results-section__intro">
-            Side-by-side comparison of your resume with suggested improvements
-          </p>
-          <DiffView
-            original={analysis.originalText}
-            suggested={analysis.suggestedText}
-          />
+          {analysis.suggestedText.trim() === analysis.originalText.trim() ? (
+            <div className="results-no-rewrites">
+              <p className="results-no-rewrites__title">No safe rewrites for this posting.</p>
+              <p className="results-no-rewrites__body">
+                Nothing in your resume backs up the missing keywords, so there is no honest
+                wording change to make. These are real gaps, not phrasing differences. We
+                will not add tools or skills you haven&apos;t used. See the suggestions for
+                what would actually close them.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="results-diff-caption">
+                {safeEditCount > 0 && (
+                  <strong className="results-diff-caption__count">
+                    {safeEditCount === 1 ? '1 safe edit found.' : `${safeEditCount} safe edits found.`}
+                  </strong>
+                )}{' '}
+                We only change wording your resume already backs up. Anything still missing is
+                a real gap; see the suggestions.
+              </p>
+              <DiffView
+                original={analysis.originalText}
+                suggested={analysis.suggestedText}
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -664,7 +729,7 @@ export function Results() {
       <DownloadOptimizedButton
         suggestedText={analysis.suggestedText}
         status="completed"
-        isDemo={isDemo}
+        isDemo={isReadOnly}
       />
 
       {signupPrompt && (

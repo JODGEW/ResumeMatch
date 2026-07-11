@@ -786,3 +786,106 @@
     animation: none;
   }
 }
+
+/* ── Diff caption (edits exist) ──────────────────────────────────────────
+   Shares the empty state's surface so the two rewrite outcomes read as one
+   component in two states, not two unrelated boxes. */
+.results-diff-caption {
+  margin-bottom: 1rem;
+  padding: 0.875rem 1.125rem;
+  max-width: 72ch;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 8px);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.results-diff-caption__count {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── No-safe-rewrites empty state ────────────────────────────────────── */
+.results-no-rewrites {
+  padding: 1.25rem 1.375rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 8px);
+  background: var(--surface-subtle);
+}
+
+.results-no-rewrites__title {
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.results-no-rewrites__body {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* ── Sample-report banner (signed-out /sample page) ──────────────────── */
+.results-sample-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.875rem 1.125rem;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-lg, 8px);
+  background: var(--accent-dim);
+}
+
+.results-sample-banner__text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.results-sample-banner__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 9999px;
+  background: var(--surface-card);
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.results-sample-banner__note {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.results-sample-banner__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .results-sample-banner__actions {
+    width: 100%;
+  }
+
+  .results-sample-banner__actions .btn {
+    flex: 1;
+  }
+}

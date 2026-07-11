@@ -7,6 +7,12 @@ import './Layout.css';
 
 const DEMO_EMAIL = 'demo123@resumeapp.com';
 
+// The cost dashboard shows per-analysis estimatedCost and token counts — internal unit
+// economics. It is owner-only. Note this is NOT demo123@resumeapp.com: that is the public
+// "Try Demo" account, so gating on it meant anyone who clicked Try Demo could open
+// /dashboard from the nav and read our costs.
+const COST_DASHBOARD_EMAIL = 'demo@resumeapp.com';
+
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -56,8 +62,7 @@ export function Layout() {
     }
   }
 
-  const isDashboardVisible =
-    user?.email === DEMO_EMAIL || import.meta.env.VITE_DEV_BYPASS === 'true';
+  const isDashboardVisible = user?.email === COST_DASHBOARD_EMAIL;
 
   return (
     <div className="layout">
