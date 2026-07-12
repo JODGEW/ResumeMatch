@@ -4,29 +4,33 @@ import type { Analysis } from './index';
  * Powers the signed-out `/sample` demo report at resumematchapp.com/sample.
  *
  * PROVENANCE — do not hand-edit this object.
- * Exported verbatim from a real production run (analysisId 25535b87-…, 2026-07-11,
- * cacheSource "miss") made AFTER the Pass 3 honesty guard and the keyword-validation fix
- * shipped. Every number and string below is genuine model output. The candidate, Jordan
- * Reyes, is a fully fictional persona (555 number, example.com email) written for this
- * purpose, so there is no real personal data here.
+ * Exported verbatim from a real production run (analysisId 8b85ea60…, 2026-07-12,
+ * cacheSource "miss") made AFTER the v5 deploy: the fail-closed Pass 3 honesty guard
+ * (`unevidenced_insertion`) AND the structural Check 3 keyword-validation rewrite (full
+ * content-token coverage + KEYWORD_ALIASES). Every number and string below is genuine model
+ * output. Jordan Reyes is a fully fictional persona (555 number, example.com email), so
+ * there is no real personal data here.
  *
- * Fields are WHITELISTED to the `Analysis` type. That is deliberate, not incidental: it
- * drops tokenUsage (which carries per-analysis cost — do not publish), s3Key, userId, and
- * the cache fields, without anyone having to remember to blacklist them one by one. String
- * numbers from the DynamoDB record are coerced to the types `Analysis` declares.
+ * Fields are WHITELISTED to the `Analysis` type. That is deliberate: it drops tokenUsage
+ * (per-analysis cost — do not publish), s3Key, userId and the cache fields without anyone
+ * having to remember to blacklist them. String numbers from DynamoDB are coerced to the
+ * types `Analysis` declares.
  *
  * The rewrite contains exactly ONE edit — "firewalls" inserted beside "security groups",
- * which are the same thing in AWS. That is the guard working: it refuses to insert Ansible,
- * Prometheus, Grafana or anything else the resume never evidences. A sparse diff is the
- * honest result, not a broken one.
+ * which are the same thing in AWS, and which is the in-line anchor that licenses it. The
+ * guard refuses to insert Ansible, Prometheus, Grafana or anything else the resume never
+ * evidences. A sparse diff is the honest result, not a broken one; a zero-edit diff is the
+ * common one.
  *
- * To refresh: rerun the pair in production, confirm cacheSource is "miss", and re-derive
- * from the browser network tab.
+ * To refresh: set CACHE_BYPASS=true on the analyzeResume Lambda, rerun the pair, confirm
+ * cacheSource is "miss", re-derive from the browser network tab, then set CACHE_BYPASS back
+ * to false. A whitespace tweak will NOT bust the cache — build_cache_key normalizes
+ * whitespace away before hashing.
  */
 export const SAMPLE_ANALYSIS: Analysis = {
   analysisId: 'sample',
   status: 'completed',
-  createdAt: '2026-07-11T11:40:13.462Z',
+  createdAt: '2026-07-12T15:05:12.568Z',
 
   fileName: 'sample_resume_jordan_reyes.pdf',
   jobTitle: 'Platform & Infrastructure Engineer @ Northwind Media',
@@ -90,31 +94,31 @@ export const SAMPLE_ANALYSIS: Analysis = {
       keyword: 'Ansible',
       importanceScore: 10,
       reason:
-        'Ansible is explicitly named as a preferred IaC tool in the hard requirements and appears multiple times across both the responsibilities and requirements sections, making it a core technical expectation for this role.',
+        'Ansible is explicitly named as a preferred IaC tool in the hard requirements and appears multiple times across responsibilities and nice-to-haves, making it central to the role\'s core IaC work.',
     },
     {
       keyword: 'Bare metal provisioning',
       importanceScore: 9,
       reason:
-        "Bare metal server provisioning is called out repeatedly as a primary hands-on responsibility unique to this hybrid infrastructure role and directly reflects Northwind Media's on-premises data center environment.",
+        'Bare metal server provisioning is a defining responsibility of this hybrid infrastructure role and is called out repeatedly as a hands-on core duty that distinguishes this position from pure cloud roles.',
+    },
+    {
+      keyword: 'VLANs',
+      importanceScore: 8,
+      reason:
+        'VLANs are listed as a hard requirement under basic networking knowledge and appear directly in the day-to-day network operations responsibilities, making them essential for the candidate to demonstrate.',
     },
     {
       keyword: 'Firewalls',
       importanceScore: 8,
       reason:
-        'Firewall rule maintenance is listed as a required day-to-day network operations task under the responsibilities section and falls within the basic networking understanding hard requirement.',
-    },
-    {
-      keyword: 'VLANs',
-      importanceScore: 7,
-      reason:
-        'VLANs appear in both the responsibilities and hard requirements sections as a networking fundamental the candidate is expected to support, reflecting the on-premises and hybrid network operations focus of the role.',
+        'Firewall rule maintenance is listed as a hard requirement under networking fundamentals and is explicitly tied to daily operational responsibilities involving troubleshooting and network support.',
     },
     {
       keyword: 'Prometheus',
-      importanceScore: 4,
+      importanceScore: 5,
       reason:
-        'Prometheus is listed as a nice-to-have observability tool and aligns with the responsibility to contribute to monitoring dashboards and alert configuration across hybrid environments, giving it practical relevance despite its lower priority classification.',
+        'Prometheus is a nice-to-have observability tool listed under both the tools category and the nice-to-have section, and monitoring dashboard contributions are an active responsibility in this role, giving it meaningful but secondary weight.',
     },
   ],
 
