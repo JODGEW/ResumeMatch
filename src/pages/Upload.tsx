@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { FileDropzone } from '../components/FileDropzone';
 import { LastResumeCard } from '../components/LastResumeCard';
 import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, fetchLastResume } from '../api/upload';
+import { extractApiErrorMessage } from '../api/errors';
 import '../components/LastResumeCard.css';
 import './Upload.css';
 
@@ -149,7 +150,7 @@ export function Upload() {
         navigate(`/results/${analysisId}`);
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number; data?: { error?: string; errorMessage?: string; message?: string } } };
+      const axiosErr = err as { response?: { status?: number } };
       const status = axiosErr?.response?.status;
 
       // If reuse fails with 404, the original resume is gone — clear and fall back to dropzone
@@ -159,13 +160,7 @@ export function Upload() {
         setIsChangingResume(false);
         setError('Previous resume is no longer available. Please upload again.');
       } else {
-        const axiosData = axiosErr?.response?.data;
-        const message = axiosData?.error
-          || axiosData?.errorMessage
-          || axiosData?.message
-          || (err instanceof Error ? err.message : null)
-          || 'Upload failed. Please try again.';
-        setError(message);
+        setError(extractApiErrorMessage(err, 'Upload failed. Please try again.'));
       }
       setStage('idle');
     }

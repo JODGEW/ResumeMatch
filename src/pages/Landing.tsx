@@ -14,9 +14,9 @@ const navLinks = [
   { href: '#faq', label: 'FAQ' },
 ];
 
-const resultImage = new URL('../../screenshots/landing_result.JPG', import.meta.url).href;
+const resultImage = new URL('../../screenshots/landing_analysis_result.jpg', import.meta.url).href;
 const suggestionImage = new URL('../../screenshots/landing_suggestion.jpg', import.meta.url).href;
-const interviewImage = new URL('../../screenshots/landing_interview.jpg', import.meta.url).href;
+const interviewImage = new URL('../../screenshots/landing_interview_assessment.jpg', import.meta.url).href;
 
 const steps = [
   {
@@ -54,9 +54,9 @@ const workflowPreviews = [
     title: 'Role-based mock interview',
     body: 'Carry the same role into interview practice and review how the answers hold up.',
     image: interviewImage,
-    alt: 'Role-based mock interview results showing interview questions, transcript feedback, and evaluation for the same job context.',
-    frameClassName: ' landing-shot--preview-portrait',
-    imageClassName: ' landing-shot__image--portrait',
+    alt: 'Mock interview assessment for the same role showing an overall score with category scores for communication structure, STAR framework usage, specificity, role relevance, and self-awareness.',
+    frameClassName: ' landing-shot--preview-wide',
+    imageClassName: ' landing-shot__image--wide',
   },
 ];
 
@@ -235,7 +235,7 @@ export function Landing() {
             <figure className="landing-shot landing-shot--hero">
               <img
                 src={resultImage}
-                alt="Resume analysis results showing an overall match score, breakdown, and role-specific evaluation before applying."
+                alt="Resume analysis results showing a match score with breakdown, an experience-gap warning, and the matched and missing keywords for the job description."
                 fetchPriority="high"
                 decoding="async"
               />

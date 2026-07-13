@@ -344,12 +344,14 @@
 }
 
 .landing-shot--hero {
+  max-width: 58rem;
+  margin: 0 auto;
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
 }
 
 .landing-shot--hero img {
-  aspect-ratio: 3024 / 1654;
+  aspect-ratio: 2337 / 2300;
 }
 
 /* ── Sections ───────────────────────────────────────── */

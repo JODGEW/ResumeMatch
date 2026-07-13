@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useMicrophoneCheck } from '../hooks/useMicrophoneCheck';
 import { useMicrophoneLevel } from '../hooks/useMicrophoneLevel';
+import { extractApiErrorMessage } from '../api/errors';
 import {
   startInterview,
   submitTurn,
@@ -436,8 +437,9 @@ export function Interview() {
         }, 1000);
       } catch (err) {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Failed to start interview';
-        setError(msg);
+        // Surface the backend body copy (e.g. the daily interview limit) instead
+        // of axios's "Request failed with status code 429".
+        setError(extractApiErrorMessage(err, 'Failed to start interview'));
         setInterviewState('setup');
       } finally {
         startInFlightRef.current = false;
@@ -573,8 +575,7 @@ export function Interview() {
       setConversation(prev => [...prev, userTurn, aiTurn]);
       speakQuestion(nextQuestion);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to get next question';
-      setError(msg);
+      setError(extractApiErrorMessage(err, 'Failed to get next question'));
       setInterviewState('active');
     } finally {
       if (submitInFlightRef.current === submitPromise) {
