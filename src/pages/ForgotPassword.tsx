@@ -5,6 +5,7 @@ import { CodeInput } from '../components/CodeInput';
 import { LogoMark } from '../components/LogoMark';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useResendTimer } from '../hooks/useResendTimer';
+import { validatePassword, friendlyPasswordPolicyError, PASSWORD_REQUIREMENTS_HINT, PASSWORD_RULES } from '../utils/passwordPolicy';
 import './Login.css';
 
 function getPasswordStrength(pw: string): 'weak' | 'medium' | 'strong' {
@@ -78,13 +79,23 @@ export function ForgotPassword() {
     e.preventDefault();
     setError('');
 
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
+    // Collect every client-side problem in form order (code, then password) —
+    // the banner names everything wrong with the submit, not just the first
+    // failed check.
+    const problems: string[] = [];
+    if (code.length !== 6) {
+      problems.push('Enter the 6-digit verification code from your email.');
     }
-
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const policyError = validatePassword(newPassword);
+    if (policyError) {
+      problems.push(policyError);
+    }
+    if (newPassword !== confirmPassword) {
+      problems.push('Passwords do not match.');
+    }
+    if (problems.length > 0) {
+      // Newline-joined: .login-card__error renders pre-line, one problem per line.
+      setError(problems.join('\n'));
       return;
     }
 
@@ -93,7 +104,10 @@ export function ForgotPassword() {
       await confirmForgotPassword(email, code, newPassword);
       navigate('/login', { state: { resetSuccess: true } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Password reset failed.');
+      setError(
+        friendlyPasswordPolicyError(err)
+          ?? (err instanceof Error ? err.message : 'Password reset failed.')
+      );
     } finally {
       setLoading(false);
     }
@@ -231,14 +245,12 @@ export function ForgotPassword() {
                 </button>
               </div>
               {newPassword.length === 0 ? (
-                <p className="login-card__pw-hint">Use 8+ characters with letters, numbers &amp; symbols</p>
+                <p className="login-card__pw-hint">{PASSWORD_REQUIREMENTS_HINT}</p>
               ) : (
                 <ul className="login-card__pw-rules">
-                  <li data-met={newPassword.length >= 8}>8+ chars</li>
-                  <li data-met={/[a-z]/.test(newPassword)}>lowercase</li>
-                  <li data-met={/[A-Z]/.test(newPassword)}>uppercase</li>
-                  <li data-met={/\d/.test(newPassword)}>number</li>
-                  <li data-met={/[^a-zA-Z0-9]/.test(newPassword)}>symbol</li>
+                  {PASSWORD_RULES.map((rule) => (
+                    <li key={rule.label} data-met={rule.test(newPassword)}>{rule.label}</li>
+                  ))}
                 </ul>
               )}
               {newPassword.length > 0 && (

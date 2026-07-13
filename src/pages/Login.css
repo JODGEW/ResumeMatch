@@ -162,6 +162,8 @@
   text-align: center;
   gap: 0.5rem;
   font-size: 0.8125rem;
+  /* Multi-problem submits join messages with \n — render one per line. */
+  white-space: pre-line;
   color: var(--danger);
   background: var(--danger-dim);
   border: 1px solid var(--danger-border);
@@ -518,13 +520,15 @@
   color: var(--text-tertiary);
 }
 
+/* Same link treatment as .login-card__link a — the muted body copy already
+   de-emphasizes the fine print; the links themselves should read as links. */
 .login-card__consent a {
-  color: var(--text-secondary);
+  color: var(--accent);
   font-weight: 510;
 }
 
 .login-card__consent a:hover {
-  color: var(--text-primary);
+  opacity: 0.8;
 }
 
 /* ── Back to login ─────────────────────────────────── */

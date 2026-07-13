@@ -15,14 +15,33 @@ type LookupState = 'idle' | 'loading' | 'not_found' | 'error';
 // same domain would hit the 7 day not-found cache and return the same 404.
 type RetryState = 'idle' | 'loading' | 'not_found' | 'error';
 
+// Outreach that has concluded, one way or the other. These stay visible in the
+// list/board views; the queue is only for outreach still worth doing.
+const OUTREACH_DONE: ReadonlySet<Application['outreachStatus']> = new Set([
+  'replied',
+  'no_response',
+  'skipped',
+]);
+
+// Plain-language membership rules, surfaced as a hover/focus tooltip on the
+// count line and read to screen readers. Status names match the UI labels.
+// Keep in sync with the queue memo below and the empty-state copy.
+const QUEUE_RULES =
+  'Shows open applications with an outreach score of 60 or higher, highest first. '
+  + 'Not shown: applications marked Rejected or Offer, and outreach already marked '
+  + 'Replied, No Response, or Skipped.';
+
 interface OutreachQueueProps {
   applications: Application[];
+  // True when the tracker search box has a query; switches the empty state from
+  // "nothing qualifies" to "no matches".
+  isSearching: boolean;
   isReadOnly: boolean;
   updateApplication: (id: string, updates: Partial<Application>) => Promise<void> | void;
   onEdit: (id: string) => void;
 }
 
-export function OutreachQueue({ applications, isReadOnly, updateApplication, onEdit }: OutreachQueueProps) {
+export function OutreachQueue({ applications, isSearching, isReadOnly, updateApplication, onEdit }: OutreachQueueProps) {
   const [lookups, setLookups] = useState<Record<string, LookupState>>({});
   // Contacts returned by a lookup but not yet reviewed. Nothing here has been
   // written anywhere; the user must save or discard each one.
@@ -54,11 +73,18 @@ export function OutreachQueue({ applications, isReadOnly, updateApplication, onE
     return latestRequest.current[appId] === id;
   }
 
-  // Derived view over useApplications: only the applications the outreach score
-  // already flagged as worth it, highest score first. This does not read the
-  // list view's filter, search, or sort state; it is its own prioritized queue.
+  // Derived view over useApplications: open applications the outreach score
+  // flagged as worth it, highest score first. The Tracker applies its search box
+  // before passing `applications`; the list view's filter tabs and sort dropdown
+  // are hidden in this view and never apply — the queue owns its membership and
+  // ranking. Closed-out items are excluded: dead or decided applications
+  // (rejected / offer) and outreach that already concluded (OUTREACH_DONE).
   const queue = useMemo(() => {
     return applications
+      .filter(app =>
+        app.applicationStatus !== 'rejected'
+        && app.applicationStatus !== 'offer'
+        && !OUTREACH_DONE.has(app.outreachStatus))
       .map(app => ({ app, scoring: calculateOutreachScore(app) }))
       .filter(({ scoring }) => scoring.worth)
       .sort((a, b) => b.scoring.score - a.scoring.score);
@@ -149,11 +175,19 @@ export function OutreachQueue({ applications, isReadOnly, updateApplication, onE
   }
 
   if (queue.length === 0) {
-    return (
+    return isSearching ? (
+      <div className="outreach-queue__empty">
+        <h3>No matches</h3>
+        <p className="text-secondary">
+          No queued applications match your search.
+        </p>
+      </div>
+    ) : (
       <div className="outreach-queue__empty">
         <h3>Nothing to reach out to yet</h3>
         <p className="text-secondary">
-          Applications the outreach score rates 60 or higher appear here, ranked by score.
+          Open applications the outreach score rates 60 or higher appear here, ranked by
+          score. Closed-out applications and finished outreach don&apos;t show up.
         </p>
       </div>
     );
@@ -163,6 +197,18 @@ export function OutreachQueue({ applications, isReadOnly, updateApplication, onE
     <div className="outreach-queue">
       <p className="outreach-queue__count text-secondary">
         {queue.length} worth reaching out to, highest score first
+        {/* tabIndex makes the tooltip reachable by keyboard and by tap on touch
+            devices (focus in, tap away to dismiss). */}
+        <span className="outreach-queue__count-info" tabIndex={0} role="img" aria-label={QUEUE_RULES}>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M7 6.6v3.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            <circle cx="7" cy="4.3" r="0.7" fill="currentColor" />
+          </svg>
+        </span>
+        <span className="outreach-queue__count-tooltip" role="tooltip" aria-hidden="true">
+          {QUEUE_RULES}
+        </span>
       </p>
 
       {queue.map(({ app, scoring }) => {

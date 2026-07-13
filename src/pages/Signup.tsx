@@ -5,6 +5,7 @@ import { CodeInput } from '../components/CodeInput';
 import { LogoMark } from '../components/LogoMark';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useResendTimer } from '../hooks/useResendTimer';
+import { validatePassword, friendlyPasswordPolicyError, PASSWORD_REQUIREMENTS_HINT, PASSWORD_RULES } from '../utils/passwordPolicy';
 import './Login.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -56,8 +57,9 @@ export function Signup() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const policyError = validatePassword(password);
+    if (policyError) {
+      setError(policyError);
       return;
     }
 
@@ -66,7 +68,10 @@ export function Signup() {
       await signup(email, password, '');
       setStep('confirm');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-up failed.');
+      setError(
+        friendlyPasswordPolicyError(err)
+          ?? (err instanceof Error ? err.message : 'Sign-up failed.')
+      );
     } finally {
       setLoading(false);
     }
@@ -90,6 +95,10 @@ export function Signup() {
   async function handleConfirm(e: FormEvent) {
     e.preventDefault();
     setError('');
+    if (code.length !== 6) {
+      setError('Enter the 6-digit verification code from your email.');
+      return;
+    }
     setLoading(true);
     try {
       await confirmAccount(email, code);
@@ -193,14 +202,12 @@ export function Signup() {
                 </button>
               </div>
               {password.length === 0 ? (
-                <p className="login-card__pw-hint">Use 8+ characters with letters, numbers &amp; symbols</p>
+                <p className="login-card__pw-hint">{PASSWORD_REQUIREMENTS_HINT}</p>
               ) : (
                 <ul className="login-card__pw-rules">
-                  <li data-met={password.length >= 8}>8+ chars</li>
-                  <li data-met={/[a-z]/.test(password)}>lowercase</li>
-                  <li data-met={/[A-Z]/.test(password)}>uppercase</li>
-                  <li data-met={/\d/.test(password)}>number</li>
-                  <li data-met={/[^a-zA-Z0-9]/.test(password)}>symbol</li>
+                  {PASSWORD_RULES.map((rule) => (
+                    <li key={rule.label} data-met={rule.test(password)}>{rule.label}</li>
+                  ))}
                 </ul>
               )}
               {password.length > 0 && (
@@ -279,8 +286,10 @@ export function Signup() {
             </button>
 
             <p className="login-card__consent">
-              By creating an account, you agree to our <Link to="/terms">Terms</Link> and{' '}
-              <Link to="/privacy">Privacy Policy</Link>.
+              {/* New tab: same-tab navigation would discard the half-filled signup form. */}
+              By creating an account, you agree to our{' '}
+              <Link to="/terms" target="_blank" rel="noopener noreferrer">Terms</Link> and{' '}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.
             </p>
 
             <p className="login-card__link">

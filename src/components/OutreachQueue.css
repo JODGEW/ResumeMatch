@@ -7,6 +7,46 @@
 .outreach-queue__count {
   margin: 0 0 0.25rem;
   font-size: 0.85rem;
+  /* Anchor for the membership-rules tooltip. */
+  position: relative;
+}
+
+.outreach-queue__count-info {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 0.375rem;
+  color: var(--text-secondary);
+  cursor: help;
+}
+
+/* Same show-on-hover pattern as .results-score__tooltip, anchored to the count
+   line's left edge. Opens upward so it covers the controls chrome rather than
+   the first queue card; z-index sits above .header-sticky (100) so a mid-scroll
+   hover isn't buried under the translucent header. */
+.outreach-queue__count-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  max-width: min(340px, calc(100vw - 3rem));
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  box-shadow: var(--shadow-popover);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
+  pointer-events: none;
+  z-index: 101;
+}
+
+.outreach-queue__count-info:hover ~ .outreach-queue__count-tooltip,
+.outreach-queue__count-info:focus ~ .outreach-queue__count-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .outreach-queue__empty {

@@ -317,8 +317,9 @@
 @media (min-width: 768px) {
   .ir-report-nav {
     position: sticky;
-    /* Clear the sticky 60px app header so the switcher stays visible. */
-    top: 4.25rem;
+    /* Clear the sticky app header — 60px nav plus the demo banner when present.
+       Layout publishes the measured height as --app-header-h. */
+    top: calc(var(--app-header-h, 60px) + 0.5rem);
     z-index: 5;
   }
 }
@@ -630,7 +631,8 @@
 .ir-transcript {
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
-  scroll-margin-top: 8rem;
+  /* Land jumps clear of the sticky header + stuck switcher (see .ir-report-nav). */
+  scroll-margin-top: calc(var(--app-header-h, 60px) + 4.25rem);
 }
 
 .ir-reading-page .ir-transcript {
@@ -640,7 +642,8 @@
 
 .ir-assessment-section {
   margin-top: 1.5rem;
-  scroll-margin-top: 8rem;
+  /* Keep in sync with .ir-transcript's scroll-margin-top. */
+  scroll-margin-top: calc(var(--app-header-h, 60px) + 4.25rem);
 }
 
 .ir-assessment-section--empty {

@@ -80,6 +80,15 @@ function getAppStageAction(app: Application, step: Application['applicationStatu
   }
 }
 
+// Shared by the list/board filter memo and the outreach view: q must already be
+// lowercased and trimmed; empty q matches everything.
+function matchesSearch(app: Application, q: string): boolean {
+  if (!q) return true;
+  return app.companyName.toLowerCase().includes(q)
+    || app.roleTitle.toLowerCase().includes(q)
+    || (app.contact?.name || '').toLowerCase().includes(q);
+}
+
 // Outreach pipeline: flag the current step when user should take action
 function getOutreachStageAction(app: Application, step: Application['outreachStatus'], isCurrent: boolean, followUp: ReturnType<typeof getFollowUpDue>): string | null {
   if (!isCurrent) return null;
@@ -1114,7 +1123,7 @@ export function Tracker() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return applications.filter(app => {
-      if (q && !app.companyName.toLowerCase().includes(q) && !app.roleTitle.toLowerCase().includes(q) && !(app.contact?.name || '').toLowerCase().includes(q)) return false;
+      if (!matchesSearch(app, q)) return false;
       if (filter === 'worth') return calculateOutreachScore(app).worth;
       if (filter === 'follow_up') return getFollowUpDue(app) !== null;
       if (filter === 'awaiting') return app.outreachStatus === 'sent' || app.outreachStatus === 'followed_up';
@@ -1123,6 +1132,14 @@ export function Tracker() {
       return true;
     });
   }, [applications, filter, search]);
+
+  // Outreach view: the search box applies, but not the filter tabs or sort —
+  // those controls are hidden there and the queue owns its own membership and
+  // ranking (see OutreachQueue).
+  const outreachApps = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return q ? applications.filter(app => matchesSearch(app, q)) : applications;
+  }, [applications, search]);
 
   // Sort
   const sorted = useMemo(() => {
@@ -1372,17 +1389,22 @@ export function Tracker() {
 
       {/* Controls */}
       <div className="tracker-controls animate-in" style={{ animationDelay: '0.12s' }}>
-        <div className="tracker-filters">
-          {filters.map(f => (
-            <button
-              key={f.key}
-              className={`tracker-filter ${filter === f.key ? 'tracker-filter--active' : ''}`}
-              onClick={() => handleFilterChange(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {/* Filter tabs, sort, and CSV govern the list/board dataset. The outreach
+            queue deliberately ignores them (it owns its membership and ranking),
+            so they are hidden there instead of rendering as dead controls. */}
+        {view !== 'outreach' && (
+          <div className="tracker-filters">
+            {filters.map(f => (
+              <button
+                key={f.key}
+                className={`tracker-filter ${filter === f.key ? 'tracker-filter--active' : ''}`}
+                onClick={() => handleFilterChange(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="tracker-controls__right">
           <div className="tracker-view-toggle">
             <button
@@ -1426,12 +1448,14 @@ export function Tracker() {
             value={search}
             onChange={e => handleSearchChange(e.target.value)}
           />
-          <select className="tracker-sort" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
-            <option value="dateApplied">Date Applied</option>
-            <option value="matchPercentage">Match %</option>
-            <option value="outreachScore">Outreach Score</option>
-          </select>
-          {sorted.length > 0 && (
+          {view !== 'outreach' && (
+            <select className="tracker-sort" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
+              <option value="dateApplied">Date Applied</option>
+              <option value="matchPercentage">Match %</option>
+              <option value="outreachScore">Outreach Score</option>
+            </select>
+          )}
+          {view !== 'outreach' && sorted.length > 0 && (
             <button className="btn btn-ghost tracker-export-btn" onClick={handleExportAll} title={`Export ${sorted.length} ${filter === 'all' ? '' : filter + ' '}applications as CSV`}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 9v2.5a1 1 0 001 1h8a1 1 0 001-1V9M4.5 6L7 8.5 9.5 6M7 2v6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -1488,7 +1512,8 @@ export function Tracker() {
       {/* Application List / Board / Outreach */}
       {view === 'outreach' ? (
         <OutreachQueue
-          applications={applications}
+          applications={outreachApps}
+          isSearching={search.trim().length > 0}
           isReadOnly={isReadOnly}
           updateApplication={updateApplication}
           onEdit={(id) => setModalState({ open: true, editId: id })}

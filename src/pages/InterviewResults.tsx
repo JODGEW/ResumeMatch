@@ -4,6 +4,9 @@ import { getAnalysis } from '../api/analysis';
 import { endInterview, getSession, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { clearInterviewPointer } from '../utils/interviewPointer';
+import { useAuth } from '../auth/AuthContext';
+import { SignupPromptModal } from '../components/SignupPromptModal';
+import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SESSION_ID } from '../types/sampleInterviewSession';
 import './InterviewResults.css';
 
 type InterviewType = 'behavioral' | 'technical';
@@ -194,6 +197,12 @@ function getTurnDetailLines(turn: TranscriptTurn): string[] {
 export function InterviewResults() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isDemo = user?.email === 'demo123@resumeapp.com';
+  // The shared demo account views the canned showcase session; it has no real
+  // sessions (interview start is sign-up gated), so this never shadows one.
+  const isSampleSession = isDemo && sessionId === SAMPLE_INTERVIEW_SESSION_ID;
+  const [signupPrompt, setSignupPrompt] = useState<{ title: string; body: string } | null>(null);
   const pendingFinalization = sessionId ? loadPendingInterviewFinalization(sessionId) : null;
   const [retryAssessmentCount, setRetryAssessmentCount] = useState(0);
   const shouldFinalizeInterview = Boolean(pendingFinalization);
@@ -213,6 +222,12 @@ export function InterviewResults() {
 
   useEffect(() => {
     if (!sessionId) return;
+    if (isSampleSession) {
+      setSession(SAMPLE_INTERVIEW_SESSION);
+      setLoading(false);
+      setFinalizing(false);
+      return;
+    }
     const activeSessionId = sessionId;
 
     let cancelled = false;
@@ -349,7 +364,7 @@ export function InterviewResults() {
       cancelled = true;
       if (pollTimeout) clearTimeout(pollTimeout);
     };
-  }, [sessionId, shouldFinalizeInterview, finalizationEndReason, retryAssessmentCount]);
+  }, [sessionId, isSampleSession, shouldFinalizeInterview, finalizationEndReason, retryAssessmentCount]);
 
   // Scroll-spy: keep the Assessment/Transcript switcher in sync with the
   // section the user is actually reading, not just the last one clicked.
@@ -362,8 +377,11 @@ export function InterviewResults() {
       const atPageBottom =
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
       if (atPageBottom) return 'transcript';
-      // Threshold sits just below the sections' scroll-margin-top (8rem).
-      return transcriptEl.getBoundingClientRect().top <= 160 ? 'transcript' : 'assessment';
+      // Threshold sits just below the sections' scroll-margin-top, which tracks the
+      // sticky header height (demo banner included) via --app-header-h — so read the
+      // computed value instead of hardcoding it. 128px mirrors the CSS fallback.
+      const scrollMargin = parseFloat(getComputedStyle(transcriptEl).scrollMarginTop) || 128;
+      return transcriptEl.getBoundingClientRect().top <= scrollMargin + 32 ? 'transcript' : 'assessment';
     }
 
     function clearJumpSuppression() {
@@ -509,6 +527,13 @@ export function InterviewResults() {
   }
 
   async function startInterviewAgain() {
+    if (isDemo) {
+      setSignupPrompt({
+        title: 'Start Your Mock Interview',
+        body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
+      });
+      return;
+    }
     if (!session?.analysisId) return;
 
     setRestartError('');
@@ -985,6 +1010,14 @@ export function InterviewResults() {
           })}
         </div>
       </section>
+
+      {signupPrompt && (
+        <SignupPromptModal
+          onClose={() => setSignupPrompt(null)}
+          title={signupPrompt.title}
+          body={signupPrompt.body}
+        />
+      )}
     </div>
   );
 }

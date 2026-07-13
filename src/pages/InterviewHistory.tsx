@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getSession, listSessions, type SessionSummary } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { useAuth } from '../auth/AuthContext';
+import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SUMMARY } from '../types/sampleInterviewSession';
 import './InterviewHistory.css';
 
 function formatDate(dateStr: string): string {
@@ -129,12 +131,27 @@ function groupSessionsByBucket(
 
 export function InterviewHistory() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isDemo = user?.email === 'demo123@resumeapp.com';
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // The shared demo account can't start real interviews (sign-up gated), so it
+    // showcases the canned sample session instead of calling the backend — same
+    // pattern as the tracker's SAMPLE_DATA.
+    if (isDemo) {
+      setSessions([SAMPLE_INTERVIEW_SUMMARY]);
+      setQuestionCounts({
+        [SAMPLE_INTERVIEW_SUMMARY.sessionId]:
+          SAMPLE_INTERVIEW_SESSION.conversation.filter(isInterviewQuestionTurn).length,
+      });
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
     let polls = 0;
@@ -192,7 +209,7 @@ export function InterviewHistory() {
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, []);
+  }, [isDemo]);
 
   return (
     <div className="page-container">

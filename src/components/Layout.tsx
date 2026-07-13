@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { LogoMark } from './LogoMark';
 import { ThemeToggle } from './ThemeToggle';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import './Layout.css';
 
 const DEMO_EMAIL = 'demo123@resumeapp.com';
@@ -20,6 +20,25 @@ export function Layout() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'dark'
   );
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // The sticky header's height varies (demo banner, wrapping). Publish the measured
+  // height as --app-header-h so page-level sticky chrome (e.g. the InterviewResults
+  // Assessment/Transcript switcher) can offset against the real header instead of a
+  // hardcoded 60px. Layout effect: set before first paint to avoid a one-frame jump.
+  useLayoutEffect(() => {
+    const layout = layoutRef.current;
+    const header = headerRef.current;
+    if (!layout || !header) return;
+    const publishHeight = () => {
+      layout.style.setProperty('--app-header-h', `${header.getBoundingClientRect().height}px`);
+    };
+    publishHeight();
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   // Keep label in sync when ThemeToggle changes the data-theme attribute
   useEffect(() => {
@@ -65,8 +84,8 @@ export function Layout() {
   const isDashboardVisible = user?.email === COST_DASHBOARD_EMAIL;
 
   return (
-    <div className="layout">
-      <header className="header-sticky">
+    <div className="layout" ref={layoutRef}>
+      <header className="header-sticky" ref={headerRef}>
         <nav className="nav">
           <div className="nav__inner">
             {/* Hamburger — mobile only */}

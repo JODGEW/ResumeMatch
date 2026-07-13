@@ -267,7 +267,9 @@
   font-size: 0.8125rem;
   min-height: 40px;
   position: sticky;
-  top: 0;
+  /* Stick below the app header (60px nav + demo banner when present; 48px on
+     mobile) — Layout publishes the measured height as --app-header-h. */
+  top: calc(var(--app-header-h, 60px) + 0.5rem);
   z-index: 20;
   backdrop-filter: blur(8px);
 }
