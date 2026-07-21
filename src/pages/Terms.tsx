@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { LegalLayout } from '../components/LegalLayout';
 import { siteConfig } from '../config/site';
 
@@ -41,6 +42,10 @@ export function Terms() {
         </p>
         <p>
           You are responsible for making sure you have the right to upload and use the content you submit.
+        </p>
+        <p>
+          How your content is stored and what is never stored (including interview audio) is
+          described in our <Link to="/privacy">Privacy Policy</Link>.
         </p>
       </section>
 
