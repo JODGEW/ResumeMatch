@@ -167,15 +167,50 @@
   opacity: 0.7;
 }
 
-.landing-hero__content {
+.landing-hero__inner {
   position: relative;
   z-index: 1;
-  min-height: 74vh;
+  min-height: 62vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 32rem);
+  align-items: center;
+  gap: 3rem;
+  padding-top: 7rem;
+  padding-bottom: 5.5rem;
+}
+
+.landing-hero__content {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding-top: 7rem;
-  padding-bottom: 5.5rem;
+}
+
+.landing-hero__visual {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1.25rem;
+}
+
+.landing-hero__card {
+  display: block;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-lg);
+}
+
+.landing-hero__card--keywords {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1108 / 512;
+}
+
+.landing-hero__card--score {
+  width: 14rem;
+  height: auto;
+  aspect-ratio: 552 / 532;
+  margin-right: 1.5rem;
 }
 
 .landing-eyebrow {
@@ -760,6 +795,18 @@
 }
 
 /* ── Responsive ─────────────────────────────────────── */
+/* Below this width the copy column gets too narrow to hold the CTA row on one
+   line, so the hero drops back to the single-column layout. */
+@media (max-width: 1180px) {
+  .landing-hero__inner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .landing-hero__visual {
+    display: none;
+  }
+}
+
 @media (max-width: 1100px) {
   .landing-steps,
   .landing-features {
@@ -809,7 +856,7 @@
     padding-bottom: 3.5rem;
   }
 
-  .landing-hero__content {
+  .landing-hero__inner {
     min-height: auto;
     padding-top: 5.5rem;
     padding-bottom: 4.5rem;

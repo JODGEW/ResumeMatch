@@ -17,6 +17,8 @@ const navLinks = [
 const resultImage = new URL('../../screenshots/landing_analysis_result.jpg', import.meta.url).href;
 const suggestionImage = new URL('../../screenshots/landing_suggestion.jpg', import.meta.url).href;
 const interviewImage = new URL('../../screenshots/landing_interview_assessment.jpg', import.meta.url).href;
+const heroKeywordsImage = new URL('../../screenshots/hero_card_keywords.jpg', import.meta.url).href;
+const heroScoreImage = new URL('../../screenshots/hero_card_score.jpg', import.meta.url).href;
 
 const steps = [
   {
@@ -124,6 +126,10 @@ const faqs = [
     answer: 'Yes. ResumeMatch is currently free during beta. You can use the full workflow today, with daily limits on analyses and mock interview sessions.',
   },
   {
+    question: 'What happens to my resume and my data?',
+    answer: 'Your resume (the file and its extracted text), your job descriptions, analyses, and interview transcripts are stored privately in your account so you can come back to them. Interview audio streams to our transcription provider (Deepgram) for live speech-to-text. We never store it, we opt out of Deepgram\'s model-improvement program on every request, and per Deepgram\'s policy, opted-out audio is retained only long enough to process the request. We never sell your data, and nothing you upload is used to train AI models: analyses run on AWS Bedrock, which does not use customer inputs for training. Want everything gone? Email support@resumematchapp.com and your account and data are deleted within 7 days.',
+  },
+  {
     question: 'Who is this for?',
     answer: 'ResumeMatch is for job seekers who want a more targeted way to improve applications and prepare for interviews.',
   },
@@ -198,32 +204,51 @@ export function Landing() {
       <main>
         <section className="landing-hero">
           <div className="landing-hero__glow" aria-hidden="true" />
-          <div className="page-container landing-hero__content">
-            <p className="landing-eyebrow">For real job applications</p>
-            <h1>Get the interview. Then pass it.</h1>
-            <div className="landing-reading-wrap landing-hero__reading">
-              <p className="landing-hero__lede">
-                Match your resume to a real job description, improve the application
-                before you send it, and practice for the interview for that same role.
-              </p>
-            </div>
-            <div className="landing-hero__actions">
-              <Link to={appHref} className="btn btn-primary landing-hero__primary">
-                {primaryLabel}
-              </Link>
-              {!user && (
-                <Link to="/sample" className="btn btn-ghost landing-hero__secondary">
-                  See a sample analysis
+          <div className="page-container landing-hero__inner">
+            <div className="landing-hero__content">
+              <p className="landing-eyebrow">For real job applications</p>
+              <h1>Get the interview. Then pass it.</h1>
+              <div className="landing-reading-wrap landing-hero__reading">
+                <p className="landing-hero__lede">
+                  Match your resume to a real job description, improve the application
+                  before you send it, and practice for the interview for that same role.
+                </p>
+              </div>
+              <div className="landing-hero__actions">
+                <Link to={appHref} className="btn btn-primary landing-hero__primary">
+                  {primaryLabel}
                 </Link>
-              )}
-              <a href="#how-it-works" className="btn btn-ghost landing-hero__secondary">
-                See how it works
-              </a>
+                {!user && (
+                  <Link to="/sample" className="btn btn-ghost landing-hero__secondary">
+                    See a sample analysis
+                  </Link>
+                )}
+                <a href="#how-it-works" className="btn btn-ghost landing-hero__secondary">
+                  See how it works
+                </a>
+              </div>
+              <ul className="landing-hero__trust" aria-label="Privacy assurances">
+                <li>No data sold</li>
+                <li>No model training on your content</li>
+              </ul>
             </div>
-            <ul className="landing-hero__trust" aria-label="Privacy assurances">
-              <li>No data sold</li>
-              <li>No model training on your content</li>
-            </ul>
+
+            <div className="landing-hero__visual" aria-hidden="true">
+              <img
+                className="landing-hero__card landing-hero__card--keywords"
+                src={heroKeywordsImage}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                className="landing-hero__card landing-hero__card--score"
+                src={heroScoreImage}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
           </div>
         </section>
 

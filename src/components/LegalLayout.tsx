@@ -11,10 +11,11 @@ type LegalLayoutProps = {
   eyebrow: string;
   title: string;
   intro: string;
+  lastUpdated?: string;
   children: ReactNode;
 };
 
-export function LegalLayout({ eyebrow, title, intro, children }: LegalLayoutProps) {
+export function LegalLayout({ eyebrow, title, intro, lastUpdated, children }: LegalLayoutProps) {
   const { user } = useAuth();
   const actionHref = user ? '/upload' : '/login';
   const actionLabel = user ? 'Open app' : 'Sign in';
@@ -43,7 +44,7 @@ export function LegalLayout({ eyebrow, title, intro, children }: LegalLayoutProp
             <p className="legal-eyebrow">{eyebrow}</p>
             <h1>{title}</h1>
             <p className="legal-intro">{intro}</p>
-            <p className="legal-meta">Last updated {siteConfig.legalLastUpdated}</p>
+            <p className="legal-meta">Last updated {lastUpdated ?? siteConfig.legalLastUpdated}</p>
           </div>
         </section>
 

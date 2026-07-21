@@ -260,6 +260,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
           language: 'en-US',
           smart_format: 'true',
           interim_results: 'true',
+          // Privacy-policy commitment: opt out of Deepgram's model-improvement
+          // program on every request (mirrors the batch call in api/deepgram.ts).
+          mip_opt_out: 'true',
           keyterm: deepgramKeyterms,
           Authorization: `Bearer ${accessToken}`,
         }) as DeepgramConnection;

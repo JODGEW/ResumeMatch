@@ -75,6 +75,10 @@ export async function transcribeFinal(
     model: 'nova-3',
     smart_format: 'true',
     language: 'en-US',
+    // Privacy-policy commitment: every Deepgram request opts out of the
+    // model-improvement program, so opted-out audio is retained by Deepgram
+    // only long enough to process the request.
+    mip_opt_out: 'true',
   });
   keyterms.forEach((term) => {
     const trimmed = term.trim();
