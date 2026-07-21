@@ -1,5 +1,19 @@
 import { LegalLayout } from '../components/LegalLayout';
+import type { LegalTocItem } from '../components/LegalLayout';
+import { LegalSection } from '../components/LegalSection';
 import { siteConfig } from '../config/site';
+
+const TOC: LegalTocItem[] = [
+  { id: 's1', label: 'What we store' },
+  { id: 's2', label: 'What we do not store' },
+  { id: 's3', label: 'Training' },
+  { id: 's4', label: 'Deletion' },
+  { id: 's5', label: 'System logs' },
+  { id: 's6', label: 'Sub-processors' },
+  { id: 's7', label: 'Contact' },
+];
+
+const CHIPS = ['No interview audio stored', 'No model training on your data', 'Delete your data anytime'];
 
 export function Privacy() {
   return (
@@ -7,10 +21,11 @@ export function Privacy() {
       eyebrow="Privacy"
       title="Privacy Policy"
       intro="How ResumeMatch collects, uses, stores, and protects your data."
+      chips={CHIPS}
+      toc={TOC}
       lastUpdated="July 20, 2026"
     >
-      <section className="legal-section--major">
-        <h2>1. What we store</h2>
+      <LegalSection id="s1" num="01" title="What we store">
         <p>When you use ResumeMatch we store, privately in your account:</p>
         <ul>
           <li>the resume file you upload (the PDF itself) and the text extracted from it;</li>
@@ -18,10 +33,9 @@ export function Privacy() {
           <li>your analysis results (match scores, keyword lists, suggested edits);</li>
           <li>your mock-interview transcripts (the text of your answers and our feedback).</li>
         </ul>
-      </section>
+      </LegalSection>
 
-      <section className="legal-section--major">
-        <h2>2. What we do not store</h2>
+      <LegalSection id="s2" num="02" title="What we do not store">
         <p>
           We do not store interview <strong>audio</strong>. When you speak an answer, the audio
           streams from your browser directly to our speech-to-text provider,{' '}
@@ -30,37 +44,33 @@ export function Privacy() {
           model-improvement program on every request, and per Deepgram&apos;s policy, opted-out
           audio is retained only long enough to process the request.
         </p>
-      </section>
+      </LegalSection>
 
-      <section className="legal-section--major">
-        <h2>3. Training</h2>
+      <LegalSection id="s3" num="03" title="Training">
         <p>
           Nothing you upload is used to train AI models. Analyses run on{' '}
           <strong>Amazon Bedrock</strong>, which does not use customer inputs to train its models
           (per AWS policy). We do not train any model on your data, and we never sell your data.
         </p>
-      </section>
+      </LegalSection>
 
-      <section className="legal-section--major">
-        <h2>4. Deletion</h2>
+      <LegalSection id="s4" num="04" title="Deletion">
         <p>
           Email <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a> and we
           will delete your account and all associated data within <strong>7 days</strong>.
           Self-serve deletion from within the app is coming.
         </p>
-      </section>
+      </LegalSection>
 
-      <section className="legal-section--major">
-        <h2>5. System logs</h2>
+      <LegalSection id="s5" num="05" title="System logs">
         <p>
           Operational logs may contain fragments derived from your resume (for example extracted
           keywords). These logs expire automatically within <strong>90 days</strong>.
         </p>
-      </section>
+      </LegalSection>
 
-      <section className="legal-section--major">
-        <h2>6. Sub-processors</h2>
-        <ul>
+      <LegalSection id="s6" num="06" title="Sub-processors">
+        <ul className="legal-list--loose">
           <li>
             <strong>Amazon Web Services</strong> — hosting, storage, and AI analysis. Receives
             everything you upload.
@@ -77,15 +87,14 @@ export function Privacy() {
             your identity.
           </li>
         </ul>
-      </section>
+      </LegalSection>
 
-      <section>
-        <h2>7. Contact</h2>
+      <LegalSection id="s7" num="07" title="Contact">
         <p>
           Questions about this policy can be sent to{' '}
           <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a>.
         </p>
-      </section>
+      </LegalSection>
     </LegalLayout>
   );
 }

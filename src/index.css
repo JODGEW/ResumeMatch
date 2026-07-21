@@ -90,6 +90,42 @@
   --shadow-glow: 0 0 0 1px var(--accent-border), 0 10px 28px rgba(94, 106, 210, 0.18);
   --shadow-focus: 0 0 0 3px var(--accent-dim);
   --shadow-popover: 0 18px 56px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Landing redesign tokens (Claude Design bundle) */
+  --nav-bg: rgba(15, 16, 17, 0.85);
+  --surface-inset: rgba(255, 255, 255, 0.02);
+  --ghost-bg: rgba(255, 255, 255, 0.02);
+  --ghost-text: #e2e4e7;
+  --border-solid: #23252a;
+  --brand-tint-bg: rgba(94, 106, 210, 0.15);
+  --brand-tint-border: rgba(130, 143, 255, 0.35);
+  --brand-tint-text: #a0aaff;
+  --link: #828fff;
+  --link-hover: #a0aaff;
+  --success-alt: #10b981;
+  --warn: #c9973c;
+  --danger-soft: #c96a78;
+  --pill-success-text: #7fd7ae;
+  --pill-success-border: rgba(16, 185, 129, 0.25);
+  --pill-success-bg: rgba(16, 185, 129, 0.05);
+  --pill-danger-text: #dfa3ac;
+  --pill-danger-border: rgba(201, 106, 120, 0.28);
+  --pill-danger-bg: rgba(201, 106, 120, 0.06);
+  --warn-tint-bg: rgba(201, 151, 60, 0.1);
+  --warn-tint-border: rgba(201, 151, 60, 0.3);
+  --danger-tint-bg: rgba(201, 106, 120, 0.05);
+  --danger-tint-border: rgba(201, 106, 120, 0.3);
+  --track: rgba(255, 255, 255, 0.07);
+  --tab-active-bg: rgba(255, 255, 255, 0.06);
+  --pricing-free-bg: rgba(94, 106, 210, 0.06);
+  --pricing-free-border: rgba(130, 143, 255, 0.3);
+  --float-card-bg: rgba(255, 255, 255, 0.03);
+  --card-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px;
+  --hero-glow: rgba(94, 106, 210, 0.14);
+  --show-glow: rgba(94, 106, 210, 0.28);
+  --input-bg: rgba(255, 255, 255, 0.02);
+  --success-tint-bg: rgba(16, 185, 129, 0.08);
+  --success-tint-border: rgba(16, 185, 129, 0.25);
 }
 
 [data-theme="dark"] {
@@ -173,6 +209,42 @@
   --shadow-glow: 0 0 0 1px var(--accent-border), 0 12px 28px rgba(94, 106, 210, 0.14);
   --shadow-focus: 0 0 0 3px var(--accent-dim);
   --shadow-popover: 0 18px 56px rgba(20, 22, 28, 0.16);
+
+  /* Landing redesign tokens (Claude Design bundle) */
+  --nav-bg: rgba(247, 248, 248, 0.85);
+  --surface-inset: #f7f8f8;
+  --ghost-bg: #ffffff;
+  --ghost-text: #3c414b;
+  --border-solid: #d0d6e0;
+  --brand-tint-bg: rgba(94, 106, 210, 0.1);
+  --brand-tint-border: rgba(94, 106, 210, 0.3);
+  --brand-tint-text: #5e6ad2;
+  --link: #5e6ad2;
+  --link-hover: #4c58c4;
+  --success-alt: #0e9668;
+  --warn: #a3721c;
+  --danger-soft: #b4485c;
+  --pill-success-text: #157f56;
+  --pill-success-border: rgba(14, 150, 104, 0.35);
+  --pill-success-bg: rgba(14, 150, 104, 0.05);
+  --pill-danger-text: #a83e52;
+  --pill-danger-border: rgba(180, 72, 92, 0.3);
+  --pill-danger-bg: rgba(180, 72, 92, 0.04);
+  --warn-tint-bg: rgba(163, 114, 28, 0.08);
+  --warn-tint-border: rgba(163, 114, 28, 0.3);
+  --danger-tint-bg: rgba(180, 72, 92, 0.04);
+  --danger-tint-border: rgba(180, 72, 92, 0.3);
+  --track: #e9eaec;
+  --tab-active-bg: #eef0f2;
+  --pricing-free-bg: rgba(94, 106, 210, 0.05);
+  --pricing-free-border: rgba(94, 106, 210, 0.35);
+  --float-card-bg: #ffffff;
+  --card-shadow: rgba(0, 0, 0, 0.08) 0px 2px 6px;
+  --hero-glow: rgba(94, 106, 210, 0.1);
+  --show-glow: rgba(94, 106, 210, 0.16);
+  --input-bg: #ffffff;
+  --success-tint-bg: rgba(14, 150, 104, 0.08);
+  --success-tint-border: rgba(14, 150, 104, 0.25);
 }
 
 /* ── Reset & Base ───────────────────────────────────── */

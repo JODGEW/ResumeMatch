@@ -1,76 +1,147 @@
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { siteConfig } from '../config/site';
 import { ThemeToggle } from './ThemeToggle';
-import { PublicFooter } from './PublicFooter';
 import { LogoMark } from './LogoMark';
+import { LandingFooter } from '../pages/landing/LandingFooter';
+import { TrustCheckIcon } from '../pages/landing/icons';
 import './LegalLayout.css';
+
+export type LegalTocItem = { id: string; label: string };
 
 type LegalLayoutProps = {
   eyebrow: string;
   title: string;
   intro: string;
+  chips: string[];
+  toc: LegalTocItem[];
   lastUpdated?: string;
   children: ReactNode;
 };
 
-export function LegalLayout({ eyebrow, title, intro, lastUpdated, children }: LegalLayoutProps) {
+export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, children }: LegalLayoutProps) {
   const { user } = useAuth();
   const actionHref = user ? '/upload' : '/login';
   const actionLabel = user ? 'Open app' : 'Sign in';
+  const [activeId, setActiveId] = useState(toc[0]?.id);
+  const [tocOpen, setTocOpen] = useState(false);
+  const activeLabel = toc.find((item) => item.id === activeId)?.label ?? toc[0]?.label;
+
+  useEffect(() => {
+    const sections = toc
+      .map((item) => document.getElementById(item.id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (sections.length === 0) return;
+
+    // Scrollspy parameters from the design bundle: a section is "active" when
+    // it enters the band between the sticky nav and the upper third of the viewport.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveId(visible[0].target.id);
+      },
+      { rootMargin: '-88px 0px -68% 0px', threshold: 0 },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [toc]);
 
   return (
     <div className="legal-page">
-      <header className="legal-header">
-        <div className="page-container legal-header__inner">
-          <Link to="/" className="legal-header__brand" aria-label={`${siteConfig.name} home`}>
+      <header className="legal-nav">
+        <div className="legal-nav__inner">
+          <Link to="/" className="legal-nav__brand" aria-label={`${siteConfig.name} home`}>
             <LogoMark />
             <span>{siteConfig.name}</span>
           </Link>
-
-          <div className="legal-header__actions">
-            <ThemeToggle />
-            <Link to={actionHref} className="btn btn-ghost btn--sm">
-              {actionLabel}
-            </Link>
-          </div>
+          <div className="legal-nav__spacer" />
+          <ThemeToggle />
+          <Link to={actionHref} className="legal-btn legal-btn--ghost">
+            {actionLabel}
+          </Link>
         </div>
       </header>
 
-      <main className="legal-main">
-        <section className="legal-hero">
-          <div className="page-container legal-hero__inner">
-            <p className="legal-eyebrow">{eyebrow}</p>
+      <main>
+        <header className="legal-hero">
+          <div className="legal-hero__glow" aria-hidden="true" />
+          <div className="legal-hero__inner">
+            <div className="legal-eyebrow">{eyebrow}</div>
             <h1>{title}</h1>
             <p className="legal-intro">{intro}</p>
-            <p className="legal-meta">Last updated {lastUpdated ?? siteConfig.legalLastUpdated}</p>
+            <div className="legal-chips">
+              {chips.map((chip) => (
+                <span key={chip} className="legal-chip">
+                  <TrustCheckIcon />
+                  {chip}
+                </span>
+              ))}
+            </div>
+            <div className="legal-updated">Last updated {lastUpdated ?? siteConfig.legalLastUpdated}</div>
           </div>
-        </section>
+        </header>
 
-        <section className="legal-content">
-          <div className="page-container legal-content__inner">
-            <article className="legal-copy">{children}</article>
-          </div>
-        </section>
+        <div className="legal-body">
+          <aside className={`legal-toc${tocOpen ? ' is-open' : ''}`}>
+            <div className="legal-toc__label">On this page</div>
+            <button
+              type="button"
+              className="legal-toc__toggle"
+              aria-expanded={tocOpen}
+              onClick={() => setTocOpen((open) => !open)}
+            >
+              <span className="legal-toc__toggle-label">On this page</span>
+              <span className="legal-toc__toggle-current">{activeLabel}</span>
+              <svg
+                className="legal-toc__chevron"
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                aria-hidden="true"
+              >
+                <polyline
+                  points="2.5,4.5 6,8 9.5,4.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <nav aria-label="On this page">
+              {toc.map((item) => (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  className={activeId === item.id ? 'is-active' : undefined}
+                  onClick={() => setTocOpen(false)}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </aside>
+          <div className="legal-sections">{children}</div>
+        </div>
 
         <section className="legal-cta">
-          <div className="page-container legal-cta__inner">
-            <div className="legal-cta__card">
-              <p className="legal-eyebrow">Ready when you are</p>
-              <h2>See how your resume matches the role</h2>
-              <p className="legal-cta__copy">
-                Analyze your resume against a real job description, then practice for the same role.
-              </p>
-              <Link to={actionHref} className="btn btn-primary">
-                Analyze My Resume
-              </Link>
-            </div>
+          <div className="legal-cta__card">
+            <div className="legal-eyebrow legal-cta__eyebrow">Ready when you are</div>
+            <h2>See how your resume matches the role</h2>
+            <p>Analyze your resume against a real job description, then practice for the same role.</p>
+            <Link to={actionHref} className="legal-btn legal-btn--primary">
+              Analyze My Resume
+            </Link>
           </div>
         </section>
       </main>
 
-      <PublicFooter />
+      <LandingFooter appHref={actionHref} narrow />
     </div>
   );
 }
