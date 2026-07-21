@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
-import { getFollowUpDue } from '../pages/Tracker';
+import { getFollowUpDue, splitReason, isOutreachNotNeeded } from '../pages/Tracker';
 import { findContact } from '../api/outreach';
 import type { FoundContact, LookupMethod } from '../api/outreach';
 import './OutreachQueue.css';
@@ -28,8 +28,9 @@ const OUTREACH_DONE: ReadonlySet<Application['outreachStatus']> = new Set([
 // Keep in sync with the queue memo below and the empty-state copy.
 const QUEUE_RULES =
   'Shows open applications with an outreach score of 60 or higher, highest first. '
-  + 'Not shown: applications marked Rejected or Offer, and outreach already marked '
-  + 'Replied, No Response, or Skipped.';
+  + 'Not shown: applications marked Rejected or Offer, outreach already marked '
+  + 'Replied, No Response, or Skipped, and applications that reached Screening or '
+  + 'Interviewing before any outreach — those no longer need it.';
 
 interface OutreachQueueProps {
   applications: Application[];
@@ -84,7 +85,10 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
       .filter(app =>
         app.applicationStatus !== 'rejected'
         && app.applicationStatus !== 'offer'
-        && !OUTREACH_DONE.has(app.outreachStatus))
+        && !OUTREACH_DONE.has(app.outreachStatus)
+        // Advanced to screening/interviewing without outreach — it was never
+        // needed, so the queue shouldn't keep asking for it.
+        && !isOutreachNotNeeded(app))
       .map(app => ({ app, scoring: calculateOutreachScore(app) }))
       .filter(({ scoring }) => scoring.worth)
       .sort((a, b) => b.scoring.score - a.scoring.score);
@@ -187,7 +191,8 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
         <h3>Nothing to reach out to yet</h3>
         <p className="text-secondary">
           Open applications the outreach score rates 60 or higher appear here, ranked by
-          score. Closed-out applications and finished outreach don&apos;t show up.
+          score. Closed-out applications, finished outreach, and anything that reached
+          screening on its own don&apos;t show up.
         </p>
       </div>
     );
@@ -195,7 +200,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
 
   return (
     <div className="outreach-queue">
-      <p className="outreach-queue__count text-secondary">
+      <p className="outreach-queue__count">
         {queue.length} worth reaching out to, highest score first
         {/* tabIndex makes the tooltip reachable by keyboard and by tap on touch
             devices (focus in, tap away to dismiss). */}
@@ -247,7 +252,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
             />
             <button
               type="button"
-              className="btn btn-secondary"
+              className="tracker-btn tracker-btn--ghost tracker-btn--sm"
               disabled={retry === 'loading' || !domainInput.trim()}
               onClick={() => handleRetryWithDomain(app)}
             >
@@ -267,7 +272,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
         return (
           <div
             key={app.id}
-            className={`outreach-queue__card card${isReadOnly ? '' : ' outreach-queue__card--clickable'}`}
+            className={`outreach-queue__card${isReadOnly ? '' : ' outreach-queue__card--clickable'}`}
             onClick={isReadOnly ? undefined : () => onEdit(app.id)}
           >
             <div className="outreach-queue__head">
@@ -285,11 +290,19 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
             )}
 
             <div className="outreach-queue__reasons">
-              <div className="outreach-queue__reasons-title">Why it is worth it</div>
+              <div className="outreach-queue__reasons-title">Why it&apos;s worth it</div>
               <ul>
-                {scoring.reasons.map((reason, i) => (
-                  <li key={i}>{reason}</li>
-                ))}
+                {scoring.reasons.map((reason, i) => {
+                  const { label, pts } = splitReason(reason);
+                  return (
+                    <li key={i}>
+                      {label}
+                      {pts && (
+                        <span className={`outreach-queue__reason-pts${pts === '+0' ? ' outreach-queue__reason-pts--zero' : ''}`}>{pts}</span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
@@ -348,7 +361,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                   <div className="outreach-queue__contact-review-actions">
                     <button
                       type="button"
-                      className="btn btn-primary"
+                      className="tracker-btn tracker-btn--brand tracker-btn--sm"
                       disabled={retry === 'loading'}
                       onClick={() => handleSaveContact(app)}
                     >
@@ -356,7 +369,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                     </button>
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      className="tracker-btn tracker-btn--ghost tracker-btn--sm"
                       disabled={retry === 'loading'}
                       onClick={() => handleDiscardContact(app.id)}
                     >
@@ -369,10 +382,14 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                   <div className="outreach-queue__contact-find">
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      className="tracker-btn tracker-btn--ghost tracker-btn--sm outreach-queue__find-btn"
                       disabled={lookup === 'loading' || retry === 'loading'}
                       onClick={() => handleFindContact(app)}
                     >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <circle cx="6" cy="5.5" r="2.4" stroke="currentColor" strokeWidth="1.4" />
+                        <path d="M2.5 13c0-2 1.6-3.4 3.5-3.4S9.5 11 9.5 13M10.5 6.5l1.6 1.6 2.4-2.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
                       {lookup === 'loading' ? 'Looking...' : 'Find contact'}
                     </button>
                     {lookup === 'not_found' && (

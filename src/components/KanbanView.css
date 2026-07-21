@@ -1,40 +1,43 @@
-/* ── Kanban Board ──────────────────────────────────── */
+/* Board view — implementation of the approved Claude Design bundle
+   (Outreach Tracker.dc.html, BOARD VIEW). Shares the pill family and button
+   classes defined in Tracker.css; this component only renders inside the
+   Tracker page, so that stylesheet is always loaded.
+
+   Deviation from the bundle: a zero-count column is NOT collapsed to a 52px
+   vertical rail. Columns stay full width and empty ones show the bundle's
+   dashed "No applications" placeholder, which doubles as the drop target
+   (its text swaps to "Drop here" while dragging). */
+
 .kanban {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
-  min-height: 400px;
+  display: flex;
+  gap: 14px;
   overflow-x: auto;
-  padding-bottom: 1rem;
+  padding-bottom: 12px;
 }
 
 /* Column */
 .kanban__column {
+  flex-shrink: 0;
+  width: 280px;
   display: flex;
   flex-direction: column;
-  min-width: 180px;
-  background: var(--surface-subtle);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  transition: border-color 0.15s, background 0.15s;
+  gap: 10px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .kanban__column--drop-target {
-  border-color: var(--accent);
-  background: var(--accent-dim);
+  background: var(--surface-inset);
+  border-color: var(--brand-tint-border);
 }
 
 .kanban__column-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  background: inherit;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  z-index: 1;
+  gap: 8px;
+  padding: 4px 2px;
 }
 
 .kanban__column-dot {
@@ -45,26 +48,25 @@
 }
 
 .kanban__column-title {
-  font-size: 0.75rem;
-  font-weight: 510;
+  font-size: 13px;
+  font-weight: 590;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .kanban__column-count {
-  font-size: 0.6875rem;
+  font-size: 12px;
+  font-weight: 510;
   color: var(--text-muted);
-  background: var(--surface-raised);
-  padding: 1px 6px;
-  border-radius: 8px;
-  margin-left: auto;
+  background: var(--surface-inset);
+  border-radius: 9999px;
+  padding: 1px 8px;
 }
 
 .kanban__column-body {
-  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
   overflow-y: auto;
   max-height: 65vh;
@@ -72,28 +74,29 @@
 }
 
 .kanban__empty {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  border: 1px dashed var(--border-standard);
+  border-radius: 12px;
+  padding: 22px;
   text-align: center;
-  padding: 24px 8px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
 }
 
 /* Card */
 .kanban__card {
-  background: var(--surface-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  cursor: grab;
-  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.15s;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--card-shadow);
+  cursor: grab;
+  transition: border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .kanban__card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--border-standard);
 }
 
 .kanban__card:active {
@@ -106,40 +109,34 @@
 }
 
 .kanban__card--ghost {
-  padding: 10px;
-  font-size: 0.8125rem;
-  font-weight: 510;
+  padding: 14px;
+  font-size: 14.5px;
+  font-weight: 590;
   color: var(--text-primary);
-  border-color: var(--accent);
+  border-color: var(--border-standard);
 }
 
 .kanban__card-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .kanban__card-company {
-  font-size: 0.8125rem;
-  font-weight: 510;
+  font-size: 14.5px;
+  font-weight: 590;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.kanban__card-match {
-  font-size: 0.6875rem;
-  font-weight: 510;
-  padding: 1px 6px;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
 .kanban__card-role {
-  font-size: 0.75rem;
+  font-size: 13px;
   color: var(--text-secondary);
+  margin-bottom: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -148,29 +145,20 @@
 .kanban__card-tags {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-top: 2px;
-}
-
-.kanban__card-tags .outreach-badge {
-  font-size: 0.625rem;
-  padding: 1px 5px;
 }
 
 .kanban__card-worth {
-  font-size: 0.625rem;
-  color: var(--success);
-  background: var(--success-dim);
-  padding: 1px 5px;
-  border-radius: 4px;
+  font-size: 12px;
   font-weight: 510;
+  color: var(--pill-success-text);
 }
 
 .kanban__card-contact {
-  font-size: 0.6875rem;
+  font-size: 12px;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 8px;
 }
 
 /* ── Mobile status select (hidden on desktop) ──────── */
@@ -178,18 +166,17 @@
   display: none;
 }
 
-/* ── Tablet: horizontal scroll ─────────────────────── */
+/* ── Tablet ────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .kanban {
-    grid-template-columns: repeat(6, minmax(160px, 1fr));
+  .kanban__column {
+    width: 250px;
   }
 }
 
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
   .kanban {
-    grid-template-columns: repeat(6, minmax(200px, 1fr));
-    gap: 8px;
+    gap: 10px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     scroll-snap-type: x mandatory;
@@ -200,7 +187,7 @@
   }
 
   .kanban__column {
-    min-width: 200px;
+    width: 84vw;
     scroll-snap-align: start;
   }
 
@@ -212,26 +199,26 @@
   .kanban__card-status-select {
     display: block;
     width: 100%;
-    margin-top: 4px;
-    padding: 4px 6px;
-    font-size: 0.6875rem;
-    font-weight: 500;
+    margin-top: 12px;
+    padding: 6px 20px 6px 9px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 510;
     color: var(--text-secondary);
-    background: var(--surface-subtle);
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    background: var(--surface-inset);
+    border: 1px solid var(--border-standard);
+    border-radius: 8px;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 6px center;
-    padding-right: 20px;
+    background-position: right 8px center;
   }
 
   .kanban__card-status-select:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--brand-tint-border);
   }
 
   /* Disable touch-drag on mobile (use select instead) */

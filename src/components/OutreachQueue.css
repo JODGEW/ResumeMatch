@@ -1,12 +1,24 @@
+/* Outreach view — implementation of the approved Claude Design bundle
+   (Outreach Tracker.dc.html, OUTREACH VIEW). Shares the pill family and button
+   classes defined in Tracker.css; this component only renders inside the
+   Tracker page, so that stylesheet is always loaded.
+
+   The bundle's card covers the "no contact yet" and "contact found" states
+   only. Everything the real lookup flow adds — loading, not-found, verification
+   states, the fuzzy-match caution and the domain retry — keeps its markup and
+   takes the same surfaces/tokens. */
+
 .outreach-queue {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
 }
 
 .outreach-queue__count {
-  margin: 0 0 0.25rem;
-  font-size: 0.85rem;
+  grid-column: 1 / -1;
+  margin: 0 0 2px;
+  font-size: 13px;
+  color: var(--text-muted);
   /* Anchor for the membership-rules tooltip. */
   position: relative;
 }
@@ -14,7 +26,7 @@
 .outreach-queue__count-info {
   display: inline-flex;
   vertical-align: -2px;
-  margin-left: 0.375rem;
+  margin-left: 6px;
   color: var(--text-secondary);
   cursor: help;
 }
@@ -28,12 +40,12 @@
   bottom: calc(100% + 6px);
   left: 0;
   max-width: min(340px, calc(100vw - 3rem));
-  background: var(--surface-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0.5rem 0.75rem;
-  box-shadow: var(--shadow-popover);
-  font-size: 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 10px;
+  padding: 8px 12px;
+  box-shadow: var(--card-shadow-lg);
+  font-size: 12px;
   line-height: 1.45;
   color: var(--text-secondary);
   opacity: 0;
@@ -51,92 +63,108 @@
 
 .outreach-queue__empty {
   text-align: center;
-  padding: 3rem 1rem;
+  padding: 56px 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  color: var(--text-muted);
 }
 
 .outreach-queue__empty h3 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 6px;
+  font-size: 16px;
   color: var(--text-primary);
 }
 
+.outreach-queue__empty p {
+  font-size: 14px;
+}
+
+/* ── Card ───────────────────────────────────────────── */
 .outreach-queue__card {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  gap: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  transition: border-color 0.15s ease;
+}
+
+.outreach-queue__card:hover {
+  border-color: var(--border-standard);
 }
 
 .outreach-queue__card--clickable {
   cursor: pointer;
 }
 
-.outreach-queue__card--clickable:hover {
-  border-color: var(--accent-border);
-  background: var(--surface-card-hover);
-}
-
 .outreach-queue__head {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 14px;
 }
 
 .outreach-queue__title {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  flex: 1;
   min-width: 0;
 }
 
 .outreach-queue__role {
-  font-weight: 600;
+  display: block;
+  font-size: 16px;
+  font-weight: 590;
+  letter-spacing: -0.2px;
   color: var(--text-primary);
 }
 
 .outreach-queue__company {
-  font-size: 0.85rem;
+  display: block;
+  font-size: 14px;
   color: var(--text-secondary);
+  margin-top: 2px;
 }
 
 .outreach-queue__score {
-  flex: none;
-  min-width: 2.5rem;
-  height: 2.5rem;
-  display: grid;
-  place-items: center;
-  padding: 0 0.5rem;
-  border-radius: var(--radius-md);
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
-  font-weight: 700;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 590;
+  line-height: 1;
+  padding: 5px 11px;
+  border-radius: 9px;
+  color: var(--brand-tint-text);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
   font-variant-numeric: tabular-nums;
 }
 
 .outreach-queue__followup {
   align-self: flex-start;
-  font-size: 0.8rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-md);
-  background: var(--warning-dim);
-  color: var(--warning);
-  border: 1px solid var(--warning-border);
+  font-size: 12.5px;
+  font-weight: 510;
+  padding: 4px 11px;
+  border-radius: 9999px;
+  color: var(--pill-warn-text);
+  background: var(--pill-warn-bg);
+  border: 1px solid var(--pill-warn-border);
 }
 
 .outreach-queue__followup--overdue {
-  background: var(--danger-dim);
-  color: var(--danger);
-  border-color: var(--danger-border);
+  color: var(--pill-danger-text);
+  background: var(--pill-danger-bg);
+  border-color: var(--pill-danger-border);
 }
 
+/* ── Why it's worth it ──────────────────────────────── */
 .outreach-queue__reasons-title {
-  font-size: 0.72rem;
+  font-size: 11px;
+  font-weight: 590;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
 }
 
 .outreach-queue__reasons ul {
@@ -144,20 +172,46 @@
   padding: 0;
   list-style: none;
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  flex-wrap: wrap;
+  gap: 7px;
 }
 
 .outreach-queue__reasons li {
-  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 510;
   color: var(--text-secondary);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 8px;
+  padding: 5px 10px;
 }
 
+.outreach-queue__reason-pts {
+  font-size: 11px;
+  font-weight: 590;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  color: var(--pill-success-text);
+  background: var(--pill-success-bg);
+  border: 1px solid var(--pill-success-border);
+}
+
+.outreach-queue__reason-pts--zero {
+  color: var(--text-tertiary);
+  background: var(--surface-card-hover);
+  border-color: transparent;
+}
+
+/* ── Contact footer ─────────────────────────────────── */
 .outreach-queue__contact {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding-top: 0.5rem;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -165,103 +219,134 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .outreach-queue__contact-name {
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 590;
   color: var(--text-primary);
 }
 
 .outreach-queue__contact-role,
 .outreach-queue__contact-source {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  font-size: 12.5px;
+  color: var(--text-muted);
 }
 
 .outreach-queue__contact-email {
-  font-size: 0.82rem;
-  color: var(--accent);
+  font-size: 12.5px;
+  color: var(--link);
 }
 
 .outreach-queue__contact-find-block {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 10px;
   flex: 1;
   min-width: 0;
 }
 
 .outreach-queue__contact-find {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.outreach-queue__find-btn {
+  width: 100%;
 }
 
 .outreach-queue__contact-review {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
 .outreach-queue__contact-review-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .outreach-queue__contact-link {
-  font-size: 0.8rem;
-  color: var(--accent);
+  font-size: 12.5px;
+  color: var(--link);
+}
+
+.outreach-queue__contact-link:hover {
+  color: var(--link-hover);
 }
 
 .outreach-queue__contact-verified {
-  font-size: 0.72rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-md);
-  background: var(--success-dim);
-  color: var(--success);
-  border: 1px solid var(--success-border);
+  font-size: 11px;
+  font-weight: 590;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  color: var(--pill-success-text);
+  background: var(--pill-success-bg);
+  border: 1px solid var(--pill-success-border);
 }
 
 .outreach-queue__contact-bounce {
-  align-self: flex-start;
-  font-size: 0.8rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-md);
-  background: var(--danger-dim);
-  color: var(--danger);
-  border: 1px solid var(--danger-border);
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--pill-danger-text);
+  background: var(--pill-danger-bg);
+  border: 1px solid var(--pill-danger-border);
 }
 
 .outreach-queue__contact-caution {
-  align-self: flex-start;
-  font-size: 0.8rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-md);
-  background: var(--warning-dim);
-  color: var(--warning);
-  border: 1px solid var(--warning-border);
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--pill-warn-text);
+  background: var(--pill-warn-bg);
+  border: 1px solid var(--pill-warn-border);
 }
 
 .outreach-queue__domain-retry {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .outreach-queue__domain-input {
   flex: 1 1 12rem;
   min-width: 0;
-  font-size: 0.85rem;
+  box-sizing: border-box;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-primary);
 }
 
 .outreach-queue__contact-msg {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
 }
 
 .outreach-queue__contact-msg--error {
-  color: var(--danger);
+  color: var(--pill-danger-text);
+}
+
+@media (max-width: 480px) {
+  .outreach-queue {
+    grid-template-columns: 1fr;
+  }
+
+  .outreach-queue__card {
+    padding: 16px;
+  }
 }

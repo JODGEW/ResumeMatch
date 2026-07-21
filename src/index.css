@@ -111,6 +111,9 @@
   --pill-danger-text: #dfa3ac;
   --pill-danger-border: rgba(201, 106, 120, 0.28);
   --pill-danger-bg: rgba(201, 106, 120, 0.06);
+  --pill-warn-text: #e6bd6f;
+  --pill-warn-border: rgba(224, 166, 53, 0.3);
+  --pill-warn-bg: rgba(224, 166, 53, 0.08);
   --warn-tint-bg: rgba(201, 151, 60, 0.1);
   --warn-tint-border: rgba(201, 151, 60, 0.3);
   --danger-tint-bg: rgba(201, 106, 120, 0.05);
@@ -121,6 +124,7 @@
   --pricing-free-border: rgba(130, 143, 255, 0.3);
   --float-card-bg: rgba(255, 255, 255, 0.03);
   --card-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px;
+  --card-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
   --hero-glow: rgba(94, 106, 210, 0.14);
   --show-glow: rgba(94, 106, 210, 0.28);
   --input-bg: rgba(255, 255, 255, 0.02);
@@ -230,6 +234,9 @@
   --pill-danger-text: #a83e52;
   --pill-danger-border: rgba(180, 72, 92, 0.3);
   --pill-danger-bg: rgba(180, 72, 92, 0.04);
+  --pill-warn-text: #8a6114;
+  --pill-warn-border: rgba(176, 125, 28, 0.3);
+  --pill-warn-bg: rgba(176, 125, 28, 0.08);
   --warn-tint-bg: rgba(163, 114, 28, 0.08);
   --warn-tint-border: rgba(163, 114, 28, 0.3);
   --danger-tint-bg: rgba(180, 72, 92, 0.04);
@@ -240,6 +247,7 @@
   --pricing-free-border: rgba(94, 106, 210, 0.35);
   --float-card-bg: #ffffff;
   --card-shadow: rgba(0, 0, 0, 0.08) 0px 2px 6px;
+  --card-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
   --hero-glow: rgba(94, 106, 210, 0.1);
   --show-glow: rgba(94, 106, 210, 0.16);
   --input-bg: #ffffff;
