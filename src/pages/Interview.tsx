@@ -863,38 +863,37 @@ export function Interview() {
       <div className="page-container interview-setup-page">
         <div className="interview-setup animate-in">
           <button type="button" className="interview-setup__back" onClick={() => navigate(-1)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M7.5 2L3.5 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Back to results
+            Back
           </button>
 
-          <div className="interview-setup__card card">
-            <div className="interview-setup__icon">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <rect x="6" y="2" width="16" height="20" rx="8" stroke="currentColor" strokeWidth="2" />
-                <path d="M4 14c0 5.5 4.5 10 10 10s10-4.5 10-10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <path d="M14 24v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </div>
+          <div className="interview-setup__card">
+            <div className="interview-setup__head">
+              <div className="interview-setup__icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
+                  <path d="M6 11a6 6 0 0 0 12 0M12 17v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </div>
 
-            <h1 className="interview-setup__title">Mock Interview</h1>
-            <div className="interview-setup__context">
-              <span>Interviewing for</span>
-              <strong>{setupJobTitle}</strong>
+              <h1 className="interview-setup__title">Mock Interview</h1>
+              <div className="interview-setup__eyebrow">Interviewing for</div>
+              <div className="interview-setup__role">{setupJobTitle}</div>
+              <p className="interview-setup__subtitle">
+                Practice a realistic interview tailored to this role, with live follow-up questions and instant feedback.
+              </p>
             </div>
-            <p className="interview-setup__subtitle">
-              Practice a realistic interview tailored to this role, with live follow-up questions and instant feedback.
-            </p>
 
             {error && (
-              <div className="interview-error" style={{ marginBottom: '1rem' }}>
+              <div className="interview-error interview-setup__error">
                 <p>{error}</p>
               </div>
             )}
 
-            <div className="interview-setup__type">
-              <label className="interview-setup__label">Choose Format</label>
+            <div className="interview-setup__section">
+              <div className="interview-setup__label">Choose format</div>
               <div className="interview-setup__toggle">
                 <button
                   type="button"
@@ -903,14 +902,21 @@ export function Interview() {
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <circle cx="10" cy="6" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M3 17c0-3.5 3-5.5 7-5.5s7 2 7 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <circle cx="10" cy="6.8" r="3.1" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M4.2 16.2a5.8 5.8 0 0 1 11.6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                   </span>
                   <span className="interview-setup__option-text">
                     <strong>Behavioral</strong>
                     <span>STAR-based questions about past experience</span>
                   </span>
+                  {selectedType === 'behavioral' && (
+                    <span className="interview-setup__option-check" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 12 12">
+                        <polyline points="2.5,6.2 5,8.5 9.5,3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -919,19 +925,26 @@ export function Interview() {
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <path d="M6 6L2 10l4 4M14 6l4 4-4 4M11.5 3l-3 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M7.5 6.5L4 10l3.5 3.5M12.5 6.5L16 10l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </span>
                   <span className="interview-setup__option-text">
                     <strong>Technical</strong>
                     <span>System design and problem-solving questions</span>
                   </span>
+                  {selectedType === 'technical' && (
+                    <span className="interview-setup__option-check" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 12 12">
+                        <polyline points="2.5,6.2 5,8.5 9.5,3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
 
-            <div className="interview-setup__mic">
-              <label className="interview-setup__label">Microphone</label>
+            <div className="interview-setup__section">
+              <div className="interview-setup__label">Microphone</div>
 
               {microphoneCheck.status === 'permission-needed' && (
                 <div className="interview-mic-check interview-mic-check--neutral">
@@ -1065,33 +1078,33 @@ export function Interview() {
             </div>
 
             <button
-              className="btn btn-primary interview-setup__start"
+              className="interview-setup__start"
               onClick={handleStartClick}
               disabled={microphoneCheck.status === 'checking' || microphoneCheck.status === 'error'}
             >
-              Start Interview
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M3 7h8M8 3.5L11 7 8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              Start interview
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8h9M9 5l3 3-3 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
 
             <div className="interview-setup__meta">
               <span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.25" />
-                  <path d="M6 3v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                 </svg>
                 25 min session
               </span>
               <span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1 3h10M1 6h6M1 9h8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                 </svg>
                 Full transcript
               </span>
               <span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M6 1v3l2 1M1 7.5a5 5 0 009.5 0M.5 5a5 5 0 019.5-2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.6l1-4.1L2.2 6.7l4.2-.3L8 1.5Z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round" />
                 </svg>
                 Instant feedback
               </span>

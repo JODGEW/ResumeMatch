@@ -7,6 +7,7 @@ import { downloadOptimizedResume } from '../utils/docxGenerator';
 import { getTrackerPrefill } from '../utils/trackerPrefill';
 import { isInProgress } from '../hooks/usePolling';
 import { getScoreBand } from '../utils/scoreBands';
+import { clearAnalysisNew, getNewAnalysisIds, markAnalysisNew } from '../utils/newAnalyses';
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import './History.css';
@@ -20,14 +21,6 @@ type SignupPromptContent = {
   body: string;
 };
 
-type SortKey = 'newest' | 'match-desc' | 'match-asc';
-
-const SORT_LABELS: Record<SortKey, string> = {
-  newest: 'Newest first',
-  'match-desc': 'Highest match',
-  'match-asc': 'Lowest match',
-};
-
 const ITEMS_PER_PAGE = 10;
 
 function getPageFromSearchParams(searchParams: URLSearchParams) {
@@ -39,7 +32,7 @@ export function History() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [newlyCompleted, setNewlyCompleted] = useState<Set<string>>(new Set());
+  const [newAnalysisIds, setNewAnalysisIds] = useState<Set<string>>(() => getNewAnalysisIds());
   const prevStatusRef = useRef<Map<string, string>>(new Map());
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,7 +43,6 @@ export function History() {
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<SortKey>('newest');
 
   const goToPage = useCallback((page: number, options?: { replace?: boolean }) => {
     const nextPage = Math.max(1, page);
@@ -65,24 +57,26 @@ export function History() {
     }, options);
   }, [setSearchParams]);
 
-  // Search and sort run over the already-loaded list; `analyses` arrives sorted
-  // newest-first from the loader, so that ordering is the identity case.
+  // Search runs over the already-loaded list, which the loader keeps sorted
+  // newest-first — that ordering is the only one the page offers.
   const visibleAnalyses = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q
-      ? analyses.filter(a => (a.jobTitle ?? '').toLowerCase().includes(q))
-      : analyses;
-    if (sort === 'newest') return filtered;
-    // Items without a score (in progress, failed) sort to the end either way.
-    return [...filtered].sort((a, b) => {
-      const sa = a.matchScore ?? null;
-      const sb = b.matchScore ?? null;
-      if (sa === null && sb === null) return 0;
-      if (sa === null) return 1;
-      if (sb === null) return -1;
-      return sort === 'match-desc' ? sb - sa : sa - sb;
+    if (!q) return analyses;
+    return analyses.filter(a => (a.jobTitle ?? '').toLowerCase().includes(q));
+  }, [analyses, query]);
+
+  // Opening the analysis from History is what retires its "New" badge. The
+  // report auto-revealing right after completion deliberately doesn't, or the
+  // badge would be gone before it was ever seen.
+  function handleOpenAnalysis(analysisId: string) {
+    if (!newAnalysisIds.has(analysisId)) return;
+    clearAnalysisNew(analysisId);
+    setNewAnalysisIds(current => {
+      const next = new Set(current);
+      next.delete(analysisId);
+      return next;
     });
-  }, [analyses, query, sort]);
+  }
 
   function handleAddToTracker(a: Analysis) {
     const prefill = getTrackerPrefill(a);
@@ -103,12 +97,12 @@ export function History() {
 
   // Narrowing the list should land you on its first page — but only on a real
   // change, so a ?page=N deep link still resolves on first render.
-  const filtersRef = useRef({ query, sort });
+  const queryRef = useRef(query);
   useEffect(() => {
-    if (filtersRef.current.query === query && filtersRef.current.sort === sort) return;
-    filtersRef.current = { query, sort };
+    if (queryRef.current === query) return;
+    queryRef.current = query;
     goToPage(1, { replace: true });
-  }, [query, sort, goToPage]);
+  }, [query, goToPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,21 +170,16 @@ export function History() {
           }
           prev.set(a.analysisId, a.status);
         }
+        // Completing while History is open also earns the badge. It persists
+        // (utils/newAnalyses) and clears when the user opens the analysis, so
+        // there's no timed auto-clear here.
         if (justCompleted.size > 0) {
-          setNewlyCompleted(s => {
-            const next = new Set(s);
+          justCompleted.forEach(markAnalysisNew);
+          setNewAnalysisIds(current => {
+            const next = new Set(current);
             justCompleted.forEach(id => next.add(id));
             return next;
           });
-          // Auto-clear "New" badges after 5 seconds
-          setTimeout(() => {
-            if (cancelled) return;
-            setNewlyCompleted(s => {
-              const next = new Set(s);
-              justCompleted.forEach(id => next.delete(id));
-              return next;
-            });
-          }, 5000);
         }
 
         setAnalyses(filtered);
@@ -379,16 +368,6 @@ export function History() {
               aria-label="Search role or company"
             />
           </div>
-          <select
-            className="history-sort"
-            value={sort}
-            onChange={e => setSort(e.target.value as SortKey)}
-            aria-label="Sort analyses"
-          >
-            {Object.entries(SORT_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
         </div>
       )}
 
@@ -409,20 +388,77 @@ export function History() {
             <div className="history-list">
               {paginatedItems.map((analysis, i) => {
                 const inProgress = isInProgress(analysis.status);
-                const badgeStatus = inProgress ? 'processing' : analysis.status;
-                const isNew = newlyCompleted.has(analysis.analysisId);
+                const badgeStatus = analysis.status;
+                const isNew = newAnalysisIds.has(analysis.analysisId);
                 const scored = analysis.status === 'completed' && analysis.matchScore != null;
                 const band = scored ? getScoreBand(analysis.matchScore!) : null;
+
+                // A job still in flight gets the bundle's processing card: same
+                // shell, spinner in the score-ring slot, and a live link through
+                // to the in-progress screen.
+                if (inProgress) {
+                  return (
+                    <Link
+                      key={analysis.analysisId}
+                      to={`/results/${analysis.analysisId}`}
+                      className="history-card history-card--processing animate-in"
+                      style={{ animationDelay: `${0.05 + i * 0.04}s` }}
+                      title="View live progress"
+                    >
+                      <div className="history-card__lead">
+                        <div className="history-card__spinner" aria-hidden="true">
+                          <svg width="50" height="50" viewBox="0 0 50 50">
+                            <circle cx="25" cy="25" r="21" fill="none" stroke="var(--track)" strokeWidth="4.5" />
+                            <path d="M25 4a21 21 0 0 1 21 21" fill="none" stroke="var(--accent-hover)" strokeWidth="4.5" strokeLinecap="round" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      <div className="history-card__body">
+                        <div className="history-card__head">
+                          <span className="history-card__title">Analysis in progress</span>
+                          <span className="history-card__processing-pill">
+                            <span className="history-card__processing-dot" />
+                            Processing
+                          </span>
+                        </div>
+
+                        <div className="history-card__meta">
+                          {analysis.fileName && (
+                            <span className="history-card__file">{analysis.fileName}</span>
+                          )}
+                          <span className="history-card__date">{formatDate(analysis.timestamp ?? analysis.createdAt)}</span>
+                        </div>
+
+                        <p className="history-card__summary">
+                          Comparing against the job description — scoring match, keyword gaps, and experience alignment.
+                        </p>
+
+                        <div className="history-card__indeterminate" aria-hidden="true">
+                          <span />
+                        </div>
+
+                        <div className="history-card__live">
+                          View live progress
+                          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                          </svg>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                }
 
                 return (
                   <Link
                     key={analysis.analysisId}
-                    to={inProgress ? '#' : `/results/${analysis.analysisId}`}
-                    className={`history-card animate-in${inProgress ? ' history-card--disabled' : ''}${isNew ? ' history-card--new' : ''}`}
+                    to={`/results/${analysis.analysisId}`}
+                    className={`history-card animate-in${isNew ? ' history-card--new' : ''}`}
                     style={{ animationDelay: `${0.05 + i * 0.04}s` }}
-                    onClick={inProgress ? (e) => e.preventDefault() : undefined}
-                    title={inProgress ? 'Still processing — results aren\'t ready yet' : 'View analysis details'}
+                    onClick={() => handleOpenAnalysis(analysis.analysisId)}
+                    title="View analysis details"
                   >
+                    {isNew && <span className="history-card__new-ring" aria-hidden="true" />}
                     <div className="history-card__lead">
                       {scored ? (
                         <div className="history-card__ring" style={{ color: band!.color }}>
@@ -442,7 +478,6 @@ export function History() {
                         </div>
                       ) : (
                         <div className={`status-badge status-badge--${badgeStatus}`}>
-                          {inProgress && <span className="status-badge__dot" />}
                           {badgeStatus.charAt(0).toUpperCase() + badgeStatus.slice(1)}
                         </div>
                       )}
@@ -451,6 +486,12 @@ export function History() {
                     <div className="history-card__body">
                       <div className="history-card__head">
                         <span className="history-card__title">{analysis.jobTitle || 'Analysis Results'}</span>
+                        {isNew && (
+                          <span className="history-card__new-badge">
+                            <span className="history-card__new-dot" />
+                            New
+                          </span>
+                        )}
                         {band && (
                           <span className={`history-card__band history-card__band--${band.tier}`}>
                             {band.label}
@@ -462,15 +503,10 @@ export function History() {
                         {analysis.fileName && (
                           <span className="history-card__file">{analysis.fileName}</span>
                         )}
-                        {isNew && <span className="history-card__new-badge">New</span>}
                         <span className="history-card__date">{formatDate(analysis.timestamp ?? analysis.createdAt)}</span>
                       </div>
 
-                      {inProgress ? (
-                        <p className="history-card__summary history-card__summary--pending">
-                          Analyzing match score, keyword gaps, and experience alignment…
-                        </p>
-                      ) : analysis.status === 'failed' && analysis.errorMessage ? (
+                      {analysis.status === 'failed' && analysis.errorMessage ? (
                         <p className="history-card__summary history-card__summary--failed">
                           {analysis.errorMessage}
                         </p>

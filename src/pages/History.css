@@ -100,24 +100,6 @@
   box-shadow: 0 0 0 3px var(--brand-tint-bg);
 }
 
-.history-sort {
-  margin-left: auto;
-  width: auto;
-  background: var(--surface-inset);
-  border: 1px solid var(--border-standard);
-  border-radius: 8px;
-  padding: 9px 12px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.history-sort:focus {
-  background: var(--surface-inset);
-  border-color: var(--brand-tint-border);
-  box-shadow: 0 0 0 3px var(--brand-tint-bg);
-}
-
 /* ── Alert ──────────────────────────────────────────── */
 .history-alert {
   display: flex;
@@ -161,18 +143,108 @@
   color: inherit;
 }
 
-.history-card--disabled {
-  cursor: default;
-  opacity: 0.75;
+/* ── Processing card (job in flight) ────────────────── */
+.history-card--processing {
+  border-color: var(--brand-tint-border);
+  position: relative;
+  overflow: hidden;
 }
 
-.history-card--disabled:hover {
-  border-color: var(--border-standard);
-  background: var(--bg-panel);
+.history-card__spinner {
+  width: 50px;
+  height: 50px;
 }
 
+.history-card__spinner svg {
+  animation: spin 1s linear infinite;
+}
+
+.history-card__processing-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 590;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  color: var(--brand-tint-text);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+}
+
+.history-card__processing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: historyDotPulse 1.2s ease-in-out infinite;
+}
+
+.history-card__indeterminate {
+  position: relative;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--track);
+  overflow: hidden;
+  margin-top: 15px;
+  max-width: 340px;
+}
+
+.history-card__indeterminate span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 35%;
+  border-radius: 9999px;
+  background: var(--accent);
+  animation: historyIndeterminate 1.4s ease-in-out infinite;
+}
+
+.history-card__live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  font-weight: 510;
+  color: var(--brand-tint-text);
+}
+
+@keyframes historyDotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@keyframes historyIndeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-card__spinner svg,
+  .history-card__processing-dot,
+  .history-card__indeterminate span {
+    animation: none;
+  }
+}
+
+/* ── Just-finished card ─────────────────────────────── */
 .history-card--new {
-  border-color: var(--success-border);
+  border-color: var(--brand-tint-border);
+  position: relative;
+}
+
+/* Brand highlight ring, drawn outside the border so it doesn't shift layout. */
+.history-card__new-ring {
+  position: absolute;
+  inset: -1px;
+  /* Tracks the card's own radius, which shrinks to 14px at ≤480px. */
+  border-radius: inherit;
+  border: 1px solid var(--brand-tint-border);
+  box-shadow: 0 0 0 3px var(--brand-tint-bg);
+  pointer-events: none;
 }
 
 /* ── Score ring ─────────────────────────────────────── */
@@ -291,13 +363,24 @@
 }
 
 .history-card__new-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 590;
-  color: var(--success);
-  background: var(--success-dim);
-  border: 1px solid var(--success-border);
+  color: var(--brand-tint-text);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
   border-radius: 9999px;
-  padding: 1px 8px;
+  padding: 3px 9px;
+}
+
+.history-card__new-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 /* ── Summary ────────────────────────────────────────── */
@@ -306,11 +389,6 @@
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-secondary);
-}
-
-.history-card__summary--pending {
-  font-style: italic;
-  color: var(--text-muted);
 }
 
 .history-card__summary--failed {
@@ -467,12 +545,6 @@
   .history-head {
     margin-bottom: 20px;
   }
-
-  .history-sort {
-    margin-left: 0;
-    flex: 1;
-    min-width: 150px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -493,10 +565,6 @@
   .history-search {
     max-width: none;
     min-width: 0;
-    flex-basis: 100%;
-  }
-
-  .history-sort {
     flex-basis: 100%;
   }
 

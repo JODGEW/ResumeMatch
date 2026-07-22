@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { NormalizedAnalysisStatus } from '../hooks/usePolling';
+import { markAnalysisNew } from '../utils/newAnalyses';
 import './AnalysisProgressCard.css';
 
 export type AnalysisProgressMode = 'active' | 'finalizing' | 'complete' | 'timeout' | 'failed';
@@ -17,11 +18,11 @@ type StepState = 'done' | 'active' | 'pending';
 const LONG_RUNNING_AFTER_MS = 45_000;
 const STALLED_AFTER_MS = 3_000;
 
-const STEP_LABELS = [
-  'Upload received',
-  'Preparing your resume',
-  'Analyzing against the job description',
-  'Saving your report to History',
+const STEPS: ReadonlyArray<{ label: string; detail: string }> = [
+  { label: 'Upload received', detail: 'Reading your resume file' },
+  { label: 'Preparing your resume', detail: 'Extracting skills, roles, and keywords' },
+  { label: 'Analyzing against the job description', detail: 'Scoring match and finding gaps' },
+  { label: 'Saving your report to History', detail: 'Finalizing and storing your results' },
 ];
 
 const STEP_SR_PREFIX: Record<StepState, string> = {
@@ -48,34 +49,62 @@ function getStepStates(mode: AnalysisProgressMode, status?: NormalizedAnalysisSt
   ];
 }
 
-function StepChecklist({ steps }: { steps: StepState[] }) {
+/**
+ * Determinate progress, read as "you're on step N of 4" rather than "N steps
+ * finished".
+ *
+ * Counting only finished steps made the bar jump 50% -> 100%: the Lambda writes
+ * `status = 'completed'` and `matchScore` in one atomic update, so saving to
+ * History is never observable as in-flight and steps 3 and 4 always land
+ * together. Counting the active step instead gives even 25-point increments
+ * (50 -> 75 -> 100) off the same backend signals, with nothing simulated.
+ */
+function getPercent(steps: StepState[]): number {
   const activeIndex = steps.indexOf('active');
-  const activeStep = activeIndex === -1 ? steps.length : activeIndex + 1;
+  const reached = activeIndex === -1 ? steps.length : activeIndex + 1;
+  return Math.round((reached / steps.length) * 100);
+}
+
+function Stepper({ steps }: { steps: StepState[] }) {
   return (
-    <div className="analysis-progress-card__progress">
-      <p className="analysis-progress-card__step-label">Step {activeStep} of {steps.length}</p>
-      <ol className="analysis-progress-card__steps">
-        {STEP_LABELS.map((label, i) => (
+    <ol className="apc-steps">
+      {STEPS.map((step, i) => {
+        const state = steps[i];
+        const hasRail = i < STEPS.length - 1;
+        return (
           <li
-            key={label}
-            className={`analysis-progress-card__step analysis-progress-card__step--${steps[i]}`}
-            aria-current={steps[i] === 'active' ? 'step' : undefined}
+            key={step.label}
+            className={`apc-step apc-step--${state}`}
+            aria-current={state === 'active' ? 'step' : undefined}
           >
-            <span className="analysis-progress-card__marker" aria-hidden="true">
-              {steps[i] === 'done' ? (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M3 7.5l2.5 2.5L11 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              ) : (
-                <span className="analysis-progress-card__dot" />
-              )}
-            </span>
-            <span className="sr-only">{STEP_SR_PREFIX[steps[i]]}</span>
-            {label}
+            <div className="apc-step__gutter" aria-hidden="true">
+              <span className="apc-step__marker">
+                {state === 'done' && (
+                  <svg width="12" height="12" viewBox="0 0 12 12">
+                    <polyline points="2.5,6.2 5,8.5 9.5,3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+                {state === 'active' && (
+                  <svg className="apc-spin" width="14" height="14" viewBox="0 0 16 16">
+                    <circle cx="8" cy="8" r="6" stroke="var(--accent-border)" strokeWidth="2" fill="none" opacity="0.4" />
+                    <path d="M8 2a6 6 0 0 1 6 6" stroke="var(--accent-hover)" strokeWidth="2" strokeLinecap="round" fill="none" />
+                  </svg>
+                )}
+                {state === 'pending' && <span className="apc-step__dot" />}
+              </span>
+              {hasRail && <span className="apc-step__rail" />}
+            </div>
+            <div className="apc-step__body">
+              <div className="apc-step__label">
+                <span className="sr-only">{STEP_SR_PREFIX[state]}</span>
+                {step.label}
+              </div>
+              {state === 'active' && <div className="apc-step__detail">{step.detail}</div>}
+            </div>
           </li>
-        ))}
-      </ol>
-    </div>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -83,6 +112,8 @@ export function AnalysisProgressCard({
   mode,
   status,
   analysisId,
+  fileName,
+  roleLabel,
   errorMessage,
   longRunningAfterMs = LONG_RUNNING_AFTER_MS,
   stalledAfterMs = STALLED_AFTER_MS,
@@ -91,6 +122,8 @@ export function AnalysisProgressCard({
   mode: AnalysisProgressMode;
   status?: NormalizedAnalysisStatus;
   analysisId?: string;
+  fileName?: string;
+  roleLabel?: string;
   errorMessage?: string | null;
   longRunningAfterMs?: number;
   stalledAfterMs?: number;
@@ -98,6 +131,7 @@ export function AnalysisProgressCard({
 }) {
   const [longRunning, setLongRunning] = useState(longRunningAfterMs <= 0);
   const [stalled, setStalled] = useState(stalledAfterMs <= 0);
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     if (mode !== 'active' || longRunningAfterMs <= 0) return;
@@ -110,6 +144,20 @@ export function AnalysisProgressCard({
     const timer = setTimeout(() => setStalled(true), stalledAfterMs);
     return () => clearTimeout(timer);
   }, [mode, stalledAfterMs]);
+
+  // Display only — the stepper and the bar are driven by backend status, never
+  // by this counter.
+  useEffect(() => {
+    if (mode !== 'active' && mode !== 'finalizing') return;
+    const timer = setInterval(() => setElapsed(seconds => seconds + 1), 1000);
+    return () => clearInterval(timer);
+  }, [mode]);
+
+  // Flag the finished analysis so History can badge it as new. Cleared when the
+  // user opens it from History, not by the auto-reveal that follows completion.
+  useEffect(() => {
+    if (mode === 'complete' && analysisId) markAnalysisNew(analysisId);
+  }, [mode, analysisId]);
 
   if (mode === 'failed') {
     const isLimit = errorMessage?.toLowerCase().includes('limit');
@@ -159,80 +207,99 @@ export function AnalysisProgressCard({
     );
   }
 
-  const stalledComplete = mode === 'complete' && stalled;
-  const title = mode === 'complete'
-    ? 'Analysis complete'
-    : mode === 'finalizing'
-      ? 'Finalizing results'
-      : 'Resume analysis in progress';
-  const description = stalledComplete
-    ? 'Opening your report is taking longer than expected.'
-    : mode === 'complete'
-      ? 'Opening your report...'
-      : mode === 'finalizing'
-        ? 'Analysis complete — putting your report together...'
-        : 'We\'re comparing your resume against the job description and preparing targeted improvement suggestions.';
+  const isComplete = mode === 'complete';
+  const stalledComplete = isComplete && stalled;
+  const steps = getStepStates(mode, status);
+  const percent = getPercent(steps);
+
+  const title = isComplete ? 'Analysis complete' : 'Resume analysis in progress';
+  const subtitle = isComplete
+    ? 'Your match score and targeted suggestions are ready.'
+    : 'We\'re comparing your resume against the job description and preparing targeted improvement suggestions.';
+  const compareLine = isComplete && roleLabel
+    ? `vs. ${roleLabel}`
+    : 'Comparing with your job description';
 
   return (
     <section
-      className={`analysis-progress-card${mode === 'complete' ? ' analysis-progress-card--complete' : ''}`}
-      style={mode === 'complete' ? COMPLETION_BEAT_STYLE : undefined}
+      className={`apc${isComplete ? ' apc--complete' : ''}`}
+      style={isComplete ? COMPLETION_BEAT_STYLE : undefined}
       role="status"
       aria-live="polite"
     >
-      {mode === 'complete' && (
-        <span className="analysis-progress-card__success-check" aria-hidden="true">
-          <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
-            <path
-              className="analysis-progress-card__success-path"
-              pathLength="1"
-              d="M15 27.5l7.5 7.5L37 19.5"
-              stroke="currentColor"
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+      <div className="apc__head">
+        {isComplete ? (
+          <div className="apc__badge apc__badge--done" aria-hidden="true">
+            <span className="apc__badge-face">
+              <svg width="26" height="26" viewBox="0 0 26 26">
+                <polyline points="7,13.5 11.5,18 19,8.5" fill="none" stroke="var(--success-alt)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </div>
+        ) : (
+          <div className="apc__badge" aria-hidden="true">
+            <span className="apc__badge-pulse" />
+            <span className="apc__badge-face">
+              <svg className="apc-spin" width="26" height="26" viewBox="0 0 26 26">
+                <circle cx="13" cy="13" r="9.5" stroke="var(--accent-border)" strokeWidth="2.4" fill="none" opacity="0.4" />
+                <path d="M13 3.5a9.5 9.5 0 0 1 9.5 9.5" stroke="var(--accent-hover)" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+              </svg>
+            </span>
+          </div>
+        )}
+        <h1 className="apc__title">{title}</h1>
+        <p className="apc__subtitle">{subtitle}</p>
+      </div>
+
+      <div className="apc__context">
+        <span className="apc__context-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <path d="M4.5 2.5h6l3.5 3.5v9.5h-9.5V2.5Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
+            <path d="M10.5 2.5v3.5h3.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
           </svg>
         </span>
-      )}
-      <h2>{title}</h2>
-      <p className="analysis-progress-card__desc">{description}</p>
-      <StepChecklist steps={getStepStates(mode, status)} />
-      {stalledComplete && (
-        <div className="analysis-progress-card__actions">
-          <button type="button" className="btn btn-primary" onClick={onViewReport}>
-            View report
-          </button>
-          <Link to="/history" className="btn btn-outline">Go to History</Link>
+        <div className="apc__context-body">
+          <div className="apc__context-file">{fileName || 'Your resume'}</div>
+          <div className="apc__context-line">{compareLine}</div>
         </div>
-      )}
-      {mode === 'active' && (
-        <>
-          <div className="analysis-progress-card__notice">
-            {longRunning ? (
-              <>
-                <p className="analysis-progress-card__notice-primary">This is taking longer than usual.</p>
-                <p className="analysis-progress-card__notice-secondary">
-                  You can still safely leave this page — we'll save your result to <strong>History</strong> when it finishes.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="analysis-progress-card__notice-primary">
-                  You can safely leave this page — your result will be saved automatically and available in <strong>History</strong>.
-                </p>
-                <p className="analysis-progress-card__notice-secondary">Usually takes about 30 seconds.</p>
-              </>
-            )}
-          </div>
-          <div className="analysis-progress-card__actions">
-            <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary">
-              Go to History
-            </Link>
-            <Link to="/upload" className="btn btn-outline">Start another analysis</Link>
-          </div>
-        </>
-      )}
+        <span className="apc__context-pct">{percent}%</span>
+      </div>
+
+      <div className="apc__bar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+        <div className="apc__bar-fill" style={{ width: `${percent}%` }} />
+      </div>
+
+      <Stepper steps={steps} />
+
+      <div className="apc__footer">
+        {isComplete ? (
+          <>
+            <p className="apc__footer-note">
+              {stalledComplete ? 'Opening your report is taking longer than expected.' : 'Redirecting to your report…'}
+            </p>
+            <button type="button" className="apc__cta" onClick={onViewReport}>
+              View results now
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="apc__footer-note">
+              {longRunning
+                ? 'This is taking longer than usual — you can still safely leave; your report saves automatically and will appear in your History.'
+                : 'You can safely leave — your report saves automatically and will appear in your History.'}
+            </p>
+            <p className="apc__footer-meta">Usually about 30 seconds · {elapsed}s elapsed</p>
+            <div className="apc__footer-links">
+              <Link to="/history" state={{ pendingAnalysisId: analysisId }}>Go to History</Link>
+              <span className="apc__footer-divider" />
+              <Link to="/upload">Start another analysis</Link>
+            </div>
+          </>
+        )}
+      </div>
     </section>
   );
 }

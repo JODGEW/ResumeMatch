@@ -1,4 +1,12 @@
-/* ── Analysis Progress ───────────────────────────────── */
+/* Analysis in-progress screen — implementation of the approved Claude Design
+   bundle (Analyzing.dc.html). Bundle token roles map onto the shared semantic
+   tokens in index.css: --bg-panel → --surface-panel, --border-standard →
+   --border, --text-quaternary → --text-tertiary, --brand → --accent.
+
+   The bundle only models the running and complete states. The timeout and
+   failed states have no mock and keep their existing centered-card styling
+   at the bottom of this file, unchanged. */
+
 .analysis-progress-hero {
   display: flex;
   align-items: center;
@@ -8,6 +16,371 @@
   min-height: calc(100dvh - 60px - 2 * var(--container-pad-y, 2rem));
 }
 
+/* ── Running / complete ─────────────────────────────── */
+.apc {
+  width: 100%;
+  max-width: 460px;
+}
+
+.apc__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.apc__badge {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 22px;
+}
+
+.apc__badge--done {
+  animation: apcPopIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.apc__badge-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--brand-tint-bg);
+  animation: apcPulseRing 1.8s ease-out infinite;
+}
+
+.apc__badge-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apc__badge--done .apc__badge-face {
+  background: var(--pill-success-bg);
+  border-color: var(--pill-success-border);
+}
+
+.apc__title {
+  margin: 0 0 10px;
+  font-size: 25px;
+  font-weight: 590;
+  letter-spacing: -0.4px;
+  color: var(--text-primary);
+}
+
+.apc__subtitle {
+  margin: 0 0 26px;
+  max-width: 380px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* ── Context card ───────────────────────────────────── */
+.apc__context {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  box-shadow: var(--card-shadow);
+}
+
+.apc__context-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.apc__context-body {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.apc__context-file {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.apc__context-line {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.apc__context-pct {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--brand-tint-text);
+}
+
+.apc--complete .apc__context-pct {
+  color: var(--success-alt);
+}
+
+/* ── Determinate bar ────────────────────────────────── */
+.apc__bar {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--track);
+  overflow: hidden;
+  margin-bottom: 26px;
+}
+
+.apc__bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--accent);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: apcBarGlow 1.6s ease-in-out infinite;
+}
+
+.apc--complete .apc__bar-fill {
+  background: var(--success-alt);
+  animation: none;
+}
+
+/* ── Stepper ────────────────────────────────────────── */
+.apc-steps {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.apc-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 44px;
+}
+
+.apc-step__gutter {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+}
+
+.apc-step__marker {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+}
+
+.apc-step--done .apc-step__marker {
+  background: var(--pill-success-bg);
+  border-color: var(--pill-success-border);
+  color: var(--success-alt);
+}
+
+.apc-step--active .apc-step__marker {
+  background: var(--brand-tint-bg);
+  border-color: var(--brand-tint-border);
+}
+
+.apc-step__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.apc-step__rail {
+  flex: 1;
+  width: 1.5px;
+  min-height: 16px;
+  background: var(--border);
+}
+
+.apc-step--done .apc-step__rail {
+  background: var(--success-alt);
+}
+
+.apc-step__body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 16px;
+}
+
+.apc-step__label {
+  font-size: 14.5px;
+  font-weight: 510;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+.apc-step--done .apc-step__label {
+  color: var(--text-muted);
+}
+
+.apc-step--active .apc-step__label {
+  font-weight: 590;
+  color: var(--text-primary);
+}
+
+.apc-step__detail {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* ── Footer ─────────────────────────────────────────── */
+.apc__footer {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 8px;
+  padding-top: 22px;
+  text-align: center;
+}
+
+.apc__footer-note {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.apc--complete .apc__footer-note {
+  margin-bottom: 16px;
+}
+
+.apc__footer-meta {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+
+.apc__footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.apc__footer-links a {
+  font-size: 13px;
+  font-weight: 510;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.apc__footer-links a:hover {
+  color: var(--link);
+}
+
+.apc__footer-divider {
+  width: 1px;
+  height: 13px;
+  background: var(--border);
+}
+
+.apc__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent);
+  border: none;
+  color: var(--text-on-accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 510;
+  padding: 11px 20px;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  transition: background 0.15s;
+}
+
+.apc__cta:hover {
+  background: var(--accent-hover);
+}
+
+/* ── Animations ─────────────────────────────────────── */
+.apc-spin {
+  animation: spin 1s linear infinite;
+}
+
+.apc-step__marker .apc-spin {
+  animation-duration: 0.9s;
+}
+
+@keyframes apcPulseRing {
+  0% { transform: scale(0.9); opacity: 0.55; }
+  70% { transform: scale(1.5); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes apcPopIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes apcBarGlow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apc-spin,
+  .apc__badge-pulse,
+  .apc__badge--done,
+  .apc__bar-fill {
+    animation: none;
+  }
+
+  .apc__bar-fill {
+    transition: none;
+  }
+}
+
+/* ── Mobile ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .apc__title {
+    font-size: 22px;
+  }
+
+  .apc__context {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .apc__footer-links {
+    gap: 14px;
+  }
+}
+
+/* ── Timeout / failed states (no bundle — unchanged) ── */
 .analysis-progress-card {
   --apc-muted: var(--text-muted);
   --apc-divider: var(--border-subtle);
@@ -52,204 +425,6 @@
   color: var(--danger);
 }
 
-/* ── Completion beat ─────────────────────────────────────
-   Success-check choreography. Every duration/delay below is a fraction of
-   --completion-beat, injected inline by AnalysisProgressCard.tsx from
-   COMPLETION_BEAT_MS — the same constant Results.tsx uses to time the swap
-   to the report, so the JS timer and these animations cannot drift apart.
-   At 1400ms: pop 0–252, draw 154–504, ripple 406–910, text 448–800. */
-
-.analysis-progress-card__success-check {
-  position: relative;
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--success-dim);
-  color: var(--success);
-  animation: apcSuccessPop calc(var(--completion-beat) * 0.18) cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-/* Single expanding ripple ring */
-.analysis-progress-card__success-check::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid var(--success);
-  opacity: 0;
-  animation: apcSuccessRipple calc(var(--completion-beat) * 0.36) ease-out calc(var(--completion-beat) * 0.29) forwards;
-}
-
-/* pathLength="1" normalizes the SVG path, so dash values run 0–1 */
-.analysis-progress-card__success-path {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: apcSuccessDraw calc(var(--completion-beat) * 0.25) ease-out calc(var(--completion-beat) * 0.11) both;
-}
-
-.analysis-progress-card--complete h2,
-.analysis-progress-card--complete .analysis-progress-card__desc {
-  animation: apcSuccessRise calc(var(--completion-beat) * 0.21) ease-out calc(var(--completion-beat) * 0.32) both;
-}
-
-.analysis-progress-card--complete .analysis-progress-card__desc {
-  animation-delay: calc(var(--completion-beat) * 0.36);
-}
-
-/* The checklist stays as a receipt but yields the stage to the check */
-.analysis-progress-card--complete .analysis-progress-card__progress {
-  animation: apcSuccessSettle calc(var(--completion-beat) * 0.21) ease-out calc(var(--completion-beat) * 0.29) both;
-}
-
-@keyframes apcSuccessPop {
-  from {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes apcSuccessDraw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes apcSuccessRipple {
-  from {
-    transform: scale(1);
-    opacity: 0.45;
-  }
-  to {
-    transform: scale(1.7);
-    opacity: 0;
-  }
-}
-
-@keyframes apcSuccessRise {
-  from {
-    transform: translateY(6px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes apcSuccessSettle {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0.5;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .analysis-progress-card__success-check,
-  .analysis-progress-card__success-check::after,
-  .analysis-progress-card__success-path,
-  .analysis-progress-card--complete h2,
-  .analysis-progress-card--complete .analysis-progress-card__desc,
-  .analysis-progress-card--complete .analysis-progress-card__progress {
-    animation: none;
-  }
-
-  /* Static end states: check fully drawn, no ripple, checklist settled */
-  .analysis-progress-card__success-path {
-    stroke-dashoffset: 0;
-  }
-
-  .analysis-progress-card--complete .analysis-progress-card__progress {
-    opacity: 0.5;
-  }
-}
-
-/* Steps checklist */
-.analysis-progress-card__progress {
-  width: max-content;
-  max-width: 100%;
-  margin: 1.75rem auto 0;
-  text-align: left;
-}
-
-.analysis-progress-card__step-label {
-  font-size: 0.6875rem;
-  font-weight: 510;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--apc-muted);
-  margin-bottom: 0.625rem;
-}
-
-.analysis-progress-card__steps {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-}
-
-.analysis-progress-card__step {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  font-size: 0.8125rem;
-  color: var(--apc-muted);
-}
-
-.analysis-progress-card__step--done {
-  color: var(--text-secondary);
-}
-
-.analysis-progress-card__step--done .analysis-progress-card__marker {
-  color: var(--success);
-}
-
-.analysis-progress-card__step--active {
-  color: var(--accent);
-  font-weight: 510;
-}
-
-.analysis-progress-card__marker {
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.analysis-progress-card__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.45;
-}
-
-.analysis-progress-card__step--active .analysis-progress-card__dot {
-  opacity: 1;
-  /* statusPulse: the app's shared status-dot keyframes (index.css) */
-  animation: statusPulse 1.5s ease infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .analysis-progress-card__step--active .analysis-progress-card__dot {
-    animation: none;
-  }
-}
-
-/* Safe-to-leave note — lightly separated, not a panel */
 .analysis-progress-card__notice {
   max-width: 26rem;
   margin: 1.75rem auto 0;
@@ -263,13 +438,6 @@
   color: var(--text-secondary);
 }
 
-.analysis-progress-card__notice-secondary {
-  font-size: 0.75rem;
-  color: var(--apc-muted);
-  margin-top: 0.25rem;
-}
-
-/* Actions — two equal-width buttons */
 .analysis-progress-card__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -322,7 +322,13 @@ export function Results({ sample = false }: { sample?: boolean }) {
     if (!timedOut) {
       return (
         <ProgressPage>
-          <AnalysisProgressCard key={analysisId} mode="active" status={status} analysisId={analysisId} />
+          <AnalysisProgressCard
+            key={analysisId}
+            mode="active"
+            status={status}
+            analysisId={analysisId}
+            fileName={analysis?.fileName}
+          />
         </ProgressPage>
       );
     }
@@ -345,7 +351,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
   if (analysis.matchScore == null) {
     return (
       <ProgressPage>
-        <AnalysisProgressCard mode="finalizing" />
+        <AnalysisProgressCard mode="finalizing" analysisId={analysisId} fileName={analysis.fileName} />
       </ProgressPage>
     );
   }
@@ -353,7 +359,13 @@ export function Results({ sample = false }: { sample?: boolean }) {
   if (showCompletionBeat) {
     return (
       <ProgressPage>
-        <AnalysisProgressCard mode="complete" onViewReport={() => setCompletionBeatDone(true)} />
+        <AnalysisProgressCard
+          mode="complete"
+          analysisId={analysisId}
+          fileName={analysis.fileName}
+          roleLabel={analysis.jobTitle}
+          onViewReport={() => setCompletionBeatDone(true)}
+        />
       </ProgressPage>
     );
   }
