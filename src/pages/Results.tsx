@@ -5,6 +5,7 @@ import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
 import { countSafeEdits } from '../utils/resumeDiff';
+import { getScoreBand, getScoreColor, type ScoreTier } from '../utils/scoreBands';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
 import { AnalysisProgressCard, COMPLETION_BEAT_MS } from '../components/AnalysisProgressCard';
 import { SignupPromptModal } from '../components/SignupPromptModal';
@@ -139,44 +140,19 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
   );
 }
 
+// Only the recommended action is unique to this page — the label and colour
+// come from the shared rubric so they can't drift from the ring beside them.
+const SCORE_ACTIONS: Record<ScoreTier, string> = {
+  high: 'You are well aligned. Apply with minimal changes and emphasize your strongest matched skills.',
+  good: 'Apply after a light resume pass. Add missing keywords only where they honestly fit.',
+  mid: 'Tailor your resume before applying. Focus on the highest-priority missing keywords.',
+  low: 'Apply selectively. The role has meaningful gaps, so prioritize stronger matches unless you can clearly address them.',
+  poor: 'This role is likely a poor fit based on the current resume. Target roles with closer alignment first.',
+};
+
 function getScoreInterpretation(score: number) {
-  if (score >= 86) {
-    return {
-      label: 'Strong Match',
-      action: 'You are well aligned. Apply with minimal changes and emphasize your strongest matched skills.',
-      color: 'var(--score-high)'
-    };
-  }
-
-  if (score >= 76) {
-    return {
-      label: 'Good Match',
-      action: 'Apply after a light resume pass. Add missing keywords only where they honestly fit.',
-      color: 'var(--score-good)'
-    };
-  }
-
-  if (score >= 61) {
-    return {
-      label: 'Moderate Match',
-      action: 'Tailor your resume before applying. Focus on the highest-priority missing keywords.',
-      color: 'var(--score-mid)'
-    };
-  }
-
-  if (score >= 41) {
-    return {
-      label: 'Weak Match',
-      action: 'Apply selectively. The role has meaningful gaps, so prioritize stronger matches unless you can clearly address them.',
-      color: 'var(--score-low)'
-    };
-  }
-
-  return {
-    label: 'Poor Match',
-    action: 'This role is likely a poor fit based on the current resume. Target roles with closer alignment first.',
-    color: 'var(--score-poor)'
-  };
+  const band = getScoreBand(score);
+  return { label: band.label, color: band.color, action: SCORE_ACTIONS[band.tier] };
 }
 
 function ProgressPage({ children }: { children: React.ReactNode }) {
@@ -385,6 +361,12 @@ export function Results({ sample = false }: { sample?: boolean }) {
   const calculatedExperienceYears = analysis.experienceCheck?.displayYears ?? analysis.experienceCheck?.actualYears;
   const resumeStatedYears = analysis.experienceCheck?.resumeStatedYears || 'Not specified';
 
+  const analyzedAt = analysis.timestamp ?? analysis.createdAt;
+  const analyzedDate = analyzedAt
+    ? new Date(analyzedAt.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(analyzedAt) ? analyzedAt : analyzedAt + 'Z')
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+
   return (
     <div className={`page-container results-reading-page${completionBeatDone ? ' results-reading-page--reveal' : ''}`}>
       {/* Sample-report banner: /sample renders bare (no app nav), so this is the
@@ -404,15 +386,29 @@ export function Results({ sample = false }: { sample?: boolean }) {
         </div>
       )}
 
+      {/* /sample renders bare for signed-out visitors — no history to go back to. */}
+      {!sample && (
+        <Link to="/history" className="results-back animate-in">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Back to history
+        </Link>
+      )}
+
       {/* Header */}
       <div className="page-header animate-in">
         <div className="results-header">
           <div className="results-header__top">
             <div className="results-header__title">
               <h1>{analysis.jobTitle || 'Analysis Results'}</h1>
-              {analysis.fileName && (
-                <p className="results-filename">{analysis.fileName}</p>
-              )}
+              <div className="results-header__meta">
+                {analysis.fileName && (
+                  <span className="results-filename">{analysis.fileName}</span>
+                )}
+                {analysis.fileName && analyzedDate && <span className="results-header__sep">·</span>}
+                {analyzedDate && <span className="results-analyzed">Analyzed {analyzedDate}</span>}
+              </div>
             </div>
             {isReadOnly ? (
               <button
@@ -509,7 +505,8 @@ export function Results({ sample = false }: { sample?: boolean }) {
             >
               <path d="M4.5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Job Description
+            <span className="results-jd__label">Job Description</span>
+            <span className="results-jd__hint">{jdOpen ? 'Hide' : 'View full posting'}</span>
           </button>
           {jdOpen && (
             <div className="results-jd__content">
@@ -581,23 +578,27 @@ export function Results({ sample = false }: { sample?: boolean }) {
                 { label: 'Tools',            value: analysis.scoreBreakdown.tools },
                 { label: 'Soft Skills',      value: analysis.scoreBreakdown.softSkills },
                 { label: 'Experience',       value: analysis.scoreBreakdown.experience },
-              ].map(({ label, value }) => (
-                <div key={label} className="results-breakdown-row">
-                  <div className="results-breakdown-label">
-                    <span>{label}</span>
-                    <span className="text-muted">{value}/100</span>
+              ].map(({ label, value }) => {
+                // Same rubric as the ring above it — a sub-score of 85 must not
+                // read green here while an 85 match score reads blue there.
+                const color = getScoreColor(value);
+                return (
+                  <div key={label} className="results-breakdown-row">
+                    <div className="results-breakdown-label">
+                      <span>{label}</span>
+                      <span className="results-breakdown-value" style={{ color }}>
+                        {value}<span className="results-breakdown-denom">/100</span>
+                      </span>
+                    </div>
+                    <div className="results-breakdown-track">
+                      <div
+                        className="results-breakdown-fill"
+                        style={{ width: `${value}%`, background: color }}
+                      />
+                    </div>
                   </div>
-                  <div className="results-breakdown-track">
-                    <div
-                      className="results-breakdown-fill"
-                      style={{
-                        width: `${value}%`,
-                        background: value >= 76 ? 'var(--success)' : value >= 51 ? 'var(--accent)' : 'var(--danger)'
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -611,8 +612,10 @@ export function Results({ sample = false }: { sample?: boolean }) {
             <div className="card results-keyword-section">
               <h4>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6" stroke="var(--success)" strokeWidth="1.5" />
-                  <path d="M5.5 8l2 2 3.5-4" stroke="var(--success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* --success-alt, not --success: the bundle's green for this
+                      icon, and what the pills and the safe-edits callout use. */}
+                  <circle cx="8" cy="8" r="6" stroke="var(--success-alt)" strokeWidth="1.5" />
+                  <path d="M5.5 8l2 2 3.5-4" stroke="var(--success-alt)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 Matched Keywords
                 <span className="results-keyword-count text-success">
@@ -644,6 +647,14 @@ export function Results({ sample = false }: { sample?: boolean }) {
                   <Badge key={kw} label={kw} variant="danger" />
                 ))}
               </div>
+              {/* Only when there is in fact something below to point at — the
+                  sentence names the priorities and suggestions sections. */}
+              {((analysis.topMissing?.length ?? 0) > 0 || (analysis.suggestions?.length ?? 0) > 0) && (
+                <p className="results-keyword-note">
+                  These are real gaps, not phrasing differences — see the priorities and
+                  suggestions below to close them.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -658,17 +669,26 @@ export function Results({ sample = false }: { sample?: boolean }) {
             High-impact keywords missing from your resume, ranked by importance
           </p>
 
-          <div className="results-suggestions">
-            {analysis.topMissing.map((item) => (
-              <div key={item.keyword} className="card results-suggestion">
-                <div className="results-suggestion__header">
-                  <span className="results-suggestion__section">{item.keyword}</span>
-                  <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                    {item.importanceScore}/10
-                  </span>
-                </div>
-                <div className="results-suggestion__copy">
-                  <p className="results-suggestion__reason text-muted">{item.reason}</p>
+          <div className="results-priority-list">
+            {analysis.topMissing.map((item, i) => (
+              <div key={item.keyword} className="results-priority">
+                <span className="results-priority__rank">{i + 1}</span>
+                <div className="results-priority__body">
+                  <div className="results-priority__head">
+                    <span className="results-priority__kw">{item.keyword}</span>
+                    <div className="results-priority__score">
+                      <div className="results-priority__track">
+                        <div
+                          className="results-priority__fill"
+                          style={{ width: `${Math.max(0, Math.min(10, Number(item.importanceScore) || 0)) * 10}%` }}
+                        />
+                      </div>
+                      <span className="results-priority__value">
+                        {item.importanceScore}<span className="results-priority__denom">/10</span>
+                      </span>
+                    </div>
+                  </div>
+                  <p className="results-priority__reason">{item.reason}</p>
                 </div>
               </div>
             ))}
@@ -678,7 +698,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
 
       {/* Suggestions */}
       {analysis.suggestions && analysis.suggestions.length > 0 && (
-        <div className="results-section animate-in stagger-3">
+        <div id="suggestions" className="results-section results-section--anchor animate-in stagger-3">
           <h2>Suggestions</h2>
           <p className="text-secondary results-section__intro">
             Recommended additions to improve your match score
@@ -711,27 +731,58 @@ export function Results({ sample = false }: { sample?: boolean }) {
       {analysis.originalText && analysis.suggestedText && (
         <div className="results-section animate-in stagger-4">
           <h2>Detailed Changes</h2>
+          <p className="text-secondary results-section__intro">
+            Wording edits your resume already supports
+          </p>
           {analysis.suggestedText.trim() === analysis.originalText.trim() ? (
             <div className="results-no-rewrites">
-              <p className="results-no-rewrites__title">No safe rewrites for this posting.</p>
-              <p className="results-no-rewrites__body">
-                Nothing in your resume backs up the missing keywords, so there is no honest
-                wording change to make. These are real gaps, not phrasing differences. We
-                will not add tools or skills you haven&apos;t used. See the suggestions for
-                what would actually close them.
-              </p>
+              <span className="results-no-rewrites__icon">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="9" r="7.5" stroke="var(--danger)" strokeWidth="1.4" />
+                  <path d="M9 5.5v4M9 12v.01" stroke="var(--danger)" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </span>
+              <div className="results-no-rewrites__copy">
+                <p className="results-no-rewrites__title">No safe rewrites for this posting</p>
+                <p className="results-no-rewrites__body">
+                  Nothing in your resume backs up the missing keywords, so there&apos;s no honest
+                  wording change to make. These are real gaps, not phrasing differences — we
+                  won&apos;t add tools or skills you haven&apos;t used.
+                </p>
+                {analysis.suggestions && analysis.suggestions.length > 0 && (
+                  <a href="#suggestions" className="results-no-rewrites__cta">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 12V4M4.5 7.5L8 4l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Review suggestions to close these gaps
+                  </a>
+                )}
+              </div>
             </div>
           ) : (
             <>
-              <p className="results-diff-caption">
-                {safeEditCount > 0 && (
-                  <strong className="results-diff-caption__count">
-                    {safeEditCount === 1 ? '1 safe edit found.' : `${safeEditCount} safe edits found.`}
-                  </strong>
-                )}{' '}
-                We only change wording your resume already backs up. Anything still missing is
-                a real gap; see the suggestions.
-              </p>
+              <div className="results-diff-callout">
+                <span className="results-diff-callout__icon">
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                    <circle cx="9" cy="9" r="7.5" stroke="var(--success-alt)" strokeWidth="1.4" />
+                    <polyline points="5.5,9 8,11.3 12.5,6.2" stroke="var(--success-alt)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <div>
+                  <div className="results-diff-callout__title">
+                    {safeEditCount > 0 && (
+                      <span className="results-diff-callout__count">
+                        {safeEditCount === 1 ? '1 safe edit found.' : `${safeEditCount} safe edits found.`}
+                      </span>
+                    )}{' '}
+                    We only change wording your resume already backs up.
+                  </div>
+                  <p className="results-diff-callout__body">
+                    Anything still missing is a real gap — see the suggestions above. Review the
+                    highlighted changes below before downloading.
+                  </p>
+                </div>
+              </div>
               <DiffView
                 original={analysis.originalText}
                 suggested={analysis.suggestedText}
@@ -741,12 +792,19 @@ export function Results({ sample = false }: { sample?: boolean }) {
         </div>
       )}
 
-      {/* Download Optimized Resume */}
+      {/* Download Optimized Resume. Both bundles gate this on the rewrite
+          outcome: the no-safe-rewrites page ends at "Review suggestions to
+          close these gaps" with no download CTA. If originalText is absent we
+          can't prove there are no edits, so the button stays. */}
+      {(!analysis.originalText
+        || !analysis.suggestedText
+        || analysis.suggestedText.trim() !== analysis.originalText.trim()) && (
       <DownloadOptimizedButton
         suggestedText={analysis.suggestedText}
         status="completed"
         isDemo={isReadOnly}
       />
+      )}
 
       {signupPrompt && (
         <SignupPromptModal

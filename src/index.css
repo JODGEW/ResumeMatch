@@ -69,6 +69,7 @@
   --score-mid-dim: var(--warning-dim);
   --score-low: #f97316;
   --score-low-dim: rgba(249, 115, 22, 0.15);
+  --score-low-border: rgba(249, 115, 22, 0.28);
   --score-poor: var(--danger);
   --score-poor-dim: var(--danger-dim);
 
@@ -201,6 +202,7 @@
   --score-mid-dim: var(--warning-dim);
   --score-low: #b84d15;
   --score-low-dim: rgba(184, 77, 21, 0.1);
+  --score-low-border: rgba(184, 77, 21, 0.22);
   --score-poor: var(--danger);
   --score-poor-dim: var(--danger-dim);
 

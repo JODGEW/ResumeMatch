@@ -1,4 +1,15 @@
+/* Resume Diff — the edits-exist half of "Detailed Changes" in the approved
+   Claude Design bundle (Analysis Detail Mercor.dc.html). One panel: a header
+   strip carrying the legend, divided from the mono diff body. */
+
 .diff-view {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: none;
+  margin-bottom: 24px;
   animation: fadeIn 0.5s ease both;
   animation-delay: 0.3s;
 }
@@ -7,64 +18,69 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0;
 }
 
 .diff-view__header h3 {
-  font-size: 1rem;
+  font-size: 14px;
+  font-weight: 590;
+  color: var(--text-primary);
 }
 
 .diff-view__legend {
   display: flex;
-  gap: 1rem;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .diff-view__legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
+  gap: 6px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .diff-view__legend-item::before {
   content: '';
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
   border-radius: 3px;
+  flex-shrink: 0;
 }
 
 .diff-view__legend-item--original::before {
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
+  background: var(--surface-card-hover);
+  border: 1px solid var(--border-standard);
 }
 
 .diff-view__legend-item--added::before {
-  background: var(--accent-dim);
-  border: 1px solid var(--accent-border);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
 }
 
 .diff-view__legend-item--removed::before {
-  background: var(--danger-dim);
-  border: 1px solid var(--danger-border);
+  background: var(--pill-danger-bg);
+  border: 1px solid var(--pill-danger-border);
 }
 
 .diff-view__body {
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
+  padding: 20px 22px;
   overflow-x: auto;
   max-height: 500px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .diff-view__content {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 13px;
   line-height: 1.9;
   white-space: pre-wrap;
   word-break: break-word;
@@ -72,32 +88,39 @@
 }
 
 .diff-view__added {
-  background: var(--accent-dim);
-  border-bottom: 2px solid var(--accent-border);
-  color: var(--accent);
-  padding: 0.1em 0.15em;
-  border-radius: 2px;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  color: var(--brand-tint-text);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .diff-view__removed {
-  background: var(--danger-dim);
-  color: var(--danger);
+  background: var(--pill-danger-bg);
+  border: 1px solid var(--pill-danger-border);
+  color: var(--pill-danger-text);
   text-decoration: line-through;
-  text-decoration-color: var(--danger-border);
-  padding: 0.1em 0.15em;
-  border-radius: 2px;
-  opacity: 0.75;
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
+  .diff-view__header {
+    padding: 14px 16px;
+  }
+
+  .diff-view__legend {
+    gap: 10px;
+  }
+
   .diff-view__body {
-    padding: 1rem;
+    padding: 16px;
     max-height: 400px;
   }
 
   .diff-view__content {
-    font-size: 0.75rem;
-    line-height: 1.7;
+    font-size: 12px;
+    line-height: 1.75;
   }
 }

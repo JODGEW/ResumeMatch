@@ -16,13 +16,13 @@ export function DiffView({ original, suggested }: Props) {
         <h3>Resume Diff</h3>
         <div className="diff-view__legend">
           <span className="diff-view__legend-item diff-view__legend-item--original">
-            Original text
+            Original
           </span>
           <span className="diff-view__legend-item diff-view__legend-item--added">
             Suggested additions
           </span>
           <span className="diff-view__legend-item diff-view__legend-item--removed">
-            Removed text
+            Removed
           </span>
         </div>
       </div>

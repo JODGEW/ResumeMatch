@@ -1517,6 +1517,10 @@
 .tracker-modal {
   width: min(640px, 100%);
   max-height: 88vh;
+  /* dvh tracks the browser chrome as it retracts; vh is the *large* viewport,
+     so on a phone with the URL bar showing it overshoots the visible area and
+     pushes the footer below the fold. */
+  max-height: 88dvh;
   background: var(--bg-panel);
   border: 1px solid var(--border-standard);
   border-radius: 16px;
@@ -1579,6 +1583,9 @@
 .tracker-modal__body {
   flex: 1;
   overflow-y: auto;
+  /* Without this the gesture chains to the page behind once this region hits
+     its top or bottom, scrolling the tracker under the open form. */
+  overscroll-behavior: contain;
   padding: 24px;
 }
 
@@ -1838,13 +1845,40 @@
     flex-wrap: wrap;
   }
 
+  /* Once the row wraps, .tracker-card__side gets its own full-width line that
+     would otherwise start at the row edge while .tracker-card__main stays
+     indented. Push it into the same column: the 20px .tracker-check plus
+     .tracker-card__row's 16px gap. The checkbox is then a pure selection
+     gutter with a single content column beside it.
+
+     stretch, not flex-start: this is a column flex container, so flex-start
+     would size .tracker-card__badges to max-content and its flex-wrap:wrap
+     would never engage — the pill row just overflowed the card instead. */
   .tracker-card__side {
-    align-items: flex-start;
+    align-items: stretch;
     width: 100%;
+    padding-left: 36px;
   }
 
   .tracker-card__badges {
     justify-content: flex-start;
+  }
+
+  /* ··· now sits near the card's left edge, so the desktop right-anchored menu
+     would open off the left of the screen. Anchor it to the actions row rather
+     than to the button, so where it lands doesn't depend on how wide the
+     primary action's label happens to be. */
+  .tracker-card__actions {
+    position: relative;
+  }
+
+  .tracker-quick-overflow {
+    position: static;
+  }
+
+  .tracker-quick-overflow__menu {
+    left: 0;
+    right: auto;
   }
 }
 
@@ -1918,6 +1952,11 @@
     gap: 12px;
   }
 
+  /* Track the row gap above: 20px checkbox + 12px gap. */
+  .tracker-card__side {
+    padding-left: 32px;
+  }
+
   .tracker-card__company {
     font-size: 15px;
   }
@@ -1957,9 +1996,12 @@
     align-items: flex-end;
   }
 
+  /* Leaves a real backdrop strip above the sheet to tap-dismiss; 94vh left
+     ~6vh, and on a phone vh overshoots the visible viewport outright. */
   .tracker-modal {
     width: 100%;
-    max-height: 94vh;
+    max-height: 88vh;
+    max-height: 88dvh;
     border-radius: 16px 16px 0 0;
   }
 
@@ -1968,6 +2010,11 @@
   .tracker-modal__footer {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  /* Clear the home indicator on notched phones. */
+  .tracker-modal__footer {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
 
   .tracker-modal__grid {

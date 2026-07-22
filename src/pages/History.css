@@ -1,395 +1,533 @@
-/* ── Header ──────────────────────────────────────────── */
-.history-header {
+/* Analysis History — implementation of the approved Claude Design bundle
+   (Analysis History.dc.html). Token roles map onto the shared semantic tokens
+   in index.css. Presentation only: polling, pagination, download, tracker
+   prefill and the demo signup gate in History.tsx are unchanged.
+
+   Two deliberate departures from the bundle, both agreed up front:
+   - Score bands follow our five-tier rubric (ProgressRing / README), not the
+     bundle's four, which would reclassify everything from 55–85.
+   - The bundle's free-plan "Upgrade to Pro" block and Pro-gated pagination are
+     omitted; pagination ships to everyone, as it does today. */
+
+.history-page {
+  max-width: 1240px;
+  padding: 36px 24px 60px;
+}
+
+/* ── Page head ──────────────────────────────────────── */
+.history-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 24px;
   flex-wrap: wrap;
+  margin-bottom: 26px;
 }
 
-/* ── Loading ─────────────────────────────────────────── */
+.history-head h1 {
+  margin: 0 0 6px;
+  font-size: 32px;
+  font-weight: 590;
+  letter-spacing: -0.6px;
+}
+
+.history-head p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.history-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  background: var(--accent);
+  border: none;
+  color: var(--text-on-accent);
+  font-size: 14px;
+  font-weight: 510;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  transition: background 0.15s;
+}
+
+.history-new-btn:hover {
+  background: var(--accent-hover);
+  color: var(--text-on-accent);
+}
+
+/* ── Controls ───────────────────────────────────────── */
+.history-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.history-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.history-search__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.history-search__input {
+  width: 100%;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 8px;
+  padding: 9px 12px 9px 34px;
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+
+.history-search__input:focus {
+  background: var(--surface-inset);
+  border-color: var(--brand-tint-border);
+  box-shadow: 0 0 0 3px var(--brand-tint-bg);
+}
+
+.history-sort {
+  margin-left: auto;
+  width: auto;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.history-sort:focus {
+  background: var(--surface-inset);
+  border-color: var(--brand-tint-border);
+  box-shadow: 0 0 0 3px var(--brand-tint-bg);
+}
+
+/* ── Alert ──────────────────────────────────────────── */
+.history-alert {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--pill-danger-text);
+  background: var(--pill-danger-bg);
+  border: 1px solid var(--pill-danger-border);
+  border-radius: 12px;
+  padding: 13px 15px;
+  margin-bottom: 20px;
+}
+
+.history-alert svg {
+  flex-shrink: 0;
+}
+
+/* ── List ───────────────────────────────────────────── */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.history-card {
+  display: flex;
+  gap: 18px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 16px;
+  padding: 20px 22px;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.history-card:hover {
+  border-color: var(--brand-tint-border);
+  background: var(--surface-card-hover);
+  color: inherit;
+}
+
+.history-card--disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.history-card--disabled:hover {
+  border-color: var(--border-standard);
+  background: var(--bg-panel);
+}
+
+.history-card--new {
+  border-color: var(--success-border);
+}
+
+/* ── Score ring ─────────────────────────────────────── */
+.history-card__lead {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.history-card__ring {
+  position: relative;
+  width: 50px;
+  height: 50px;
+}
+
+.history-card__ring-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 590;
+  letter-spacing: -0.3px;
+  color: inherit;
+}
+
+/* ── Card body ──────────────────────────────────────── */
+.history-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.history-card__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 590;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
+}
+
+.history-card__band {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 590;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.history-card__band--high {
+  color: var(--score-high);
+  background: var(--score-high-dim);
+  border-color: var(--success-border);
+}
+
+.history-card__band--good {
+  color: var(--score-good);
+  background: var(--score-good-dim);
+  border-color: var(--info-border);
+}
+
+.history-card__band--mid {
+  color: var(--score-mid);
+  background: var(--score-mid-dim);
+  border-color: var(--warning-border);
+}
+
+.history-card__band--low {
+  color: var(--score-low);
+  background: var(--score-low-dim);
+  border-color: var(--score-low-border);
+}
+
+.history-card__band--poor {
+  color: var(--score-poor);
+  background: var(--score-poor-dim);
+  border-color: var(--danger-border);
+}
+
+/* ── Meta row ───────────────────────────────────────── */
+.history-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.history-card__file {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.history-card__date {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.history-card__new-badge {
+  font-size: 11px;
+  font-weight: 590;
+  color: var(--success);
+  background: var(--success-dim);
+  border: 1px solid var(--success-border);
+  border-radius: 9999px;
+  padding: 1px 8px;
+}
+
+/* ── Summary ────────────────────────────────────────── */
+.history-card__summary {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.history-card__summary--pending {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.history-card__summary--failed {
+  color: var(--danger);
+}
+
+/* ── Stats ──────────────────────────────────────────── */
+.history-card__stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 13px;
+}
+
+.history-card__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 590;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.history-card__pill--success {
+  color: var(--pill-success-text);
+  background: var(--pill-success-bg);
+  border-color: var(--pill-success-border);
+}
+
+.history-card__pill--danger {
+  color: var(--pill-danger-text);
+  background: var(--pill-danger-bg);
+  border-color: var(--pill-danger-border);
+}
+
+.history-card__pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.history-card__gaps {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+/* ── Actions ────────────────────────────────────────── */
+.history-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.history-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 510;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.history-action:not(:disabled):hover {
+  background: var(--surface-card-hover);
+  color: var(--text-primary);
+}
+
+.history-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.history-action svg {
+  flex-shrink: 0;
+}
+
+.history-action--brand {
+  background: var(--brand-tint-bg);
+  border-color: var(--brand-tint-border);
+  color: var(--brand-tint-text);
+}
+
+.history-action--brand:not(:disabled):hover {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--text-on-accent);
+}
+
+.history-action .loading-spinner {
+  border-color: var(--border);
+  border-top-color: currentColor;
+}
+
+/* ── Loading / empty / no-match ─────────────────────── */
 .history-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  padding: 4rem 0;
+  gap: 0.875rem;
+  padding: 4rem 1rem;
 }
 
-/* ── Empty State ─────────────────────────────────────── */
 .history-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 0.5rem;
   text-align: center;
-  padding: 4rem 0;
-  gap: 0.5rem;
+  padding: 4rem 1rem;
 }
 
-.history-empty h3 {
-  margin-top: 1rem;
-}
-
-/* ── List ────────────────────────────────────────────── */
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-}
-
-/* ── Item ────────────────────────────────────────────── */
-.history-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas:
-    "score details nav"
-    ". actions .";
-  align-items: center;
-  column-gap: 1.25rem;
-  row-gap: 0.5rem;
-  padding: 1.25rem 1.5rem;
-  color: inherit;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s;
-  cursor: pointer;
-}
-
-/* Mini score ring */
-.history-item__left {
-  grid-area: score;
-  flex-shrink: 0;
-  padding-right: 0.75rem;
-}
-
-.history-item__score {
-  position: relative;
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.history-item__score svg {
-  position: absolute;
-  inset: 0;
-}
-
-.history-item__score-value {
-  font-family: var(--font-display);
-  font-weight: 590;
-  font-size: 0.8125rem;
-  position: relative;
-  z-index: 1;
-}
-
-/* Body */
-.history-item__body {
-  grid-area: details;
-  flex: 1;
-  min-width: 0;
-}
-
-.history-item__details {
-  position: relative;
-}
-
-.history-item__details::before {
-  content: '';
-  position: absolute;
-  top: 0.125rem;
-  bottom: 0.125rem;
-  left: -1rem;
-  width: 1px;
-  background: var(--border);
-}
-
-.history-item__title {
-  font-size: 0.9375rem;
-  font-weight: 590;
-  line-height: 1.3;
-  color: var(--text-primary);
-  margin-bottom: 0.3125rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.history-item__meta {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.375rem;
-  flex-wrap: wrap;
-}
-
-.history-item__file {
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-}
-
-.history-item__date {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-  background: var(--surface-subtle);
-  padding: 0.1875rem 0.625rem;
-  border-radius: 100px;
-}
-
-.history-item__jd {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  line-height: 1.45;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  max-width: 72ch;
-}
-
-.history-item__stats {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.history-item__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 510;
-  padding: 0.3125rem 0.6875rem;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.history-item__pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.history-item__pill--success {
-  color: var(--success);
-  background: var(--success-dim);
-}
-
-.history-item__pill--danger {
-  color: var(--danger);
-  background: var(--danger-dim);
-}
-
-.history-item__missing {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-top: 0.25rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.history-item__missing-label {
+.history-no-match {
+  text-align: center;
+  padding: 60px 20px;
   color: var(--text-muted);
 }
 
-.history-item__missing-more {
+.history-no-match__title {
+  font-size: 15px;
   font-weight: 510;
-  white-space: nowrap;
-}
-
-.history-item__actions .btn {
-  flex-shrink: 0;
-  font-size: 0.6875rem;
-  padding: 0.3125rem 0.625rem;
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-}
-
-.history-item__download-btn,
-.history-item__interview-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.325rem;
-}
-
-.history-item__interview-btn {
-  justify-content: center;
-  width: 100%;
-  min-height: 2.25rem;
-  font-size: 0.75rem;
-}
-
-/* Arrow */
-.history-item__arrow {
-  grid-area: nav;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  gap: 0.25rem;
-  margin-left: 0.125rem;
-  padding: 0.375rem 0.25rem;
-  border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  opacity: 0.78;
-  transition: color 0.2s, opacity 0.2s, transform 0.2s;
+  margin-bottom: 4px;
 }
 
-.history-item__arrow-label {
-  color: currentColor;
-  font-size: 0.6875rem;
-  font-weight: 510;
-  white-space: nowrap;
+.history-no-match__hint {
+  font-size: 13.5px;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .history-item:not(.history-item--disabled):hover {
-    border-color: var(--border-light);
-    background: var(--surface-card-hover);
-    box-shadow: var(--shadow-sm);
-    color: inherit;
-    transform: translateY(-1px);
+/* ── Responsive ─────────────────────────────────────── */
+/* The bundle ships one 1240px composition with no media queries; these follow
+   the breakpoints the rest of the app already uses. */
+@media (max-width: 768px) {
+  .history-page {
+    padding: 24px 16px 48px;
   }
 
-  .history-item:not(.history-item--disabled):hover .history-item__arrow {
-    color: var(--accent);
-    opacity: 1;
-    transform: translateX(3px);
+  .history-head {
+    margin-bottom: 20px;
+  }
+
+  .history-sort {
+    margin-left: 0;
+    flex: 1;
+    min-width: 150px;
   }
 }
 
-/* ── Disabled (in-progress) item ────────────────────── */
-.history-item--disabled {
-  opacity: 0.65;
-  cursor: default;
-}
-
-.history-item--disabled:hover {
-  border-color: var(--border);
-  background: var(--surface-card);
-  box-shadow: none;
-}
-
-.history-item--disabled .history-item__arrow {
-  opacity: 0.25;
-}
-
-/* ── "New" badge ────────────────────────────────────── */
-.history-item__new-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.625rem;
-  font-weight: 510;
-  padding: 0.125rem 0.5rem;
-  border-radius: 100px;
-  background: var(--success-dim);
-  color: var(--success);
-  animation: newBadgeFadeIn 0.3s ease;
-}
-
-@keyframes newBadgeFadeIn {
-  from { opacity: 0; transform: scale(0.8); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* ── Completed transition glow ──────────────────────── */
-.history-item--new {
-  border-color: var(--success);
-  transition: border-color 0.6s ease;
-}
-
-/* ── Action buttons wrapper ───────────────────────── */
-.history-item__actions {
-  grid-area: actions;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  align-items: stretch;
-  justify-content: flex-end;
-  width: 100%;
-}
-
-.history-item__secondary-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-/* ── Mobile ────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .history-item {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas:
-      "score details"
-      "actions actions";
-    padding: 1rem;
-    column-gap: 0.75rem;
-    row-gap: 0.5rem;
+@media (max-width: 480px) {
+  .history-head h1 {
+    font-size: 23px;
+    letter-spacing: -0.4px;
   }
 
-  .history-item__date {
-    white-space: nowrap;
+  .history-head p {
+    font-size: 14px;
   }
 
-  .history-item__file {
-    font-size: 0.75rem;
-  }
-
-  .history-item__title {
-    font-size: 0.875rem;
-    white-space: normal;
-    overflow: hidden;
-    text-overflow: initial;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    line-height: 1.3;
-  }
-
-  .history-item__details::before {
-    display: none;
-  }
-
-  .history-item__jd {
-    font-size: 0.75rem;
-    -webkit-line-clamp: 2;
-  }
-
-  .history-item__pill {
-    font-size: 0.625rem;
-    padding: 0.1875rem 0.5rem;
-  }
-
-  .history-item__actions {
-    justify-content: flex-end;
-  }
-
-  .history-item__interview-btn {
+  .history-new-btn {
     width: 100%;
+    justify-content: center;
   }
 
-  .history-item__secondary-actions {
-    width: 100%;
-    justify-content: flex-start;
+  .history-search {
+    max-width: none;
+    min-width: 0;
+    flex-basis: 100%;
   }
 
-  .history-item__secondary-actions .btn {
-    flex: 0 0 auto;
+  .history-sort {
+    flex-basis: 100%;
   }
 
-  .history-item__arrow {
-    display: none;
+  .history-card {
+    gap: 13px;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  /* The band pill needs its own line once the title wraps */
+  .history-card__head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .history-card__title {
+    flex-basis: 100%;
+    font-size: 15.5px;
+  }
+
+  .history-card__summary {
+    font-size: 13.5px;
+  }
+
+  .history-card__actions {
+    gap: 8px;
+  }
+
+  /* Not flex:1 — equal thirds are narrower than "Start Interview" and wrap the
+     label. Natural widths still fit two per row at 360px+. */
+  .history-action {
+    padding: 9px 12px;
   }
 }

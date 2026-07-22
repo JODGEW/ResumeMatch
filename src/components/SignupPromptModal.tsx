@@ -2,6 +2,7 @@ import { useId, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import './ConfirmModal.css';
 import './SignupPromptModal.css';
 
@@ -23,6 +24,7 @@ export function SignupPromptModal({
   const titleId = `${id}-title`;
   const bodyId = `${id}-body`;
   useFocusTrap(panelRef, onClose);
+  useBodyScrollLock();
 
   const handleSignup = () => {
     onClose();

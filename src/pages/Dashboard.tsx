@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { getAnalysisHistory } from '../api/analysis';
+import { getScoreBand } from '../utils/scoreBands';
 import type { Analysis } from '../types';
 import './Dashboard.css';
 
@@ -378,12 +379,7 @@ export function Dashboard() {
                         </td>
                         <td className="dash-table__td dash-table__td--right">
                           {row.status === 'completed' && row.matchScore != null ? (
-                            <span className="dash-table__score" data-level={
-                              row.matchScore >= 86 ? 'high' :
-                              row.matchScore >= 76 ? 'good' :
-                              row.matchScore >= 61 ? 'mid' :
-                              row.matchScore >= 41 ? 'low' : 'poor'
-                            }>
+                            <span className="dash-table__score" data-level={getScoreBand(row.matchScore).tier}>
                               {row.matchScore}
                             </span>
                           ) : '—'}

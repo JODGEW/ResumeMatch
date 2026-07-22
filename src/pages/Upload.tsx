@@ -11,6 +11,14 @@ import './Upload.css';
 const DEMO_EMAIL = 'demo123@resumeapp.com';
 const STORAGE_KEY = 'resumematch_last_resume';
 
+// Static "What we score" list from the design bundle.
+const SCORED = [
+  'Technical skills & tools vs. the role',
+  'Keyword coverage against the posting',
+  'Experience & seniority fit',
+  'ATS-friendly resume formatting',
+];
+
 interface LastResumeMetadata {
   analysisId: string;
   fileName: string;
@@ -33,9 +41,6 @@ export function Upload() {
   const [jobDescription, setJobDescription] = useState('');
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ jd?: string; resume?: string }>({});
-  const [touched, setTouched] = useState<{ jd?: boolean; resume?: boolean }>({});
-  const [submitError, setSubmitError] = useState('');
   const isDemo = user?.email === DEMO_EMAIL;
 
   const [lastResume, setLastResume] = useState<LastResumeMetadata | null>(() => {
@@ -75,10 +80,19 @@ export function Upload() {
   const navigate = useNavigate();
 
   const isSubmitting = stage !== 'idle';
-  // Resume source: either a new file or the saved last resume (auto-selected)
-  const activeResume = file || lastResume;
   // Reuse path when last resume is the active source (not changing, no new file)
   const isReusing = !file && !!lastResume && !isChangingResume;
+
+  // A resume is selected when a new file is picked, or the saved one is being
+  // reused. Same rule the old submit-time check used — the bundle just surfaces
+  // it up front by gating the CTA instead of erroring after the click.
+  const hasResume = !!file || (!!lastResume && !isChangingResume);
+  const hasJobDescription = jobDescription.trim().length > 0;
+  const canSubmit = hasJobDescription && hasResume;
+  const selectedName = file ? file.name : lastResume?.fileName ?? '';
+
+  const charCount = jobDescription.length;
+  const wordCount = jobDescription.trim() ? jobDescription.trim().split(/\s+/).length : 0;
 
   function saveLastResume(analysisId: string, fileName: string) {
     if (isDemo) return;
@@ -87,28 +101,27 @@ export function Upload() {
     setLastResume(metadata);
   }
 
+  function handleReplaceResume() {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setFile(null);
+      setIsChangingResume(true);
+      setIsTransitioning(false);
+    }, 150);
+  }
+
+  function handleRemoveResume() {
+    setFile(null);
+    setLastResume(null);
+    setIsChangingResume(false);
+    localStorage.removeItem(STORAGE_KEY);
+    setError('');
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || !canSubmit) return;
 
-    // Validate — show global + inline errors together
-    const missingJd = !jobDescription.trim();
-    const missingResume = isChangingResume ? !file : !activeResume;
-    if (missingJd || missingResume) {
-      const parts: string[] = [];
-      if (missingJd) parts.push('job description');
-      if (missingResume) parts.push('resume');
-      setSubmitError(`Please add a ${parts.join(' and ')} to continue`);
-      setTouched({ jd: true, resume: true });
-      setFieldErrors({
-        ...(missingJd ? { jd: 'Job description is required' } : {}),
-        ...(missingResume ? { resume: 'Resume is required' } : {}),
-      });
-      return;
-    }
-
-    setSubmitError('');
-    setFieldErrors({});
     setError('');
 
     try {
@@ -179,31 +192,43 @@ export function Upload() {
     return '0%';
   }
 
+  const ctaTitle = isSubmitting
+    ? STAGE_LABELS[stage]
+    : canSubmit
+      ? 'Analyze Resume'
+      : !hasJobDescription
+        ? 'Add a job description to continue'
+        : 'Upload a resume to continue';
+
+  const ctaSub = canSubmit
+    ? `Scoring ${selectedName} against this posting`
+    : !hasResume
+      ? 'Upload a resume to enable analysis'
+      : 'Paste the job description above to enable analysis';
+
   return (
-    <div className="page-container">
-      <div className="page-header animate-in">
+    <div className="page-container upload-page">
+      <div className="upload-head animate-in">
         <h1>New Analysis</h1>
-        <p>Upload your resume and paste the job description to get started</p>
+        <p>Paste a job description and pick your resume — we'll score the match in seconds.</p>
       </div>
 
       {error && (
-        <div className="upload-error animate-in">
+        <div className="upload-alert animate-in">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
-            <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
           <span>
             {error}
             {isChangingResume && lastResume && (
               <button
                 type="button"
-                className="upload-error__revert"
+                className="upload-alert__revert"
                 onClick={() => {
                   setIsChangingResume(false);
                   setFile(null);
                   setError('');
-                  setFieldErrors(f => ({ ...f, resume: undefined }));
-                  if (jobDescription.trim()) setSubmitError('');
                 }}
               >
                 Keep {lastResume.fileName}
@@ -213,154 +238,146 @@ export function Upload() {
         </div>
       )}
 
-      {submitError && (
-        <div className="upload-error animate-in">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
-            <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          {submitError}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="upload-grid">
-        {/* Left column — JD */}
-        <div className="upload-grid__col animate-in stagger-1">
-          <div className="card upload-panel">
-            <div className="upload-panel__header">
-              <div className="upload-panel__step">1</div>
-              <div>
-                <h3>Job Description</h3>
-                <p className="text-secondary">Paste test from posting</p>
+      <form onSubmit={handleSubmit}>
+        <div className="upload-grid">
+          {/* Left column — JD */}
+          <section className="upload-panel animate-in stagger-1">
+            <div className="upload-panel__head">
+              <span className="upload-panel__step">1</span>
+              <div className="upload-panel__heading">
+                <div className="upload-panel__title">Job Description</div>
+                <div className="upload-panel__sub">Paste the text straight from the posting</div>
               </div>
             </div>
+
             <textarea
               value={jobDescription}
-              onChange={(e) => {
-                const val = e.target.value;
-                setJobDescription(val);
-                if (!touched.jd) setTouched(t => ({ ...t, jd: true }));
-                setFieldErrors(f => ({ ...f, jd: val.trim() ? undefined : 'Job description is required' }));
-                // Clear global only when both valid
-                const resumeValid = isChangingResume ? !!file : !!(file || lastResume);
-                if (val.trim() && resumeValid) setSubmitError('');
-              }}
-              placeholder="Paste the job description here...&#10;&#10;Include requirements, responsibilities, and preferred qualifications for the best analysis."
-              rows={16}
-              className="upload-panel__textarea"
+              onChange={(e) => setJobDescription(e.target.value)}
+              placeholder="Paste the job description here — include requirements, responsibilities, and preferred qualifications for the sharpest match."
+              className="upload-textarea"
               disabled={isSubmitting}
             />
-            <div className="upload-panel__count">
-              {touched.jd && fieldErrors.jd && (
-                <span className="upload-field-error">{fieldErrors.jd}</span>
-              )}
-              {jobDescription.length > 0 && (
-                <span className="text-muted">
-                  {jobDescription.split(/\s+/).filter(Boolean).length} words
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* Right column — File + Submit */}
-        <div className="upload-grid__col animate-in stagger-2">
-          <div className="card upload-panel">
-            <div className="upload-panel__header">
-              <div className="upload-panel__step">2</div>
-              <div>
-                <h3>Resume</h3>
-                <p className="text-secondary">Upload your resume as a PDF</p>
+            <div className="upload-textarea__foot">
+              <span className="upload-count">
+                {charCount
+                  ? `${wordCount.toLocaleString()} words · ${charCount.toLocaleString()} characters`
+                  : 'Waiting for a job description…'}
+              </span>
+              <button
+                type="button"
+                className={`upload-clear ${charCount ? '' : 'upload-clear--hidden'}`}
+                onClick={() => setJobDescription('')}
+                disabled={isSubmitting}
+              >
+                Clear
+              </button>
+            </div>
+          </section>
+
+          {/* Right column — Resume */}
+          <section className="upload-panel animate-in stagger-2">
+            <div className="upload-panel__head">
+              <span className="upload-panel__step">2</span>
+              <div className="upload-panel__heading">
+                <div className="upload-panel__title">Resume</div>
+                <div className="upload-panel__sub">Choose which version to score</div>
               </div>
             </div>
-            {lastResume && !file && !isChangingResume ? (
+
+            {hasResume ? (
               <div className={`upload-transition ${isTransitioning ? 'upload-transition--out' : ''}`}>
                 <LastResumeCard
-                  fileName={lastResume.fileName}
-                  uploadedAt={lastResume.uploadedAt}
-                  onReplace={() => {
-                    setIsTransitioning(true);
-                    setTimeout(() => {
-                      setIsChangingResume(true);
-                      setIsTransitioning(false);
-                    }, 150);
-                  }}
+                  fileName={selectedName}
+                  uploadedAt={file ? undefined : lastResume?.uploadedAt}
+                  sizeBytes={file ? file.size : undefined}
+                  onReplace={handleReplaceResume}
+                  onRemove={handleRemoveResume}
                 />
               </div>
             ) : (
               <div className="upload-transition upload-transition--in">
-                {isChangingResume && lastResume && !file && (
-                  <p className="upload-replacing-hint">
-                    Replacing: {lastResume.fileName}
-                    <span> — </span>
+                {isChangingResume && lastResume && (
+                  <p className="upload-replacing">
+                    Replacing: <span className="upload-replacing__name">{lastResume.fileName}</span>
                     <button
                       type="button"
-                      className="upload-replacing-cancel"
-                      onClick={() => {
-                        setIsChangingResume(false);
-                        setFieldErrors(f => ({ ...f, resume: undefined }));
-                        if (jobDescription.trim()) setSubmitError('');
-                      }}
+                      className="upload-replacing__cancel"
+                      onClick={() => setIsChangingResume(false)}
                     >
-                      Cancel
+                      — Cancel
                     </button>
                   </p>
                 )}
-                <FileDropzone file={file} onFileSelect={(f) => {
-                  setFile(f);
-                  setTouched(t => ({ ...t, resume: true }));
-                  if (f) {
-                    setFieldErrors(fe => ({ ...fe, resume: undefined }));
-                    // Clear global only when both valid
-                    if (jobDescription.trim()) setSubmitError('');
-                  }
-                }} />
+                <FileDropzone onFileSelect={setFile} />
               </div>
             )}
-            {touched.resume && fieldErrors.resume && (
-              <p className="upload-field-error" style={{ padding: '0 1rem 0.75rem' }}>{fieldErrors.resume}</p>
-            )}
-          </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary upload-submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <>
-                <span
-                  className="loading-spinner"
-                  style={{ width: 16, height: 16, borderWidth: 2 }}
-                />
-                {STAGE_LABELS[stage]}
-              </>
-            ) : (
-              <>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M3 9h12M9 3l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span>
-                  Analyze Resume
-                  {isReusing && lastResume && !isChangingResume && (
-                    <span className="upload-submit__hint">Using {lastResume.fileName}</span>
-                  )}
-                </span>
-              </>
-            )}
-          </button>
-
-          {isSubmitting && (
-            <div className="upload-progress animate-in">
-              <div className="upload-progress__track">
-                <div
-                  className="upload-progress__bar"
-                  style={{ width: getProgressWidth() }}
-                />
+            <div className="upload-scored">
+              <div className="upload-scored__label">What we score</div>
+              <div className="upload-scored__list">
+                {SCORED.map((item) => (
+                  <div key={item} className="upload-scored__item">
+                    <span className="upload-scored__check">
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                        <polyline
+                          points="2,6.5 4.7,9 10,3"
+                          stroke="var(--success-alt)"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
-          )}
+
+            <p className="upload-privacy">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M8 7.2v3.4M8 5.2v.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              <span>Nothing is saved to job boards. Your resume is only used to compute the match.</span>
+            </p>
+          </section>
         </div>
+
+        <button
+          type="submit"
+          className={`upload-cta ${canSubmit ? 'upload-cta--ready' : ''}`}
+          disabled={!canSubmit || isSubmitting}
+        >
+          <span className="upload-cta__text">
+            <span className="upload-cta__title">{ctaTitle}</span>
+            <span className="upload-cta__sub">{ctaSub}</span>
+          </span>
+          <span className="upload-cta__icon">
+            {isSubmitting ? (
+              <span className="loading-spinner loading-spinner--sm" />
+            ) : (
+              <svg width="17" height="17" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M3 8h9M8.5 4l4 4-4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </span>
+        </button>
+
+        {isSubmitting && (
+          <div className="upload-progress animate-in">
+            <div className="upload-progress__track">
+              <div className="upload-progress__bar" style={{ width: getProgressWidth() }} />
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );

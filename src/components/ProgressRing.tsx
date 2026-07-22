@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { getScoreBand } from '../utils/scoreBands';
 import './ProgressRing.css';
 
 interface Props {
@@ -55,31 +56,10 @@ export function ProgressRing({ score, size = 220, label }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [clampedScore, circumference]);
 
-  const getGradient = () => {
-    if (clampedScore >= 86) return { a: 'var(--score-high)', b: 'var(--success)' };
-    if (clampedScore >= 76) return { a: 'var(--score-good)', b: 'var(--info)' };
-    if (clampedScore >= 61) return { a: 'var(--score-mid)', b: 'var(--warning)' };
-    if (clampedScore >= 41) return { a: 'var(--score-low)', b: 'var(--score-low)' };
-    return { a: 'var(--score-poor)', b: 'var(--danger)' };
-  };
-
-  const getLabel = () => {
-    if (clampedScore >= 86) return 'Strong Match';
-    if (clampedScore >= 76) return 'Good Match';
-    if (clampedScore >= 61) return 'Moderate Match';
-    if (clampedScore >= 41) return 'Weak Match';
-    return 'Poor Match';
-  };
-
-  const getLabelColor = () => {
-    if (clampedScore >= 86) return 'var(--score-high)';
-    if (clampedScore >= 76) return 'var(--score-good)';
-    if (clampedScore >= 61) return 'var(--score-mid)';
-    if (clampedScore >= 41) return 'var(--score-low)';
-    return 'var(--score-poor)';
-  };
-
-  const colors = getGradient();
+  // Both gradient stops are the band colour. They always were — every pair here
+  // resolved to one hue (--score-high is var(--success), and so on), so the
+  // gradient was decorative. Reading from the shared rubric keeps it that way.
+  const band = getScoreBand(clampedScore);
 
   return (
     <div
@@ -89,8 +69,8 @@ export function ProgressRing({ score, size = 220, label }: Props) {
       <svg viewBox={`0 0 ${size} ${size}`} className="progress-ring__svg">
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={colors.a} />
-            <stop offset="100%" stopColor={colors.b} />
+            <stop offset="0%" stopColor={band.color} />
+            <stop offset="100%" stopColor={band.color} />
           </linearGradient>
         </defs>
 
@@ -126,7 +106,7 @@ export function ProgressRing({ score, size = 220, label }: Props) {
           <span className="progress-ring__value">{displayScore}</span>
           <span className="progress-ring__percent">%</span>
         </div>
-        <span className="progress-ring__label" style={{ color: getLabelColor() }}>{label ?? getLabel()}</span>
+        <span className="progress-ring__label" style={{ color: band.color }}>{label ?? band.label}</span>
       </div>
     </div>
   );

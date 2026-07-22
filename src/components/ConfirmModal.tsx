@@ -1,5 +1,6 @@
 import React, { useId, useRef } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import './ConfirmModal.css';
 
 type ConfirmVariant = 'destructive' | 'warning';
@@ -21,6 +22,7 @@ export function ConfirmModal({ title, body, warning, confirmLabel, variant = 'de
   const bodyId = `${id}-body`;
   const warningId = `${id}-warning`;
   useFocusTrap(panelRef, onCancel);
+  useBodyScrollLock();
 
   return (
     <div className="confirm-overlay" onClick={onCancel}>

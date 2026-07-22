@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApplications } from '../hooks/useApplications';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -47,6 +48,20 @@ const TIMELINE_STEPS: Application['outreachStatus'][] = [
 // "1+ month", not "4 weeks". Rendering the raw number read as false precision
 // ("Posted 0w ago"). This table is the single source for both the modal's
 // dropdown and the card label so the two can't drift apart.
+// Compact labels for the collapsed disclosure summaries. The <option> text in
+// the form stays longer and more descriptive.
+const COMPANY_SIZE_LABELS: Record<Application['companySize'], string> = {
+  startup: 'Startup',
+  midsize: 'Mid-size',
+  enterprise: 'Enterprise',
+};
+
+const SENIORITY_SHORT_LABELS: Record<NonNullable<Application['seniorityFit']>, string> = {
+  entry: 'Entry',
+  mid: 'Mid',
+  senior: 'Senior',
+};
+
 const POSTING_AGE_BUCKETS = [
   { value: 0, label: '< 1 week' },
   { value: 1, label: '1-2 weeks' },
@@ -354,6 +369,7 @@ function ApplicationModal({
   const [form, setForm] = useState(initial);
   const [showDiscard, setShowDiscard] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  useBodyScrollLock();
   // Bundle's "optional" disclosure. Opens by default when the record already
   // carries data in there, so editing never hides existing values.
   const [showAdvanced, setShowAdvanced] = useState(() =>
@@ -362,7 +378,37 @@ function ApplicationModal({
     || !!initial.outreachDate || !!initial.followUpDate || !!initial.followUpSent
     || !!initial.response || !!initial.notes.trim()
   );
+  // Match and context are every-field-optional too, and only Company/Role/Date
+  // are required — so they collapse behind the same disclosure. Same rule as
+  // above: open when the record (or an analysis prefill) already has values.
+  const [showMatch, setShowMatch] = useState(() =>
+    initial.skillMatch.matchedSkills.length > 0
+    || initial.skillMatch.missingSkills.length > 0
+    || Number(initial.skillMatch.matchPercentage) > 0
+  );
+  const [showContext, setShowContext] = useState(() =>
+    initial.companySize !== 'startup'
+    || initial.postingAgeWeeks != null
+    || initial.seniorityFit != null
+  );
   const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
+
+  // Collapsed rows summarise what's inside so values stay visible without
+  // expanding. Compact forms of the <option> text, which stays descriptive.
+  const matchSummary = (() => {
+    const skills = form.skillMatch.matchedSkills.length + form.skillMatch.missingSkills.length;
+    const pct = Number(form.skillMatch.matchPercentage) || 0;
+    const parts: string[] = [];
+    if (skills) parts.push(`${skills} skill${skills === 1 ? '' : 's'}`);
+    if (pct) parts.push(`${pct}%`);
+    return parts.length ? parts.join(' · ') : 'optional';
+  })();
+
+  const contextSummary = [
+    COMPANY_SIZE_LABELS[form.companySize],
+    form.postingAgeWeeks != null ? postingAgeLabel(form.postingAgeWeeks) : null,
+    form.seniorityFit ? SENIORITY_SHORT_LABELS[form.seniorityFit] : null,
+  ].filter(Boolean).join(' · ');
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
     setForm(prev => ({ ...prev, [key]: val }));
@@ -485,8 +531,23 @@ function ApplicationModal({
           </div>
 
           {/* Match Assessment */}
-          <div className="tracker-modal__section">
-            <div className="tracker-modal__section-title">Match Assessment</div>
+          <button type="button" className="tracker-modal__disclosure" onClick={() => setShowMatch(v => !v)}>
+            <span className="tracker-modal__disclosure-label">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Match assessment
+            </span>
+            <span className="tracker-modal__disclosure-meta">
+              <span>{matchSummary}</span>
+              <svg className={`tracker-modal__disclosure-chevron${showMatch ? ' tracker-modal__disclosure-chevron--open' : ''}`} width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </button>
+
+          {showMatch && (
+          <div className="tracker-modal__advanced">
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field tracker-modal__field--full">
                 <label className="tracker-modal__label">Matched Skills</label>
@@ -505,17 +566,33 @@ function ApplicationModal({
               </div>
             </div>
           </div>
+          )}
 
           {/* Company Context */}
-          <div className="tracker-modal__section">
-            <div className="tracker-modal__section-title">Company Context</div>
+          <button type="button" className="tracker-modal__disclosure" onClick={() => setShowContext(v => !v)}>
+            <span className="tracker-modal__disclosure-label">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Company context
+            </span>
+            <span className="tracker-modal__disclosure-meta">
+              <span>{contextSummary}</span>
+              <svg className={`tracker-modal__disclosure-chevron${showContext ? ' tracker-modal__disclosure-chevron--open' : ''}`} width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </button>
+
+          {showContext && (
+          <div className="tracker-modal__advanced">
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field">
                 <label className="tracker-modal__label">Company Size</label>
                 <select className="tracker-modal__select" value={form.companySize} onChange={e => set('companySize', e.target.value as Application['companySize'])}>
-                  <option value="startup">Startup</option>
-                  <option value="midsize">Mid-size</option>
-                  <option value="enterprise">Enterprise</option>
+                  {Object.entries(COMPANY_SIZE_LABELS).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
                 </select>
               </div>
               <div className="tracker-modal__field">
@@ -538,6 +615,7 @@ function ApplicationModal({
               </div>
             </div>
           </div>
+          )}
 
           <button type="button" className="tracker-modal__disclosure" onClick={() => setShowAdvanced(v => !v)}>
             <span className="tracker-modal__disclosure-label">
