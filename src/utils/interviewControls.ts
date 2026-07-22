@@ -56,7 +56,7 @@ export function getInterviewControlState({
     micActive,
     endDisabled,
     hint,
-    endButtonLabel: endDisabled ? 'Waiting for response...' : isClosingPrompt ? 'View report' : 'End Interview',
+    endButtonLabel: endDisabled ? 'Waiting for response...' : isClosingPrompt ? 'View report' : 'End interview',
     endReason:
       closingKind === 'all_questions_answered'
         ? 'all_questions_answered'

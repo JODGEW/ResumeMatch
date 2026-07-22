@@ -45,6 +45,14 @@
   text-decoration: underline;
 }
 
+/* A live mock interview owns the screen: every nav link (and the demo banner) is
+   an escape hatch a candidate can hit mid-answer, so the whole header is removed
+   while a question is on screen. Interview.tsx toggles the body class, and the
+   interview renders its own minimal top bar in place of this one. */
+body.interview-immersive .header-sticky {
+  display: none;
+}
+
 /* ── Navigation ─────────────────────────────────────── */
 .header-sticky {
   position: sticky;

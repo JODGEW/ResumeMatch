@@ -119,6 +119,13 @@
   --warn-tint-border: rgba(201, 151, 60, 0.3);
   --danger-tint-bg: rgba(201, 106, 120, 0.05);
   --danger-tint-border: rgba(201, 106, 120, 0.3);
+  /* Recording red — the mock interview's "you are being captured" state, which is
+     not an error and so does not share --danger. Copied verbatim from the
+     In Interview.dc.html bundle. */
+  --rec: #e5484d;
+  --rec-tint-bg: rgba(229, 72, 77, 0.14);
+  --rec-tint-border: rgba(229, 72, 77, 0.4);
+  --rec-soft: #f1a1a4;
   --track: rgba(255, 255, 255, 0.07);
   --tab-active-bg: rgba(255, 255, 255, 0.06);
   --pricing-free-bg: rgba(94, 106, 210, 0.06);
@@ -255,6 +262,15 @@
   --input-bg: #ffffff;
   --success-tint-bg: rgba(14, 150, 104, 0.08);
   --success-tint-border: rgba(14, 150, 104, 0.25);
+  /* The In Interview bundle is dark-only, so light has no --rec to copy. These
+     use #b4485c — the design system's own light red (LIGHT_TOKENS --danger in
+     the page bundles). --rec-soft cannot carry #f1a1a4 into light: it measures
+     ~2.0:1 on white, so the End interview label would fail AA. #b4485c is
+     ~5.2:1 and doubles as the soft tone here. */
+  --rec: #b4485c;
+  --rec-tint-bg: rgba(180, 72, 92, 0.08);
+  --rec-tint-border: rgba(180, 72, 92, 0.35);
+  --rec-soft: #b4485c;
 }
 
 /* ── Reset & Base ───────────────────────────────────── */

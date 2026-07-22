@@ -40,7 +40,13 @@ export function useMicrophoneLevel(): UseMicrophoneLevelReturn {
   const statusRef = useRef<MicLevelStatus>('idle');
   statusRef.current = status;
 
-  const stop = useCallback(() => {
+  /**
+   * Tears the meter down. Returns the AudioContext's close() promise so callers
+   * that need the device released before re-acquiring it (the interview hands the
+   * mic straight to Deepgram) can await the real signal. Callers that don't care
+   * can ignore it — teardown is synchronous apart from the context close.
+   */
+  const stop = useCallback((): Promise<void> => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -51,9 +57,9 @@ export function useMicrophoneLevel(): UseMicrophoneLevelReturn {
     }
     analyserRef.current = null;
     dataRef.current = null;
-    if (ctxRef.current && ctxRef.current.state !== 'closed') {
-      ctxRef.current.close().catch(() => { /* context already closing */ });
-    }
+    const closed = ctxRef.current && ctxRef.current.state !== 'closed'
+      ? ctxRef.current.close().catch(() => { /* context already closing */ })
+      : Promise.resolve();
     ctxRef.current = null;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
@@ -64,6 +70,7 @@ export function useMicrophoneLevel(): UseMicrophoneLevelReturn {
       setBins(Array(BAR_COUNT).fill(0));
       setStatus(prev => (prev === 'denied' || prev === 'error') ? prev : 'idle');
     }
+    return closed;
   }, []);
 
   const start = useCallback(async (): Promise<boolean> => {

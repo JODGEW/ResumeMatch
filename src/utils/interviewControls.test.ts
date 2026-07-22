@@ -39,7 +39,7 @@ describe('getInterviewControlState', () => {
     expect(controls.isClosingPrompt).toBe(false);
     expect(controls.micDisabled).toBe(false);
     expect(controls.hint).toBe('Hold mic or Space to speak');
-    expect(controls.endButtonLabel).toBe('End Interview');
+    expect(controls.endButtonLabel).toBe('End interview');
     expect(controls.endReason).toBe('user_ended');
   });
 

@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useMicrophoneCheck } from '../hooks/useMicrophoneCheck';
 import { useMicrophoneLevel } from '../hooks/useMicrophoneLevel';
+import { LogoMark } from '../components/LogoMark';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { extractApiErrorMessage } from '../api/errors';
 import {
   startInterview,
@@ -101,7 +103,11 @@ export function Interview() {
   // part of the conversation/transcript, intentionally lost on refresh. Persists
   // across turns; cleared only when a session starts or is restored.
   const [scratchpadNotes, setScratchpadNotes] = useState('');
-  const [conversation, setConversation] = useState<ConversationTurn[]>([]);
+  const [notesOpen, setNotesOpen] = useState(true);
+  // Accumulated in-memory transcript. Write-only since the live screen stopped
+  // rendering a scrolling conversation — the backend owns the transcript of
+  // record, and the results page reads it from there.
+  const [, setConversation] = useState<ConversationTurn[]>([]);
   const [turnNumber, setTurnNumber] = useState(0);
   const [error, setError] = useState('');
   const [timeLimit, setTimeLimit] = useState(0);
@@ -118,7 +124,6 @@ export function Interview() {
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const answerTimerRef = useRef<ReturnType<typeof setInterval>>();
   const answerStartRef = useRef(0);
-  const conversationEndRef = useRef<HTMLDivElement>(null);
   const startedAtRef = useRef(0);
   const lsKeyRef = useRef('');
   const pushToTalkActiveRef = useRef(false);
@@ -181,8 +186,10 @@ export function Interview() {
     utteranceRef.current = null;
   }
 
-  const speakQuestion = useCallback((text: string) => {
-    if (!ttsEnabledRef.current || typeof speechSynthesis === 'undefined') {
+  // `force` is set by the Replay button: an explicit click is its own consent to
+  // hear the question, so it plays even while the interviewer voice is muted.
+  const speakQuestion = useCallback((text: string, force = false) => {
+    if (typeof speechSynthesis === 'undefined' || (!ttsEnabledRef.current && !force)) {
       setInterviewState('active');
       return;
     }
@@ -216,10 +223,24 @@ export function Interview() {
     return () => cancelTts();
   }, []);
 
-  // Auto-scroll conversation
+  // A live interview is the one flow in the app that owns the whole screen: the
+  // app nav is an escape hatch a candidate can hit mid-answer, so it is hidden
+  // (via Layout.css) while a question is on screen and restored on the way out.
   useEffect(() => {
-    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation, currentQuestion]);
+    const immersive =
+      interviewState === 'active' ||
+      interviewState === 'thinking' ||
+      interviewState === 'speaking';
+    document.body.classList.toggle('interview-immersive', immersive);
+    return () => document.body.classList.remove('interview-immersive');
+  }, [interviewState]);
+
+  // Each new question resets to the top of the screen. This used to scroll to a
+  // marker below the notes, which made sense when the transcript grew down the
+  // page; in the current layout it pushed the question itself off the top edge.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentQuestion]);
 
   // On mount: check for saved pointer, fetch from backend or start new
   useEffect(() => {
@@ -507,7 +528,8 @@ export function Interview() {
       }
     }
     return () => {
-      micLevel.stop();
+      // Cleanup can't await; the context closes on its own schedule here.
+      void micLevel.stop();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewState, microphoneCheck.status, isIOS]);
@@ -793,9 +815,10 @@ export function Interview() {
       }
       void microphoneCheck.recheck();
     }
-    micLevel.stop();
-    // Yield a frame so AudioContext.close() flushes before Deepgram acquires a fresh stream.
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    // Await the real close, not a painted frame: requestAnimationFrame never
+    // fires in a hidden tab, so clicking Start and switching away used to park
+    // here until the tab was refocused. Deepgram acquires a fresh stream next.
+    await micLevel.stop();
     initNewSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [microphoneCheck.status, micLevel]);
@@ -817,7 +840,9 @@ export function Interview() {
   });
   const currentPromptIsClosing = controls.isClosingPrompt;
   const questionProgressLabel = currentPromptIsClosing
-    ? 'All questions complete'
+    ? totalQuestions > 0
+      ? `All ${totalQuestions} answered`
+      : 'All questions complete'
     : totalQuestions > 0
     ? `Question ${questionNumber} of ${totalQuestions}`
     : `Question ${questionNumber || 1}`;
@@ -839,6 +864,20 @@ export function Interview() {
       : currentQuestionKind === 'clarification'
         ? ' interview-question--clarification'
         : '';
+
+  // Progress strip. questionNumber does not advance on follow-ups (see above), so
+  // the active segment deliberately stays put while the interviewer drills deeper.
+  const answeredSegments = currentPromptIsClosing
+    ? totalQuestions
+    : Math.max(0, questionNumber - 1);
+
+  // The bundle's "advancing" state: the answer is captured and the interview is
+  // moving on. Covers both real phases that sit between release and the next
+  // question — batch transcription, then the backend turn.
+  const isAdvancing = !currentPromptIsClosing && (isFinalizing || interviewState === 'thinking');
+  // Best-effort: closingKind only arrives with the backend's next turn, so the
+  // last question is inferred from the counter. Falls back to the generic label.
+  const isLastQuestion = totalQuestions > 0 && questionNumber >= totalQuestions;
 
   // --- Render ---
 
@@ -1117,47 +1156,138 @@ export function Interview() {
 
   // Active / Thinking
   return (
-    <div className="page-container">
-      <div className="interview-header animate-in">
-        <div>
-          <h1>Mock Interview</h1>
-          <div className="interview-status">
-            <p className="text-secondary interview-status__progress">{questionProgressLabel}</p>
-            {currentQuestionKind === 'followup' && (
-              <span className="interview-status__badge interview-status__badge--followup">Follow-up</span>
-            )}
-            {currentQuestionKind === 'clarification' && (
-              <span className="interview-status__badge interview-status__badge--clarification">Clarification</span>
-            )}
-          </div>
-        </div>
-        <div className="interview-timer">
-          <span className={`interview-timer__value ${remaining <= 120 ? 'interview-timer__value--warning' : ''}`}>
-            {formatTime(remaining)}
+    <div className="interview-live">
+      {/* Stands in for the app nav, which is hidden while the interview is live.
+          The brand is deliberately not a link — every exit runs through End interview. */}
+      <div className="interview-topbar">
+        <div className="interview-topbar__inner">
+          <span className="interview-topbar__brand">
+            <LogoMark width={26} height={26} />
+            <span className="interview-topbar__name">ResumeMatch</span>
           </span>
-          <span className="interview-timer__label">remaining</span>
-          {answerElapsed > 0 && (
-            <div className="interview-timer__stats">
-              <span className="interview-timer__answer">
-                {formatTime(answerElapsed)}
-              </span>
-            </div>
-          )}
+          {/* App-level controls live here, not in the question card: neither one
+              touches the session, and the nav that normally hosts them is hidden.
+              Keeping them out of the card leaves it bundle-exact (Replay only). */}
+          <div className="interview-topbar__right">
+            <span
+              className={`interview-topbar__pill${currentPromptIsClosing ? ' interview-topbar__pill--done' : ''}`}
+              aria-live="polite"
+            >
+              <span className="interview-topbar__dot" />
+              {currentPromptIsClosing ? 'Interview complete' : 'Interview in progress'}
+            </span>
+            <button
+              type="button"
+              className={`interview-topbar__mute${ttsEnabled ? '' : ' interview-topbar__mute--off'}`}
+              onClick={toggleTts}
+              title={ttsEnabled ? 'Mute interviewer voice' : 'Unmute interviewer voice'}
+              aria-label={ttsEnabled ? 'Mute interviewer voice' : 'Unmute interviewer voice'}
+              aria-pressed={!ttsEnabled}
+            >
+              {ttsEnabled ? (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M11 4.5c1.2 1 2 2.1 2 3.5s-.8 2.5-2 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M11 5.5l4 5M15 5.5l-4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
-      <div className={`interview-question card animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}${questionKindClass}`}>
-        <div className="interview-question__avatar">
-          {interviewState === 'speaking' ? (
-            <div className="interview-speaking-bars">
-              <span /><span /><span /><span />
+      <div className="interview-live__body">
+        <div className="interview-head animate-in">
+          <div className="interview-head__lead">
+            <div className="interview-head__eyebrow">
+              Mock interview · {selectedType === 'technical' ? 'Technical' : 'Behavioral'}
             </div>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M3 17.5c0-3.5 3-5.5 7-5.5s7 2 7 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <h1 className="interview-head__role">{setupJobTitle}</h1>
+          </div>
+          <span className={`interview-clock${remaining <= 120 ? ' interview-clock--warning' : ''}`}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
+            {formatTime(remaining)}
+            <span className="interview-clock__sr"> remaining</span>
+          </span>
+        </div>
+
+        <div className="interview-progress animate-in">
+          {totalQuestions > 0 && (
+            <div className="interview-progress__track" aria-hidden="true">
+              {Array.from({ length: totalQuestions }, (_, i) => (
+                <span
+                  key={i}
+                  className={`interview-progress__seg${
+                    i < answeredSegments
+                      ? ' interview-progress__seg--done'
+                      : i === answeredSegments && !currentPromptIsClosing
+                        ? ' interview-progress__seg--current'
+                        : ''
+                  }`}
+                />
+              ))}
+            </div>
           )}
+          <span className={`interview-progress__count${currentPromptIsClosing ? ' interview-progress__count--done' : ''}`}>
+            {questionProgressLabel}
+          </span>
+          {currentQuestionKind === 'followup' && (
+            <span className="interview-status__badge interview-status__badge--followup">Follow-up</span>
+          )}
+          {currentQuestionKind === 'clarification' && (
+            <span className="interview-status__badge interview-status__badge--clarification">Clarification</span>
+          )}
+        </div>
+
+      <div className={`interview-question animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}${questionKindClass}`}>
+        <div className="interview-question__head">
+          <span className="interview-question__who">
+            <span className="interview-question__avatar">
+              {interviewState === 'speaking' ? (
+                <div className="interview-speaking-bars">
+                  <span /><span /><span /><span />
+                </div>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="6.5" r="3" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M4 15a5 5 0 0 1 10 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
+            </span>
+            Interviewer
+          </span>
+          <span className="interview-question__audio">
+            <button
+              type="button"
+              className="interview-question__btn"
+              onClick={() => speakQuestion(currentQuestion, true)}
+              disabled={interviewState === 'speaking' || interviewState === 'thinking' || !currentQuestion}
+              title="Replay question audio"
+            >
+              {interviewState === 'speaking' ? (
+                <>
+                  <span className="loading-spinner interview-question__spinner" />
+                  Playing…
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M3 6v4h2.5L9 13V3L5.5 6H3Z" fill="currentColor" />
+                    <path d="M11 6a2.5 2.5 0 0 1 0 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                  Replay
+                </>
+              )}
+            </button>
+          </span>
         </div>
         {interviewState === 'thinking' ? (
           <div className="interview-thinking">
@@ -1265,70 +1395,145 @@ export function Interview() {
         </div>
       )}
 
-      <div className="interview-controls">
-        <button
-          type="button"
-          className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
-          onPointerDown={handlePushToTalkPointerDown}
-          onPointerUp={handlePushToTalkPointerUp}
-          onPointerCancel={handlePushToTalkCancel}
-          disabled={controls.micDisabled}
-          aria-label={currentPromptIsClosing ? 'Interview questions complete' : 'Hold to speak'}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect x="8" y="2" width="8" height="12" rx="4" stroke="currentColor" strokeWidth="2" />
-            <path d="M5 11c0 3.866 3.134 7 7 7s7-3.134 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <path d="M12 18v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          {controls.micActive ? <span className="interview-mic__pulse" /> : null}
-        </button>
-        {!recordingInterrupted && (
-          <p className="interview-controls__hint">
-            {controls.hint}
+      {currentPromptIsClosing ? (
+        <div className="interview-stage interview-stage--wrap animate-in">
+          <span className="interview-stage__seal">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+              <polyline points="7,13.5 11.5,18 19,8.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <div className="interview-stage__title">That&apos;s a wrap</div>
+          <p className="interview-stage__blurb">
+            Your responses are being scored. Open your report for the full assessment and transcript.
           </p>
-        )}
-        <div className="interview-controls__row">
           <button
             type="button"
-            className={`btn btn-ghost interview-tts-toggle ${ttsEnabled ? '' : 'interview-tts-toggle--off'}`}
-            onClick={toggleTts}
-            title={ttsEnabled ? 'Mute interviewer voice' : 'Unmute interviewer voice'}
-          >
-            {ttsEnabled ? (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M11 4.5c1.2 1 2 2.1 2 3.5s-.8 2.5-2 3.5M10 6.5c.6.5 1 1 1 1.5s-.4 1-1 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M11 5.5l4 5M15 5.5l-4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            )}
-          </button>
-          <button
-            className={`btn ${currentPromptIsClosing ? 'btn-primary' : 'btn-ghost'} interview-end-btn`}
+            className="interview-stage__report"
             onClick={() => handleEnd(controls.endReason)}
             disabled={controls.endDisabled}
           >
             {controls.endButtonLabel}
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className={`interview-stage${controls.micActive ? ' interview-stage--live' : ''}`}>
+            <div className="interview-stage__mic-wrap">
+              <button
+                type="button"
+                className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
+                onPointerDown={handlePushToTalkPointerDown}
+                onPointerUp={handlePushToTalkPointerUp}
+                onPointerCancel={handlePushToTalkCancel}
+                disabled={controls.micDisabled}
+                aria-label="Hold to speak"
+              >
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                  <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
+                  <path d="M6 11a6 6 0 0 0 12 0M12 17v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                {controls.micActive ? <span className="interview-mic__pulse" /> : null}
+              </button>
+            </div>
 
-      <div className="interview-scratchpad card animate-in">
-        <label className="interview-scratchpad__label" htmlFor="interview-scratchpad-input">Notes</label>
-        <textarea
-          id="interview-scratchpad-input"
-          className="interview-scratchpad__input"
-          value={scratchpadNotes}
-          onChange={(e) => setScratchpadNotes(e.target.value)}
-          placeholder="Jot notes while you think — just for you, never saved or scored."
-          rows={4}
-        />
-      </div>
+            {/* Decorative, exactly as the bundle has it. A real meter is not
+                possible here: useMicrophoneLevel's AudioContext is torn down
+                before Deepgram acquires the mic, so it only runs on setup. */}
+            <div className={`interview-eq${controls.micActive ? ' interview-eq--live' : ''}`} aria-hidden="true">
+              <span /><span /><span /><span /><span /><span /><span /><span /><span />
+            </div>
 
-      <div ref={conversationEndRef} />
+            {!recordingInterrupted && (
+              <>
+                {/* Releasing the mic left no positive confirmation that the
+                    answer was captured — the bundle's green "Answer recorded"
+                    fills that gap. The phase-accurate string from
+                    getInterviewControlState moves to the line below it. */}
+                <p
+                  className={`interview-stage__status${
+                    controls.micActive
+                      ? ' interview-stage__status--live'
+                      : isAdvancing
+                        ? ' interview-stage__status--recorded'
+                        : ''
+                  }`}
+                  aria-live="polite"
+                >
+                  {isAdvancing ? 'Answer recorded' : controls.hint}
+                </p>
+                <p className="interview-stage__timer">
+                  {isAdvancing
+                    ? controls.hint
+                    : controls.micActive && answerElapsed > 0
+                      ? formatTime(answerElapsed)
+                      : ' '}
+                </p>
+                {isAdvancing && (
+                  <span className="interview-stage__advancing">
+                    <span className="loading-spinner interview-stage__advancing-spinner" />
+                    {isLastQuestion ? 'Wrapping up…' : 'Next question'}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="interview-endrow">
+            <button
+              type="button"
+              className="interview-endrow__btn"
+              onClick={() => handleEnd(controls.endReason)}
+              disabled={controls.endDisabled}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor" />
+              </svg>
+              {controls.endButtonLabel}
+            </button>
+          </div>
+        </>
+      )}
+
+      <section className="interview-notes animate-in">
+        <button
+          type="button"
+          className="interview-notes__toggle"
+          onClick={() => setNotesOpen(o => !o)}
+          aria-expanded={notesOpen}
+          aria-controls="interview-scratchpad-input"
+        >
+          <span className="interview-notes__label">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 2.5h6l2.5 2.5v8.5h-8.5V2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M5.5 7.5h5M5.5 10h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            Scratch notes
+            <span className="interview-notes__hint">private · never scored</span>
+          </span>
+          <span className={`interview-notes__chevron${notesOpen ? ' interview-notes__chevron--open' : ''}`}>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </button>
+        {notesOpen && (
+          <div className="interview-notes__body">
+            <textarea
+              id="interview-scratchpad-input"
+              className="interview-notes__input"
+              value={scratchpadNotes}
+              onChange={(e) => setScratchpadNotes(e.target.value)}
+              placeholder="Jot notes while you think — bullet points, keywords, the STAR beat you want to hit."
+              rows={4}
+            />
+          </div>
+        )}
+      </section>
+
+      </div>
     </div>
   );
 }

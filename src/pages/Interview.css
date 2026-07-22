@@ -1,47 +1,237 @@
-/* ── Interview Header ────────────────────────────────── */
-.interview-header {
+/* ── Live interview screen ──────────────────────────────
+   Implementation of the approved Claude Design bundle (In Interview.dc.html).
+   All four bundle states are implemented: idle, listening, advancing, wrap-up.
+   Four deliberate departures:
+   - The bundle's nav brand links to the landing page. Ours is inert: the app nav
+     is hidden here precisely so a mid-answer click can't abandon the session, and
+     a live brand link would reopen that exit.
+   - The bundle's three-state mock (idle / recording / advancing) puts one label
+     per state. Ours keeps the bundle's headline labels but pairs them with
+     getInterviewControlState's hint on the line below, because the real screen
+     has five phases (arming, listening, transcribing, thinking, speaking) and
+     those hint strings are unit-tested.
+   - The bundle's equaliser is a decorative CSS animation and so is ours. A real
+     level meter is not available on this screen: useMicrophoneLevel's
+     AudioContext is closed before Deepgram acquires the mic, so MicLevelMeter
+     stays on the setup screen. See ROADMAP.md for the real-levels follow-up.
+   - The bundle has no mute control. Ours keeps the existing TTS toggle, but in
+     the top bar with the theme toggle rather than in the question card, so the
+     card stays bundle-exact (Replay only) and the two app-level controls sit
+     together.
+   Colour: the recording red is the bundle's own --rec family (#e5484d and its
+   tints), not --danger — recording is a state, not an error. The bundle is
+   dark-only, so the light --rec is derived from the design system's light
+   palette (LIGHT_TOKENS in the page bundles) rather than invented. */
+.interview-live {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-root);
+}
+
+.interview-live__body {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 1.75rem 1.5rem 3.5rem;
+}
+
+/* ── Minimal top bar ─────────────────────────────────── */
+.interview-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--nav-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.interview-topbar__inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.interview-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--text-primary);
+}
+
+.interview-topbar__name {
+  font-size: 0.9375rem;
+  font-weight: 590;
+  letter-spacing: -0.18px;
+}
+
+.interview-topbar__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.interview-topbar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.78125rem;
+  font-weight: 510;
+  color: var(--text-muted);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 9999px;
+  padding: 5px 12px;
+}
+
+.interview-topbar__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rec);
+  animation: interview-rec-dot 1.3s ease-in-out infinite;
+}
+
+/* Matches ThemeToggle's geometry so the two sit as a pair. */
+.interview-topbar__mute {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.interview-topbar__mute:hover {
+  color: var(--text-primary);
+  border-color: var(--border-light);
+  background: var(--surface-card-hover);
+}
+
+.interview-topbar__mute--off {
+  color: var(--text-tertiary);
+}
+
+.interview-topbar__pill--done .interview-topbar__dot {
+  background: var(--success-alt);
+  animation: none;
+}
+
+@keyframes interview-rec-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ── Head: role + clock ──────────────────────────────── */
+.interview-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.125rem;
 }
 
-.interview-timer {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.125rem;
+.interview-head__eyebrow {
+  font-size: 0.71875rem;
+  font-weight: 590;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 0.375rem;
 }
 
-/* Secondary indicator, not the focal point — small and muted. The amber ≤2:00
-   warning below still overrides the color so the time-pressure cue stays clear. */
-.interview-timer__value {
-  font-family: var(--font-mono);
-  font-size: 1.0625rem;
-  font-weight: 450;
-  color: var(--text-secondary);
+.interview-head__role {
+  margin: 0;
+  font-size: 1.4375rem;
+  font-weight: 590;
+  letter-spacing: -0.35px;
+  color: var(--text-primary);
 }
 
-.interview-timer__value--warning {
-  color: var(--danger);
-}
-
-.interview-timer__label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.interview-timer__stats {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
-}
-
-.interview-timer__answer {
-  font-family: var(--font-mono);
+.interview-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
   font-size: 0.8125rem;
+  font-weight: 590;
+  color: var(--text-secondary);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 10px;
+  padding: 8px 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Amber-free by design: the clock is the only element allowed to go red, so the
+   time-pressure cue never competes with the recording state. */
+.interview-clock--warning {
+  color: var(--rec);
+  border-color: var(--rec-tint-border);
+}
+
+.interview-clock__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── Segmented progress ──────────────────────────────── */
+.interview-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.625rem;
+}
+
+.interview-progress__track {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  gap: 5px;
+}
+
+.interview-progress__seg {
+  flex: 1;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--track);
+  transition: background 0.3s;
+}
+
+.interview-progress__seg--done {
+  background: var(--success-alt);
+}
+
+.interview-progress__seg--current {
+  background: var(--accent);
+}
+
+.interview-progress__count {
+  flex-shrink: 0;
+  font-size: 0.78125rem;
+  font-weight: 590;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.interview-progress__count--done {
+  color: var(--pill-success-text);
 }
 
 /* ── Loading ─────────────────────────────────────────── */
@@ -88,31 +278,99 @@
 
 /* ── Current Question ────────────────────────────────── */
 .interview-question {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 18px;
+  padding: 1.625rem 1.75rem;
+  margin-bottom: 1.375rem;
+  box-shadow: var(--card-shadow);
+}
+
+.interview-question__head {
   display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.interview-question__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5625rem;
+  font-size: 0.75rem;
+  font-weight: 590;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--brand-tint-text);
 }
 
 .interview-question__avatar {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--accent-dim);
-  color: var(--accent);
-  display: flex;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  color: var(--accent-hover);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
+.interview-question__audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.interview-question__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  color: var(--text-muted);
+  font-size: 0.78125rem;
+  font-weight: 510;
+  font-family: inherit;
+  padding: 6px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.interview-question__btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.interview-question__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.interview-question__btn--icon {
+  padding: 6px 9px;
+}
+
+.interview-question__btn--off {
+  color: var(--text-tertiary);
+}
+
+.interview-question__spinner {
+  width: 13px;
+  height: 13px;
+  border-width: 2px;
+}
+
 .interview-question__text {
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  font-weight: 510;
   color: var(--text-primary);
   margin: 0;
-  padding-top: 0.5rem;
+  text-wrap: pretty;
 }
 
 /* ── Follow-up / clarification indicators ────────────── */
@@ -341,28 +599,45 @@
   margin-bottom: 0.5rem;
 }
 
-/* ── Controls ────────────────────────────────────────── */
-.interview-controls {
+/* ── Stage: mic + live state ─────────────────────────── */
+.interview-stage {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 18px;
+  padding: 1.875rem 1.75rem 1.625rem;
+  margin-bottom: 1.375rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
+  transition: border-color 0.25s;
+}
+
+.interview-stage--live {
+  border-color: var(--rec-tint-border);
+}
+
+.interview-stage__mic-wrap {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .interview-mic {
-  position: relative;
-  width: 64px;
-  height: 64px;
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  border: 2px solid var(--border);
-  background: var(--surface-subtle);
+  border: 1px solid var(--border-standard);
+  background: var(--surface-inset);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  box-shadow: var(--card-shadow);
   -webkit-user-select: none;
   user-select: none;
   touch-action: none;
@@ -370,14 +645,14 @@
 
 .interview-mic:hover:not(:disabled) {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-hover);
   background: var(--accent-dim);
 }
 
 .interview-mic--active {
-  border-color: var(--danger);
-  background: var(--danger-dim);
-  color: var(--danger);
+  border-color: var(--rec);
+  background: var(--rec);
+  color: #fff;
 }
 
 .interview-mic:disabled {
@@ -385,79 +660,321 @@
   cursor: not-allowed;
 }
 
-.interview-mic__pulse {
+/* Two offset rings so the pulse reads as a continuous broadcast rather than a
+   single blink — matches the bundle's staggered recRing pair. */
+.interview-mic__pulse,
+.interview-mic__pulse::after {
   position: absolute;
-  inset: -6px;
+  inset: 0;
   border-radius: 50%;
-  border: 2px solid var(--danger);
-  animation: mic-pulse 1.2s ease-out infinite;
+  background: var(--rec-tint-bg);
+  animation: mic-pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+.interview-mic__pulse::after {
+  content: '';
+  animation-delay: 0.5s;
 }
 
 @keyframes mic-pulse {
-  0% { opacity: 0.6; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.3); }
+  0% { transform: scale(0.85); opacity: 0.5; }
+  70% { transform: scale(1.55); opacity: 0; }
+  100% { opacity: 0; }
 }
 
-.interview-controls__hint {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
+/* Decorative equaliser, per the bundle. It signals "recording" rather than
+   showing input level — the real MicLevelMeter can't run here (its AudioContext
+   is closed before Deepgram takes the mic), so it stays on the setup screen. */
+.interview-eq {
+  height: 30px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 0.875rem 0 0.625rem;
+}
+
+.interview-eq span {
+  width: 4px;
+  height: 30px;
+  border-radius: 2px;
+  background: var(--rec);
+  transform-origin: bottom;
+  transform: scaleY(0.28);
+  opacity: 0.18;
+  transition: opacity 0.2s;
+}
+
+.interview-eq--live span {
+  opacity: 1;
+  animation: interview-eqbar 1s ease-in-out infinite;
+}
+
+/* Bundle's staggered durations/delays, so the bars never march in lockstep. */
+.interview-eq--live span:nth-child(1) { animation-duration: 0.9s;  animation-delay: 0s; }
+.interview-eq--live span:nth-child(2) { animation-duration: 1.15s; animation-delay: 0.15s; }
+.interview-eq--live span:nth-child(3) { animation-duration: 0.75s; animation-delay: 0.3s; }
+.interview-eq--live span:nth-child(4) { animation-duration: 1.3s;  animation-delay: 0.05s; }
+.interview-eq--live span:nth-child(5) { animation-duration: 0.95s; animation-delay: 0.4s; }
+.interview-eq--live span:nth-child(6) { animation-duration: 1.05s; animation-delay: 0.22s; }
+.interview-eq--live span:nth-child(7) { animation-duration: 0.8s;  animation-delay: 0.5s; }
+.interview-eq--live span:nth-child(8) { animation-duration: 1.2s;  animation-delay: 0.12s; }
+.interview-eq--live span:nth-child(9) { animation-duration: 0.88s; animation-delay: 0.34s; }
+
+@keyframes interview-eqbar {
+  0%, 100% { transform: scaleY(0.28); }
+  50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interview-eq--live span {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
+.interview-stage__status {
+  margin: 0;
+  font-size: 0.90625rem;
+  font-weight: 510;
+  color: var(--text-secondary);
   text-align: center;
+  min-height: 20px;
 }
 
-.interview-controls__row {
-  display: flex;
+.interview-stage__status--live {
+  color: var(--rec);
+}
+
+.interview-stage__status--recorded {
+  color: var(--pill-success-text);
+}
+
+.interview-stage__timer {
+  margin: 0.25rem 0 0;
+  font-size: 0.78125rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  min-height: 18px;
+}
+
+/* Shown between mic release and the next question, over both real phases
+   (batch transcription, then the backend turn). */
+.interview-stage__advancing {
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  margin-top: 0.5rem;
+  gap: 0.5625rem;
+  margin-top: 1.25rem;
+  font-size: 0.8125rem;
+  font-weight: 510;
+  color: var(--brand-tint-text);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  padding: 9px 16px;
+  border-radius: 9999px;
 }
 
-.interview-tts-toggle {
-  display: flex;
+.interview-stage__advancing-spinner {
+  width: 15px;
+  height: 15px;
+  border-width: 2px;
+}
+
+/* ── Stage: wrap-up ──────────────────────────────────── */
+.interview-stage--wrap {
+  text-align: center;
+  padding: 2.125rem 1.75rem;
+}
+
+.interview-stage__seal {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--pill-success-bg);
+  border: 1px solid var(--pill-success-border);
+  color: var(--success-alt);
+  display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  padding: 0.25rem 0.5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
 }
 
-.interview-tts-toggle--off {
-  opacity: 0.5;
-}
-
-.interview-end-btn {
-  font-size: 0.8125rem;
-}
-
-/* Muted/danger coloring applies only to the ghost "End Interview" variant.
-   The primary "View report" variant keeps btn-primary's white text. */
-.interview-end-btn.btn-ghost {
-  color: var(--text-muted);
-}
-
-.interview-end-btn.btn-ghost:hover {
-  color: var(--danger);
-}
-
-/* ── Scratchpad (private notes) ──────────────────────── */
-.interview-scratchpad {
-  padding: 1rem 1.25rem 1.25rem;
-  margin-bottom: 2rem;
-}
-
-.interview-scratchpad__label {
-  margin: 0 0 0.5rem;
-  font-size: 0.6875rem;
+.interview-stage__title {
+  font-size: 0.9375rem;
   font-weight: 590;
-  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.interview-stage__blurb {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: 0.3125rem 0 0;
+  max-width: 340px;
+  line-height: 1.55;
+}
+
+.interview-stage__report {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5625rem;
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-size: 0.90625rem;
+  font-weight: 590;
+  font-family: inherit;
+  padding: 12px 24px;
+  border-radius: 11px;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  margin-top: 1.25rem;
+  transition: background 0.15s;
+}
+
+.interview-stage__report:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.interview-stage__report:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── End interview ───────────────────────────────────── */
+.interview-endrow {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.625rem;
+}
+
+.interview-endrow__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface-inset);
+  border: 1px solid var(--rec-tint-border);
+  color: var(--rec-soft);
+  font-size: 0.84375rem;
+  font-weight: 510;
+  font-family: inherit;
+  padding: 9px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.interview-endrow__btn:hover:not(:disabled) {
+  background: var(--rec-tint-bg);
+}
+
+.interview-endrow__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Scratch notes (collapsible, private) ────────────── */
+.interview-notes {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.interview-notes__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.interview-notes__toggle:hover {
+  background: var(--surface-hover);
+}
+
+.interview-notes__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 590;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.interview-notes__label svg {
   color: var(--text-muted);
 }
 
-.interview-scratchpad__input {
-  min-height: 96px;
+.interview-notes__hint {
+  font-size: 0.71875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-tertiary);
+}
+
+.interview-notes__chevron {
+  display: inline-flex;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.interview-notes__chevron--open {
+  transform: rotate(180deg);
+}
+
+.interview-notes__body {
+  padding: 0 1.25rem 1.25rem;
+}
+
+.interview-notes__input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 120px;
+  resize: vertical;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 12px;
+  padding: 14px 16px;
   font-size: 0.875rem;
   line-height: 1.6;
-  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-family: inherit;
+}
+
+.interview-notes__input:focus {
+  outline: none;
+  border-color: var(--brand-tint-border);
+  box-shadow: 0 0 0 3px var(--brand-tint-bg);
+}
+
+@media (max-width: 640px) {
+  .interview-live__body {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .interview-question {
+    padding: 1.25rem 1.125rem;
+  }
+
+  .interview-question__text {
+    font-size: 1.125rem;
+  }
+
+  .interview-topbar__inner {
+    padding: 0 1rem;
+  }
 }
 
 /* ── Setup Screen ───────────────────────────────────────
