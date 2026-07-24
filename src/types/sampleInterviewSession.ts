@@ -26,6 +26,15 @@ import type { SessionResponse, SessionSummary } from '../api/interview';
  *      copy came back hard-wrapped at ~80 columns; whitespace-only difference — the
  *      analysis cache key normalizes whitespace, so it is the same analysis pair).
  *
+ * SCRUB 2026-07-24 — one employer name was renamed in 3 places: the original export
+ * says "EduTech Solutions" (long form, turn-1 question) and "EduTech" (short form,
+ * the STAR assessment comment and the keyterms array); these now read "Vexley
+ * Learning" / "Vexley". This is the same de-identification pass that regenerated the
+ * demo PDFs and DEMO_ANALYSES (casey_morgan_resume.pdf), where the same employer was
+ * renamed — the two fixtures describe one persona and must agree. Names only; no
+ * question, transcript, score, or assessment wording was otherwise touched, so the
+ * "do not hand-edit" rule above still governs the pipeline output itself.
+ *
  * To refresh: rerun a mock interview from the Bramble Commerce analysis (the
  * analysis pipeline cache makes reproducing the pair free), copy the
  * GET /interview/sessions/:id response from the network tab, and re-apply the three
@@ -57,7 +66,7 @@ export const SAMPLE_INTERVIEW_SESSION: SessionResponse = {
   conversation: [
     {
       role: "interviewer",
-      content: "Walk me through your background as a software engineer. What drew you to full-stack development, and how has your experience evolved from EduTech Solutions to SaaS Peak?",
+      content: "Walk me through your background as a software engineer. What drew you to full-stack development, and how has your experience evolved from Vexley Learning to SaaS Peak?",
       timestamp: 1783894329
     },
     {
@@ -338,7 +347,7 @@ export const SAMPLE_INTERVIEW_SESSION: SessionResponse = {
         name: "STAR Framework Usage",
         score: 75,
         weight: 0.25,
-        comment: "The candidate applies Situation-Task-Action-Result consistently across most questions. The PostgreSQL latency answer and the Docker proof-of-concept story are textbook STAR executions. The performance optimization story at EduTech is slightly weaker on the Task framing, and the mentorship answer explicitly acknowledges no direct experience, which is honest but leaves the Result thin. No answer is entirely missing a STAR component."
+        comment: "The candidate applies Situation-Task-Action-Result consistently across most questions. The PostgreSQL latency answer and the Docker proof-of-concept story are textbook STAR executions. The performance optimization story at Vexley is slightly weaker on the Task framing, and the mentorship answer explicitly acknowledges no direct experience, which is honest but leaves the Result thin. No answer is entirely missing a STAR component."
       },
       {
         name: "Specificity & Metrics",
@@ -392,7 +401,7 @@ export const SAMPLE_INTERVIEW_SESSION: SessionResponse = {
     "Firebase",
     "HTML/CSS",
     "LinkedIn",
-    "EduTech",
+    "Vexley",
     "MongoDB",
     "DevOps",
     "Azure",
