@@ -37,7 +37,7 @@
 .lp-stroke-tint { stroke: var(--brand-tint-text); }
 .lp-stroke-track { stroke: var(--track); }
 .lp-stroke-warn { stroke: var(--warn); }
-.lp-stroke-brand { stroke: var(--accent); }
+.lp-stroke-score-good { stroke: var(--score-good); }
 
 /* ── Buttons ────────────────────────────────────────── */
 .landing-btn {
@@ -931,10 +931,10 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  font-weight: 510;
+  font-weight: 590;
   color: var(--brand-tint-text);
   padding: 2px 9px;
-  border-radius: 9999px;
+  border-radius: 6px;
   border: 1px solid var(--brand-tint-border);
   background: var(--brand-tint-bg);
   margin-bottom: 8px;
@@ -951,9 +951,32 @@
   line-height: 1.55;
   color: var(--text-muted);
   margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-standard);
 }
 
 /* Interview session embed */
+.landing-session__meta-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.landing-session__dot {
+  color: var(--text-tertiary);
+}
+
+.landing-session__type {
+  font-size: 9.5px;
+  font-weight: 510;
+  color: var(--text-muted);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
 .landing-session__head {
   display: flex;
   justify-content: space-between;
@@ -1010,7 +1033,15 @@
   flex-wrap: wrap;
 }
 
+.landing-chip-btn svg,
+.landing-tab svg {
+  flex-shrink: 0;
+}
+
 .landing-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: var(--surface-inset);
   border: 1px solid var(--border-standard);
   color: var(--text-secondary);
@@ -1032,14 +1063,21 @@
   padding-top: 14px;
 }
 
-.landing-session__context .landing-chip-btn {
+.landing-session__context .landing-chip-btn svg,
+.landing-tab svg {
+  flex-shrink: 0;
+}
+
+.landing-chip-btn {
   padding: 4px 10px;
 }
 
 .landing-session__context-title {
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
   font-size: 12px;
   font-weight: 590;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   margin-bottom: 8px;
 }
 
@@ -1054,6 +1092,9 @@
 }
 
 .landing-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 510;
   color: var(--text-muted);
@@ -1066,20 +1107,41 @@
   border-radius: 4px;
 }
 
-.landing-session__section {
+/* Heading, AI pill and details toggle share one row, as .ir-assessment__head
+   does on the live page. */
+.landing-session__assess-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-top: 16px;
+}
+
+.landing-session__section {
   font-size: 13px;
   font-weight: 590;
   color: var(--text-primary);
 }
 
 .landing-session__ai {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 510;
+  color: var(--brand-tint-text);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  border-radius: 9999px;
+  padding: 2px 7px;
+}
+
+.landing-session__ai svg {
+  flex-shrink: 0;
 }
 
 .landing-session__ai-link {
+  font-size: 10px;
   color: var(--link);
   font-weight: 510;
 }
@@ -1089,7 +1151,6 @@
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 12px 16px;
-  width: fit-content;
   background: var(--surface-inset);
 }
 
@@ -1103,7 +1164,7 @@
 .landing-overall__row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .landing-overall__ring-value {
@@ -1113,15 +1174,16 @@
 }
 
 .landing-overall__grade {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 590;
-  color: var(--brand-tint-text);
+  /* scoreColor(77) in InterviewResults — >=60 lands on --score-good. */
+  color: var(--score-good);
 }
 
 .landing-overall__note {
   font-size: 10px;
   color: var(--text-muted);
-  margin-top: 8px;
+  margin-top: 3px;
 }
 
 .landing-tiles {
@@ -1144,12 +1206,12 @@
   font-weight: 590;
 }
 
-.landing-tile__value--tint {
-  color: var(--brand-tint-text);
+.landing-tile__value--good {
+  color: var(--score-good);
 }
 
-.landing-tile__value--success {
-  color: var(--success-alt);
+.landing-tile__value--high {
+  color: var(--score-high);
 }
 
 .landing-tile__label {

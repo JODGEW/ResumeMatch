@@ -5,6 +5,7 @@ import { FileDropzone } from '../components/FileDropzone';
 import { LastResumeCard } from '../components/LastResumeCard';
 import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, fetchLastResume } from '../api/upload';
 import { extractApiErrorMessage } from '../api/errors';
+import { SignupPromptModal } from '../components/SignupPromptModal';
 import '../components/LastResumeCard.css';
 import './Upload.css';
 
@@ -41,6 +42,7 @@ export function Upload() {
   const [jobDescription, setJobDescription] = useState('');
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
   const isDemo = user?.email === DEMO_EMAIL;
 
   const [lastResume, setLastResume] = useState<LastResumeMetadata | null>(() => {
@@ -121,6 +123,14 @@ export function Upload() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (isSubmitting || !canSubmit) return;
+
+    // The shared demo account is read-only. Guarding above requestUploadUrl
+    // means the picked file never leaves the browser: no presigned POST, no S3
+    // object, no DynamoDB row on the shared account.
+    if (isDemo) {
+      setShowSignupPrompt(true);
+      return;
+    }
 
     setError('');
 
@@ -379,6 +389,14 @@ export function Upload() {
           </div>
         )}
       </form>
+
+      {showSignupPrompt && (
+        <SignupPromptModal
+          onClose={() => setShowSignupPrompt(false)}
+          title="Run Your Own Analysis"
+          body="Create a free account to match your resume against any job description — free, no card."
+        />
+      )}
     </div>
   );
 }

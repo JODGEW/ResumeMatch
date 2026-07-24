@@ -20,12 +20,14 @@ const SUGGESTIONS = [
   },
 ];
 
+// Mirrors InterviewResults: scoreColor() is >=80 high, >=60 good, else mid,
+// and each tile is labelled "weight N%".
 const SCORE_TILES = [
-  { value: '78%', tone: 'tint', label: 'Communication Structure', weight: '(20%)' },
-  { value: '75%', tone: 'tint', label: 'STAR Framework Usage', weight: '(25%)' },
-  { value: '80%', tone: 'success', label: 'Specificity & Metrics', weight: '(25%)' },
-  { value: '74%', tone: 'tint', label: 'Role Relevance', weight: '(20%)' },
-  { value: '82%', tone: 'success', label: 'Self-Awareness', weight: '(10%)' },
+  { value: '78%', tone: 'good', label: 'Communication Structure', weight: 'weight 20%' },
+  { value: '75%', tone: 'good', label: 'STAR Framework Usage', weight: 'weight 25%' },
+  { value: '80%', tone: 'high', label: 'Specificity & Metrics', weight: 'weight 25%' },
+  { value: '74%', tone: 'good', label: 'Role Relevance', weight: 'weight 20%' },
+  { value: '82%', tone: 'high', label: 'Self-Awareness', weight: 'weight 10%' },
 ] as const;
 
 export function SuggestionsCard() {
@@ -64,30 +66,80 @@ export function InterviewCard() {
           <span className="landing-session__match">61% Match</span>
         </div>
         <div className="landing-session__meta">
-          <div>
-            <div className="landing-session__file">casey_morgan_resume.pdf</div>
-            <div className="landing-session__stamp">Jul 12, 2026 · 6:12 PM · Behavioral · 10 questions</div>
+          <div className="landing-session__meta-line">
+            <span className="landing-session__file">casey_morgan_resume.pdf</span>
+            <span className="landing-session__dot">·</span>
+            <span className="landing-session__stamp">Jul 12, 2026 · 6:12 PM</span>
+            <span className="landing-session__dot">·</span>
+            <span className="landing-session__type">Behavioral</span>
+            <span className="landing-session__stamp">10 questions</span>
           </div>
           <div className="landing-chip-row">
-            <span className="landing-chip-btn landing-chip-btn--primary">Interview Again</span>
-            <span className="landing-chip-btn">Interview Report</span>
-            <span className="landing-chip-btn">Copy Transcript</span>
+            <span className="landing-chip-btn landing-chip-btn--primary">
+              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2.5 8a5.5 5.5 0 1 1 1.6 3.9M2.5 12v-3h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+              Interview again
+            </span>
+            <span className="landing-chip-btn">
+              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+              Interview report
+            </span>
+            <span className="landing-chip-btn">
+              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
+                <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2H4a1.5 1.5 0 0 0-1.5 1.5V10" stroke="currentColor" strokeWidth="1.3" fill="none" />
+              </svg>
+              Copy transcript
+            </span>
           </div>
         </div>
         <div className="landing-session__context">
           <div className="landing-session__context-title">Analysis &amp; Context</div>
           <div className="landing-chip-row">
-            <span className="landing-chip-btn">View Full Analysis ↗</span>
-            <span className="landing-chip-btn">Job Description ▾</span>
+            <span className="landing-chip-btn">
+              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
+                <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" fill="none" />
+              </svg>
+              View full analysis
+              <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M5 11L11 5M6 5h5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+            </span>
+            <span className="landing-chip-btn">
+              Job description
+              <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+            </span>
           </div>
         </div>
         <div className="landing-tabs">
-          <span className="landing-tab landing-tab--active">Assessment</span>
-          <span className="landing-tab">Transcript</span>
+          <span className="landing-tab landing-tab--active">
+            <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 13V7M7 13V3M11 13V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            Assessment
+          </span>
+          <span className="landing-tab">
+            <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            Transcript
+          </span>
         </div>
-        <div className="landing-session__section">Assessment</div>
-        <div className="landing-session__ai">
-          ✦ AI-generated assessment <span className="landing-session__ai-link">Show details</span>
+        <div className="landing-session__assess-head">
+          <span className="landing-session__section">Assessment</span>
+          <span className="landing-session__ai">
+            <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.6l1-4.1L2.2 5.7l4.2-.3L8 1.5Z" fill="currentColor" />
+            </svg>
+            AI-generated
+          </span>
+          <span className="landing-session__ai-link">Show details</span>
         </div>
         <div className="landing-overall">
           <div className="landing-overall__title">Overall Score</div>
@@ -99,7 +151,7 @@ export function InterviewCard() {
                 cy="32"
                 r="26"
                 fill="none"
-                className="lp-stroke-brand"
+                className="lp-stroke-score-good"
                 strokeWidth="5"
                 strokeLinecap="round"
                 strokeDasharray="125.8 37.6"
@@ -109,9 +161,11 @@ export function InterviewCard() {
                 77%
               </text>
             </svg>
-            <span className="landing-overall__grade">Good</span>
+            <div>
+              <div className="landing-overall__grade">Good</div>
+              <div className="landing-overall__note">77% overall across 5 scoring categories</div>
+            </div>
           </div>
-          <div className="landing-overall__note">77% overall across 5 categories</div>
         </div>
         <div className="landing-tiles">
           {SCORE_TILES.map((tile) => (

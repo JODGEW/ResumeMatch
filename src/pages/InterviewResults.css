@@ -2,7 +2,10 @@
    (Interview Detail.dc.html). Bundle token roles map onto the shared semantic
    tokens in index.css: --bg-panel → --surface-panel, --border-standard →
    --border, --text-quaternary → --text-tertiary, --brand → --accent, and the
-   bundle's --amber-*/--info-bg roles onto our existing --pill-warn-*/--info-dim.
+   bundle's --amber-* / --info-bg roles onto our existing --pill-warn-* /
+   --info-dim. (Spaces around those two slashes are load-bearing — an asterisk
+   immediately followed by a slash ends this comment and spills the rest of it
+   into the stylesheet.)
 
    Departures from the bundle, all deliberate:
    - Assessment/Transcript are real tabs, as the bundle models them; the previous

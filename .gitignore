@@ -11,11 +11,31 @@ node_modules
 dist
 dist-ssr
 *.local
+local-run/.env
+# Machine-local MCP launcher config (absolute paths to this machine's python +
+# script). local-run/resumeMatch-mcp.py and .env.example ARE committed; this is
+# the one file in there that is per-machine.
+local-run/mcp-config.json
+
+# Claude Code per-project state (permission grants, session settings). The
+# global git ignore only hides the exact name settings.local.json — conflict
+# copies like "settings.local 2.json" would otherwise get swept into commits.
+.claude/
 .env
+.env.*
+!.env.example
 .planning/
 eval/
 local_lambda/
 CLAUDE.md
+
+# Fictional resumes backing the demo account's "View Resume". Kept out of the
+# public GitHub repo, but they must still reach production: Vite copies public/
+# into dist/ at build time, so they ship with a LOCAL `npm run build` + S3 sync.
+# A git-triggered build (Amplify Hosting, Vercel, a CI workflow) would clone the
+# repo without them and View Resume would 404 — if the deploy ever moves to CI,
+# these have to move too (S3 alongside the site, or committed after all).
+public/demo-resumes/
 
 # Python venv for the eval harness. Ignored here rather than relying on the
 # venv's own auto-generated .gitignore, which only Python 3.11+ creates.

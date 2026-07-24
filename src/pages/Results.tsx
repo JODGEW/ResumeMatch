@@ -16,6 +16,7 @@ import { clearInterviewPointer, loadInterviewPointer } from '../utils/interviewP
 import { getTrackerPrefill } from '../utils/trackerPrefill';
 import { useAuth } from '../auth/AuthContext';
 import { SAMPLE_ANALYSIS } from '../types/sampleAnalysis';
+import { DEMO_ANALYSES_BY_ID } from '../types/demoAnalyses';
 import './Results.css';
 
 type LastInterview = {
@@ -176,14 +177,20 @@ function ResultsRouteLoadingState() {
 
 export function Results({ sample = false }: { sample?: boolean }) {
   const { analysisId } = useParams<{ analysisId: string }>();
-  // In sample mode we render a canned report with no backend: pass `null` to
-  // usePolling so it short-circuits (no getAnalysis call, no stale-state guard),
-  // then override its outputs with the fixture.
-  const poll = usePolling(sample ? null : (analysisId ?? null));
-  const analysis = sample ? SAMPLE_ANALYSIS : poll.analysis;
-  const loading = sample ? false : poll.loading;
-  const error = sample ? null : poll.error;
-  const timedOut = sample ? false : poll.timedOut;
+  const { user } = useAuth();
+  const isDemo = user?.email === 'demo123@resumeapp.com';
+  // The shared demo account is read-only: its History deep-links resolve to
+  // committed fixtures, never the backend. An id outside the fixture map falls
+  // through with a null analysis and renders the normal not-found state.
+  const demoAnalysis = !sample && isDemo && analysisId ? DEMO_ANALYSES_BY_ID[analysisId] : undefined;
+  // In sample/demo-fixture mode we render canned data with no backend: pass
+  // `null` to usePolling so it short-circuits (no getAnalysis call, no
+  // stale-state guard), then override its outputs with the fixture.
+  const poll = usePolling(sample || demoAnalysis ? null : (analysisId ?? null));
+  const analysis = sample ? SAMPLE_ANALYSIS : demoAnalysis ?? poll.analysis;
+  const loading = sample || demoAnalysis ? false : poll.loading;
+  const error = sample || demoAnalysis ? null : poll.error;
+  const timedOut = sample || demoAnalysis ? false : poll.timedOut;
   const status = normalizeAnalysisStatus(analysis?.status);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState(false);
@@ -191,8 +198,6 @@ export function Results({ sample = false }: { sample?: boolean }) {
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [jdOpen, setJdOpen] = useState(false);
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
-  const { user } = useAuth();
-  const isDemo = user?.email === 'demo123@resumeapp.com';
   // Read-only covers both the shared demo account and the signed-out /sample page:
   // every write/action button routes to the signup prompt instead of the backend.
   const isReadOnly = isDemo || sample;
@@ -273,6 +278,14 @@ export function Results({ sample = false }: { sample?: boolean }) {
   }
 
   async function handleViewResume() {
+    // Demo fixtures have no S3 object behind them; the PDF ships with the site
+    // (public/demo-resumes/, gitignored — see .gitignore). Skip the presigned
+    // URL mint entirely.
+    if (demoAnalysis) {
+      setResumeError(null);
+      setResumeUrl(`/demo-resumes/${demoAnalysis.fileName}`);
+      return;
+    }
     setResumeLoading(true);
     setResumeError(null);
     const timeout = setTimeout(() => {

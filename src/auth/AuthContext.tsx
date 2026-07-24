@@ -18,6 +18,7 @@ import {
   fetchAuthSession,
 } from 'aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
+import { clearUserScopedStorage } from '../utils/appStorage';
 
 interface User {
   email: string;
@@ -216,6 +217,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
+    // Scrub the app's own user-scoped localStorage before anything can unload
+    // the page (the hosted-UI path redirects). Deliberate sign-outs only —
+    // clearAuthenticatedUser also runs on session-restore misses and must not
+    // scrub there.
+    clearUserScopedStorage();
+
     if (DEV_MODE) {
       clearAuthenticatedUser();
       return;

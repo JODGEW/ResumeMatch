@@ -10,6 +10,7 @@ import { getScoreBand } from '../utils/scoreBands';
 import { clearAnalysisNew, getNewAnalysisIds, markAnalysisNew } from '../utils/newAnalyses';
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
+import { DEMO_ANALYSES } from '../types/demoAnalyses';
 import './History.css';
 
 function hasInProgress(items: Analysis[]) {
@@ -105,6 +106,15 @@ export function History() {
   }, [query, goToPage]);
 
   useEffect(() => {
+    // The shared demo account is read-only: serve the committed fixtures and
+    // never call the backend — same pattern as the interview tab's
+    // SAMPLE_INTERVIEW_SUMMARY. Array order is the display order.
+    if (isDemo) {
+      setAnalyses(DEMO_ANALYSES);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     const pollRef: { timer?: ReturnType<typeof setInterval>; started?: number } = {};
 
@@ -221,7 +231,7 @@ export function History() {
       cancelled = true;
       if (pollRef.timer) clearInterval(pollRef.timer);
     };
-  }, [pendingAnalysisId]);
+  }, [pendingAnalysisId, isDemo]);
 
   function formatDate(iso: string) {
     const normalized = iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
