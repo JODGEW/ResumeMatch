@@ -559,6 +559,12 @@
   margin-top: 2px;
 }
 
+.auth-banner-hint {
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
 /* ── Code input ─────────────────────────────────────── */
 .auth-page .code-input {
   display: flex;

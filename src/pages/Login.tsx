@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signInWithRedirect } from 'aws-amplify/auth';
 import { useAuth } from '../auth/AuthContext';
+import { isCredentialSignInFailure } from '../utils/authErrors';
 import { AuthLayout } from './auth/AuthLayout';
 import { GoogleIcon, EyeIcon, ErrorIcon } from './auth/authIcons';
 import './auth/Auth.css';
@@ -13,6 +14,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [showGoogleHint, setShowGoogleHint] = useState(false);
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const { login, user, isLoading, authError, clearAuthError } = useAuth();
@@ -32,6 +34,7 @@ export function Login() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setShowGoogleHint(false);
     clearAuthError();
     setLoading(true);
 
@@ -45,6 +48,7 @@ export function Login() {
       navigate('/upload');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
+      setShowGoogleHint(isCredentialSignInFailure(err));
     } finally {
       setLoading(false);
     }
@@ -63,7 +67,15 @@ export function Login() {
       {(error || authError) && (
         <div className="auth-banner auth-banner--error" role="alert">
           <ErrorIcon />
-          {error || authError}
+          <div>
+            {error || authError}
+            {showGoogleHint && (
+              <div className="auth-banner-hint">
+                If you signed up with Google, your account has no password here — use
+                &ldquo;Continue with Google&rdquo; below instead.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -153,6 +165,7 @@ export function Login() {
           disabled={busy}
           onClick={async () => {
             setError('');
+            setShowGoogleHint(false);
             setDemoLoading(true);
             try {
               await login(DEMO_EMAIL, DEMO_PASSWORD);

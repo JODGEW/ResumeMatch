@@ -9,6 +9,7 @@ import {
 } from 'react';
 import {
   signIn,
+  signInWithRedirect,
   signOut,
   signUp,
   confirmSignUp,
@@ -19,6 +20,7 @@ import {
 } from 'aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
 import { clearUserScopedStorage } from '../utils/appStorage';
+import { isAccountLinkRetry } from '../utils/oauthLinking';
 
 interface User {
   email: string;
@@ -43,6 +45,7 @@ const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
 const HOSTED_UI_SIGN_IN_KEY = 'amplify-signin-with-hostedUI';
 const COGNITO_STORAGE_PREFIX = 'CognitoIdentityServiceProvider';
 const HOSTED_UI_LOGOUT_TIMEOUT_MS = 10_000;
+const OAUTH_LINK_RETRY_KEY = 'resumematch_oauth_link_retry';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -102,21 +105,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoadingMessage(null);
   }, [getAuthenticatedUser]);
 
+  // Shared handler for OAuth error redirects. Runs at most once per page load
+  // (the mount-time URL check and the Hub event can both observe the same
+  // failure). Returns true when a link-retry redirect was initiated, in which
+  // case the caller must not run checkAuth — it would flash the landing page
+  // while the redirect is departing.
+  const oauthFailureHandled = useRef(false);
+  // Survives StrictMode's dev-mode effect re-run: the second pass sees a
+  // cleaned URL, so it must learn from this ref that a redirect is departing.
+  const oauthRetryDeparting = useRef(false);
+  const handleOAuthFailure = useCallback((failureData: unknown): boolean => {
+    if (oauthFailureHandled.current) return false;
+    oauthFailureHandled.current = true;
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (isAccountLinkRetry(failureData) && sessionStorage.getItem(OAUTH_LINK_RETRY_KEY) === null) {
+      // The pre-sign-up trigger just linked this Google identity to an
+      // existing email/password account and aborted the duplicate signup.
+      // Retry once — the second redirect signs into the linked account.
+      sessionStorage.setItem(OAUTH_LINK_RETRY_KEY, '1');
+      oauthRetryDeparting.current = true;
+      setIsLoading(true);
+      setLoadingMessage('Finishing sign-in...');
+      signInWithRedirect({ provider: 'Google' }).catch((err) => {
+        console.error('OAuth retry after account link failed:', err);
+        sessionStorage.removeItem(OAUTH_LINK_RETRY_KEY);
+        oauthRetryDeparting.current = false;
+        setAuthError('Google sign-in failed. Please try again.');
+        setIsLoading(false);
+        setLoadingMessage(null);
+      });
+      return true;
+    }
+
+    sessionStorage.removeItem(OAUTH_LINK_RETRY_KEY);
+    console.error('OAuth sign-in failed:', failureData);
+    setAuthError('Google sign-in failed. Please try again.');
+    setIsLoading(false);
+    setLoadingMessage(null);
+    return false;
+  }, []);
+
   useEffect(() => {
     if (DEV_MODE) return;
 
     // Listen for OAuth redirect completion
     const unsubscribe = Hub.listen('auth', ({ payload }) => {
       if (payload.event === 'signInWithRedirect') {
+        sessionStorage.removeItem(OAUTH_LINK_RETRY_KEY);
         // Clean up OAuth params from the URL
         window.history.replaceState({}, '', window.location.pathname);
         checkAuth();
       }
       if (payload.event === 'signInWithRedirect_failure') {
-        console.error('OAuth sign-in failed:', payload.data);
-        window.history.replaceState({}, '', window.location.pathname);
-        setIsLoading(false);
-        setLoadingMessage(null);
+        handleOAuthFailure(payload.data);
       }
       if (payload.event === 'signedOut') {
         if (hostedUiLogoutInProgress.current) return;
@@ -124,11 +166,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // Amplify processes an OAuth *error* redirect synchronously on load — no
+    // token exchange — so signInWithRedirect_failure can fire before this
+    // listener subscribes. Read the failure straight from the URL instead of
+    // depending on the event. (The success path has no such race: its Hub
+    // event only fires after the async code-for-token exchange.)
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get('error_description') || params.get('error');
+    if (oauthError) handleOAuthFailure(oauthError);
+
     // Still check on mount for existing sessions (e.g. page refresh while already logged in)
-    checkAuth();
+    if (!oauthRetryDeparting.current) checkAuth();
 
     return () => unsubscribe();
-  }, [checkAuth, clearAuthenticatedUser]);
+  }, [checkAuth, clearAuthenticatedUser, handleOAuthFailure]);
 
   function getSignInStepError(step?: string) {
     if (!step) {
