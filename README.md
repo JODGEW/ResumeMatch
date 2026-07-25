@@ -241,3 +241,5 @@ src/
   types/        # TypeScript type definitions
   utils/        # Shared frontend helpers, including interview session and question utilities
 ```
+
+.
