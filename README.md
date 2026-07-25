@@ -1,5 +1,7 @@
 # ResumeMatch
 
+[![CI](https://github.com/JODGEW/ResumeMatch/actions/workflows/ci.yml/badge.svg)](https://github.com/JODGEW/ResumeMatch/actions/workflows/ci.yml)
+
 ResumeMatch is a production-grade, fully serverless AI resume analyzer deployed on AWS that helps job seekers evaluate how well their resume matches a job description and identify gaps before applying.
 
 ## Screenshots

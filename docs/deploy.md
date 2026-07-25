@@ -380,6 +380,25 @@ half needs a real run):
 
 ---
 
+## Local ↔ CI Node version parity (fresh-clone checks)
+
+CI runs **Node 20** (`setup-node` `node-version: 20` in `ci.yml`). Local dev on
+this machine is **Node v18.20.4**, and several dependencies now declare
+`engines.node >= 20`, so `npm ci` on Node 18 prints `EBADENGINE` warnings
+throughout. They are non-fatal today, but they mean **a fresh-clone verification
+only counts if it runs under Node 20** — matching CI. On Node 18 an engine-related
+failure could hide, or a spurious one could appear, and neither reflects CI.
+
+Before a fresh-clone check: `nvm use 20` (or otherwise switch to Node 20), then
+`npm ci && npm run lint && npm test && npm run build`.
+
+> The `resumeParser.test.ts` collection crash is the exception that proves the
+> rule: it's a missing-`eval/` `ENOENT`, so it reproduces on both Node 18 and 20.
+> Version-independent bugs will show either way — but don't rely on that; run
+> parity checks on 20.
+
+---
+
 ## References
 
 - [aws-actions/configure-aws-credentials — releases](https://github.com/aws-actions/configure-aws-credentials/releases)

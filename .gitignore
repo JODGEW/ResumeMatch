@@ -29,14 +29,6 @@ eval/
 local_lambda/
 CLAUDE.md
 
-# Fictional resumes backing the demo account's "View Resume". Kept out of the
-# public GitHub repo, but they must still reach production: Vite copies public/
-# into dist/ at build time, so they ship with a LOCAL `npm run build` + S3 sync.
-# A git-triggered build (Amplify Hosting, Vercel, a CI workflow) would clone the
-# repo without them and View Resume would 404 — if the deploy ever moves to CI,
-# these have to move too (S3 alongside the site, or committed after all).
-public/demo-resumes/
-
 # Python venv for the eval harness. Ignored here rather than relying on the
 # venv's own auto-generated .gitignore, which only Python 3.11+ creates.
 .venv/

@@ -6,7 +6,16 @@ import { parseResume, sanitizeFilename } from './resumeParser';
 const CASES_DIR = join(__dirname, '../../eval/cases');
 
 function loadRealResumes(): { id: string; text: string; firstLine: string }[] {
-  return readdirSync(CASES_DIR)
+  let dirs: string[];
+  try {
+    dirs = readdirSync(CASES_DIR);
+  } catch {
+    // eval/ is gitignored, so it is absent in a fresh clone / CI checkout.
+    // Return an empty corpus and let the corpus-driven suites skip; the
+    // synthetic-input tests below still run and cover the parser's core paths.
+    return [];
+  }
+  return dirs
     .filter((d) => d.startsWith('case_'))
     .sort()
     .map((id) => {
@@ -62,8 +71,28 @@ function toFlatBlob(text: string): string {
 }
 
 const REAL = loadRealResumes();
+const HAS_CORPUS = REAL.length > 0;
 
-describe('parseResume — invariants across all real resumes', () => {
+if (!HAS_CORPUS) {
+  console.warn(
+    '\n[resumeParser.test] eval/cases corpus not found (gitignored, so absent in a ' +
+      'fresh clone / CI). SKIPPING the real-resume invariant + case_01 snapshot ' +
+      'suites; the synthetic-input suites below still run.\n',
+  );
+
+  // Surface the skip in the run summary too — a console.warn can scroll past in a
+  // long CI log. This registers one named, always-skipped test stating what was
+  // skipped and why, so `vitest` prints a visible "skipped" line, not silence.
+  describe('parseResume — real-resume corpus (eval/cases)', () => {
+    it.skip(
+      'eval/cases is gitignored and absent here — real-resume invariants + ' +
+        'case_01 snapshot did not run; synthetic-input suites below still cover the parser',
+      () => {},
+    );
+  });
+}
+
+describe.runIf(HAS_CORPUS)('parseResume — invariants across all real resumes', () => {
   describe.each(REAL)('$id', ({ text, firstLine }) => {
     it('Pattern A (newline-separated): extracts name and sections', () => {
       const result = parseResume(text);
@@ -95,7 +124,7 @@ describe('parseResume — invariants across all real resumes', () => {
   });
 });
 
-describe('parseResume — locked structure for case_01', () => {
+describe.runIf(HAS_CORPUS)('parseResume — locked structure for case_01', () => {
   const case01 = REAL.find((r) => r.id === 'case_01')!;
 
   it('snapshot: Pattern A structure', () => {
