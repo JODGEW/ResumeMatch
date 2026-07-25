@@ -336,7 +336,7 @@ export function Landing() {
                     nothing you upload is used to train AI models: analyses run on AWS Bedrock, which does not use
                     customer inputs for training. Want everything gone? Email{' '}
                     <a href="mailto:support@resumematchapp.com">support@resumematchapp.com</a> and your account and all
-                    associated data are deleted within days.
+                    stored data are deleted within 7 days.
                   </p>
                 )}
               </article>

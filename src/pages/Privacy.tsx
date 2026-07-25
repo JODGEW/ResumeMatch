@@ -57,15 +57,18 @@ export function Privacy() {
       <LegalSection id="s4" num="04" title="Deletion">
         <p>
           Email <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a> and we
-          will delete your account and all associated data within <strong>7 days</strong>.
-          Self-serve deletion from within the app is coming.
+          will delete your account and all stored data — your resume files and text, job
+          descriptions, analyses, interview transcripts, and tracker entries — within{' '}
+          <strong>7 days</strong>. System logs are the one exception; they expire on their own
+          schedule (see section 5). Self-serve deletion from within the app is coming.
         </p>
       </LegalSection>
 
       <LegalSection id="s5" num="05" title="System logs">
         <p>
-          Operational logs may contain fragments derived from your resume (for example extracted
-          keywords). These logs expire automatically within <strong>90 days</strong>.
+          Operational logs may contain your account identifier (your email address) and fragments
+          derived from your resume (for example extracted keywords). These logs expire
+          automatically within <strong>90 days</strong>.
         </p>
       </LegalSection>
 
