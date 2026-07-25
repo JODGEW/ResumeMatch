@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Manual trigger for the build-verify job below (runnable on any branch).
+  workflow_dispatch:
+
+# Cancel superseded runs only on PRs (rapid iteration). On push to main we must
+# NOT cancel — a run-level cancel would kill an in-flight deploy job mid
+# `sync --delete`, overriding the deploy job's own (deploy-main) concurrency guard.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  frontend:
+    name: Frontend — lint · typecheck · test · build
+    runs-on: ubuntu-latest
+    steps:
+      # checkout/setup-node pinned to @v7: the @v4 line runs on the node20
+      # action runtime, which GitHub defaults away from (node24) as of
+      # 2026-06-02 and removes in autumn — v4 pins already warn and will break.
+      # The fork-checkout hardening was back-ported to all supported majors on
+      # 2026-07-16, so a floating major tag already gets it; this bump is
+      # behavior-neutral here.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # `npm run build` is `tsc -b && vite build`, so this both typechecks
+      # (strict, noUnusedLocals) and produces the production bundle.
+      - name: Typecheck & build
+        run: npm run build
+
+  # ── Build verify ─────────────────────────────────────────────────────────
+  # Manual pre-deploy check (no AWS). Builds with the real production secrets and
+  # uploads dist/ so you can download it and confirm (a) the six VITE_* values
+  # actually baked into the JS and (b) dist/demo-resumes/ holds the 3 demo PDFs.
+  # Runs on any branch via the Actions "Run workflow" button.
+  build-verify:
+    name: Build verify (artifact only — no AWS)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID }}
+      VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID }}
+      VITE_COGNITO_OAUTH_DOMAIN: ${{ secrets.VITE_COGNITO_OAUTH_DOMAIN }}
+      VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+    steps:
+      # This job exists to catch build-time config problems early, so fail HERE
+      # if any of the six secrets is empty — rather than making you download the
+      # artifact and grep for missing values. (Same guard as the deploy job.)
+      - name: Guard — all six VITE_* secrets must be present
+        run: |
+          missing=0
+          for name in VITE_USER_POOL_ID VITE_USER_POOL_CLIENT_ID VITE_COGNITO_OAUTH_DOMAIN VITE_APP_URL VITE_API_BASE_URL VITE_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || { echo "Aborting: one or more VITE_* secrets are empty."; exit 1; }
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with production env
+        run: npm run build
+
+      - name: Upload dist/ for manual inspection
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-verify
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3
+
+  # ── Deploy ───────────────────────────────────────────────────────────────
+  # Real deploys: only on push to main, and only once the role ARN variable is
+  # set. When AWS_ROLE_ARN is unset the job shows as "skipped" (not a red X, not
+  # a green check), so CI stays clean until the AWS side (see docs/deploy.md) is
+  # configured — then it activates automatically.
+  deploy:
+    name: Deploy to S3 + CloudFront
+    needs: frontend
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.AWS_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required to mint the OIDC token that assumes the AWS role
+      contents: read    # declaring `permissions` drops all defaults — checkout needs this back
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: false   # queue overlapping deploys; never cancel a sync --delete mid-flight
+    env:
+      VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID }}
+      VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID }}
+      VITE_COGNITO_OAUTH_DOMAIN: ${{ secrets.VITE_COGNITO_OAUTH_DOMAIN }}
+      VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+    steps:
+      - name: Show deploy target
+        run: |
+          echo "Bucket:       s3://${{ vars.S3_BUCKET }}"
+          echo "Region:       ${{ vars.AWS_REGION }}"
+          echo "Distribution: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
+
+      # These six are baked into the bundle at build time; if any is empty the
+      # site builds fine but ships blank Cognito/API config and login breaks.
+      # Fail loudly BEFORE building. This guard must live here — not in
+      # `npm run build`, and not in the lint/test build job, which have no secrets
+      # and would then always be red.
+      - name: Guard — all six VITE_* secrets must be present
+        run: |
+          missing=0
+          for name in VITE_USER_POOL_ID VITE_USER_POOL_CLIENT_ID VITE_COGNITO_OAUTH_DOMAIN VITE_APP_URL VITE_API_BASE_URL VITE_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || { echo "Aborting: one or more VITE_* secrets are empty."; exit 1; }
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          # No dependency cache in this job: it holds id-token: write and assumes
+          # an AWS role. setup-node v7 turns the package-manager cache on by
+          # default; its release notes recommend disabling it in high-privilege /
+          # secret-bearing workflows to remove a cache-poisoning vector. This
+          # overrides the default even without a `cache` input.
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with production env
+        run: npm run build
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Sync dist/ to S3
+        run: aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" --delete
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
