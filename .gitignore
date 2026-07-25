@@ -45,3 +45,6 @@ __pycache__/
 *.njsproj
 *.sln
 *.sw?
+
+# Account-deletion manifests contain user data — never commit
+ops/deletion-manifests/
