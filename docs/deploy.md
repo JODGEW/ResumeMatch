@@ -415,18 +415,39 @@ half needs a real run):
    job's** build (which has the secrets), or feed the CI build job a set of dummy
    `VITE_*` values.
 
-6. **The workflow's cache headers must match the manual deploy.** The deploy job
-   uploads `index.html` in a **separate** `aws s3 cp … --cache-control "no-cache"`
-   step, apart from `aws s3 sync … --delete --exclude 'index.html'` — mirroring
-   the by-hand commands. Keep them in sync; if you deploy by hand, use the same
-   headers. **Why it matters:** the `/*` CloudFront invalidation clears the CDN
-   **edge** cache but not a **visitor's browser** cache. `index.html` is the one
-   file that references the content-hashed asset filenames, so a browser holding
-   an old cached `index.html` keeps loading the old bundle indefinitely;
-   `no-cache` forces it to revalidate every load. A plain `sync` (no separate
-   `cp`) uploads `index.html` with default metadata and silently drops the header
-   — a real regression that already wiped the `no-cache` once. Do **not** merge
-   the two steps back into one.
+6. **Three-step upload, three cache policies — keep any manual deploy identical.**
+   The deploy job uploads in three steps, each with a deliberate `Cache-Control`.
+   Do not collapse them:
+
+   1. **`assets/` → 1-year `immutable`** (`sync … --exclude '*' --include 'assets/*'
+      --cache-control 'public, max-age=31536000, immutable'`). Safe forever because
+      Vite content-hashes these filenames (`<name>-<hash>.js`), so any change ships
+      under a new name.
+   2. **Everything else → default headers** (`sync … --exclude 'assets/*'
+      --exclude 'index.html'`). These are **fixed-filename** files
+      (`favicon.svg`, `vite.svg`, `og-image.png`, `demo-resumes/*.pdf`); a year of
+      `immutable` would make a swap invisible to returning visitors for a year —
+      not hypothetical, the three demo PDFs were swapped **2026-07-24**.
+   3. **`index.html` → `no-cache`** (`cp … --cache-control "no-cache"`). The `/*`
+      invalidation clears the CDN **edge** cache but not a **visitor's browser**
+      cache; index.html points at the hashed asset names, so a stale cached
+      index.html keeps loading the old bundle. A plain `sync` uploads it with
+      default metadata and silently drops the header (a real regression that
+      wiped `no-cache` once).
+
+   **Why two `sync` passes, not one:** `--exclude`/`--include` also gate the
+   `--delete` side, so pass 1 only deletes within `assets/` and pass 2 only
+   deletes outside it — together they cover the whole bucket. And one pass cannot
+   apply two different `Cache-Control` values anyway.
+
+   **No backfill — this is intentional.** `sync` compares by size + mtime, **not
+   metadata**, so `assets/` objects already in the bucket are *not* re-uploaded
+   and keep their old headers. That's fine: the assets are content-hashed, so the
+   next real code change ships new filenames carrying the new header, and
+   `--delete` removes the old ones. **Do not** try to "fix" existing objects with
+   a recursive `aws s3 cp --recursive --metadata-directive REPLACE` — without a
+   per-file content-type it stamps every object's `Content-Type` to a single
+   value, corrupting the site. Let the cache headers roll forward naturally.
 
 ---
 

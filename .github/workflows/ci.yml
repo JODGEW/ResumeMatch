@@ -178,19 +178,38 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # index.html is deployed in its OWN step, apart from the bulk sync, so it
-      # keeps Cache-Control: no-cache. DO NOT merge these two steps back into one
-      # `sync`: a plain sync uploads index.html with default metadata and silently
-      # drops the no-cache header (this happened — that regression is what this
-      # split fixes). Why no-cache matters: the CloudFront /* invalidation below
-      # clears the CDN *edge* cache, but not a *visitor's browser* cache.
-      # index.html is the one file that points at the content-hashed asset
-      # filenames, so a browser holding an old cached index.html keeps loading the
-      # old bundle indefinitely; no-cache forces it to revalidate index.html every
-      # load, so new deploys are actually picked up.
-      - name: Sync dist/ to S3 (everything except index.html)
-        run: aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" --delete --exclude 'index.html'
+      # Upload is THREE steps with three different cache policies; do not collapse
+      # them. Step 1 caches assets/ for a year immutable; step 2 uploads the rest
+      # with default headers; step 3 puts index.html with no-cache.
+      #
+      # Only assets/ may be immutable: Vite content-hashes those filenames
+      # (<name>-<hash>.js / .css), so any change ships under a NEW name and is safe
+      # to cache forever. Everything else — favicon.svg, vite.svg, og-image.png,
+      # demo-resumes/*.pdf — has a FIXED filename, so a year of immutable would
+      # make a swap invisible to returning visitors for a year. Not hypothetical:
+      # the three demo PDFs were swapped on 2026-07-24.
+      - name: Sync assets/ to S3 (immutable, 1-year — content-hashed filenames)
+        run: |
+          aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" --delete \
+            --exclude '*' --include 'assets/*' \
+            --cache-control 'public, max-age=31536000, immutable'
 
+      # TWO sync passes, not one: --exclude/--include also gate the --delete side,
+      # so pass 1 only deletes within assets/ and this pass only deletes outside it
+      # — together they cover the whole bucket. And a single pass can't apply two
+      # different Cache-Control values anyway. This pass carries default headers.
+      - name: Sync the rest to S3 (default cache — fixed filenames)
+        run: |
+          aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" --delete \
+            --exclude 'assets/*' --exclude 'index.html'
+
+      # index.html gets no-cache in its OWN step. DO NOT fold it into a sync: a
+      # plain sync uploads it with default metadata and silently drops the header
+      # (that regression happened once). Why no-cache matters: the CloudFront /*
+      # invalidation below clears the CDN *edge* cache, not a *visitor's browser*
+      # cache. index.html points at the hashed asset names, so a browser holding an
+      # old cached index.html keeps loading the old bundle; no-cache forces it to
+      # revalidate index.html every load, so new deploys are actually picked up.
       - name: Upload index.html with no-cache
         run: |
           aws s3 cp dist/index.html "s3://${{ vars.S3_BUCKET }}/index.html" \
