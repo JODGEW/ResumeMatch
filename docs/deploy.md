@@ -440,14 +440,19 @@ half needs a real run):
    deletes outside it — together they cover the whole bucket. And one pass cannot
    apply two different `Cache-Control` values anyway.
 
-   **No backfill — this is intentional.** `sync` compares by size + mtime, **not
-   metadata**, so `assets/` objects already in the bucket are *not* re-uploaded
-   and keep their old headers. That's fine: the assets are content-hashed, so the
-   next real code change ships new filenames carrying the new header, and
-   `--delete` removes the old ones. **Do not** try to "fix" existing objects with
-   a recursive `aws s3 cp --recursive --metadata-directive REPLACE` — without a
-   per-file content-type it stamps every object's `Content-Type` to a single
-   value, corrupting the site. Let the cache headers roll forward naturally.
+   **No manual backfill needed.** A `Cache-Control` change applies to
+   **everything on the next deploy**, not just to files that happen to change.
+   `aws s3 sync` re-uploads whenever the source is newer than the destination, and
+   CI does a **fresh checkout + rebuild every run**, so every `dist/` file gets a
+   brand-new mtime that is always newer than the S3 copy — meaning **each deploy
+   re-uploads all files** (not only the changed ones), carrying the current
+   headers. Measured on CI deploy #6: `assets/index-CXN7XX3b.js` had
+   `LastModified` = that deploy's timestamp and `CacheControl: public,
+   max-age=31536000, immutable`, with no code change to that file. **Do not**
+   backfill existing objects with a recursive
+   `aws s3 cp --recursive --metadata-directive REPLACE` — it's unnecessary (the
+   next deploy rewrites them anyway) and, without a per-file content-type, it
+   stamps every object's `Content-Type` to a single value, corrupting the site.
 
 ---
 
