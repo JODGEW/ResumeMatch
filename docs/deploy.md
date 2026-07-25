@@ -415,6 +415,19 @@ half needs a real run):
    job's** build (which has the secrets), or feed the CI build job a set of dummy
    `VITE_*` values.
 
+6. **The workflow's cache headers must match the manual deploy.** The deploy job
+   uploads `index.html` in a **separate** `aws s3 cp … --cache-control "no-cache"`
+   step, apart from `aws s3 sync … --delete --exclude 'index.html'` — mirroring
+   the by-hand commands. Keep them in sync; if you deploy by hand, use the same
+   headers. **Why it matters:** the `/*` CloudFront invalidation clears the CDN
+   **edge** cache but not a **visitor's browser** cache. `index.html` is the one
+   file that references the content-hashed asset filenames, so a browser holding
+   an old cached `index.html` keeps loading the old bundle indefinitely;
+   `no-cache` forces it to revalidate every load. A plain `sync` (no separate
+   `cp`) uploads `index.html` with default metadata and silently drops the header
+   — a real regression that already wiped the `no-cache` once. Do **not** merge
+   the two steps back into one.
+
 ---
 
 ## First launch runbook (the very first production deploy)
