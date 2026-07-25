@@ -35,6 +35,23 @@ import type { SessionResponse, SessionSummary } from '../api/interview';
  * question, transcript, score, or assessment wording was otherwise touched, so the
  * "do not hand-edit" rule above still governs the pipeline output itself.
  *
+ * SCRUB 2026-07-25 — the SAME employer's garbled in-transcript variants, which the
+ * 2026-07-24 pass missed (it renamed only the clean "EduTech Solutions"/"EduTech"
+ * occurrences), were corrected to "Vexley Learning" so the transcript stops leaking
+ * the old identity and agrees with the turn-1 question + the STAR assessment (which
+ * already calls this employer "Vexley"). Original strings, employer name only:
+ *   - "ideotech solution"   — turn-1 candidate answer ("My first job was …")
+ *   - "E2E Tech Solutions"  — the performance-optimization answer (internal reporting)
+ *   - "E2 tech"             — the JWT production-failure answer
+ * The garbled forms were replaced with the clean canonical name, NOT a fabricated
+ * misspelling — inventing a "vexly learning"-style garble would manufacture a
+ * transcription error that never happened. Everything else is still verbatim: the
+ * graded spoken disfluencies the assessment explicitly cites (the repeated "that
+ * distinction", the redundancy/self-interruption) and all other speech-to-text
+ * artifacts (proper-noun mis-hears etc.) are DELIBERATELY untouched — a word-level
+ * scrub is gated behind a live-pipeline check of whether today's transcription still
+ * garbles proper nouns, so we do not clean the fixture into over-stating the product.
+ *
  * To refresh: rerun a mock interview from the Bramble Commerce analysis (the
  * analysis pipeline cache makes reproducing the pair free), copy the
  * GET /interview/sessions/:id response from the network tab, and re-apply the three
@@ -75,7 +92,7 @@ export const SAMPLE_INTERVIEW_SESSION: SessionResponse = {
       },
       role: "candidate",
       transcriptClarity: "clear",
-      content: "Studied computer science at the University of wash Washington and graduated in 2024. What actually put me toward full stack was a project I built right after school, a real time collaborative document editor using React, TypeScript dot I o. I had to write the UI and the server side conflict resolution together, and neither have made sense without the other. Seeing a keystroke in one browser turn into synchronized stay across sessions. The end to end feature is what hooked me. My first job was ideotech solution as a junior developer, the work land lean back end, and you taught me fundamentals under real pressure. The platform supported high traffic student enrollment periods, so reliability wasn't theoretical. I implemented JWT authentication and role based access control for user profiles, automated internal reporting with Python scripts that improve data processing efficiency by about 35, and we can test coverage around 80% with MoCA and one link through Jenkins. A lot of it was maintenance work, but that's where I built my habits around testing and security. SaaS peak was the jump to real ownership. I was shipping features end to end on a biweekly cadence in a team. On the front end, I build user facing dashboards, and we end task grid with it does handling state. And part of the that work was tightening up UI responsiveness. On the back end, I went from working in one express code base to building the microservices on Azure functions, handling real time data sync for over a thousand daily active users. The work I enjoy most was performance tuning. I cut endpoint latency by about 20% mostly by optimizing how we curried PostgreSQL.",
+      content: "Studied computer science at the University of wash Washington and graduated in 2024. What actually put me toward full stack was a project I built right after school, a real time collaborative document editor using React, TypeScript dot I o. I had to write the UI and the server side conflict resolution together, and neither have made sense without the other. Seeing a keystroke in one browser turn into synchronized stay across sessions. The end to end feature is what hooked me. My first job was Vexley Learning as a junior developer, the work land lean back end, and you taught me fundamentals under real pressure. The platform supported high traffic student enrollment periods, so reliability wasn't theoretical. I implemented JWT authentication and role based access control for user profiles, automated internal reporting with Python scripts that improve data processing efficiency by about 35, and we can test coverage around 80% with MoCA and one link through Jenkins. A lot of it was maintenance work, but that's where I built my habits around testing and security. SaaS peak was the jump to real ownership. I was shipping features end to end on a biweekly cadence in a team. On the front end, I build user facing dashboards, and we end task grid with it does handling state. And part of the that work was tightening up UI responsiveness. On the back end, I went from working in one express code base to building the microservices on Azure functions, handling real time data sync for over a thousand daily active users. The work I enjoy most was performance tuning. I cut endpoint latency by about 20% mostly by optimizing how we curried PostgreSQL.",
       timestamp: 1783894642
     },
     {
@@ -156,7 +173,7 @@ export const SAMPLE_INTERVIEW_SESSION: SessionResponse = {
       },
       role: "candidate",
       transcriptClarity: "clear",
-      content: "E2E Tech Solutions, our internal reporting pipeline was becoming a real bottleneck. We paused the operations in team, needed daily, were taking hours to generate. And during enrollment periods, when traffic picked, they sometimes finished too late to be useful. The metric I care about was end to end processing time. When I dug in, I found the process was mostly manual. Someone pulling the data and stitching it together with a lot of redundant passes over the same records. I wrote Python scripts to automate the pipeline, batching the data pools and eliminate eliminating the duplicate processing. That improved processing efficiency by about 35%, and reports were consistently ready. When the ops team started their day. It also freed us from babysitting the process during peak enrollment.",
+      content: "Vexley Learning, our internal reporting pipeline was becoming a real bottleneck. We paused the operations in team, needed daily, were taking hours to generate. And during enrollment periods, when traffic picked, they sometimes finished too late to be useful. The metric I care about was end to end processing time. When I dug in, I found the process was mostly manual. Someone pulling the data and stitching it together with a lot of redundant passes over the same records. I wrote Python scripts to automate the pipeline, batching the data pools and eliminate eliminating the duplicate processing. That improved processing efficiency by about 35%, and reports were consistently ready. When the ops team started their day. It also freed us from babysitting the process during peak enrollment.",
       timestamp: 1783894890
     },
     {
@@ -237,7 +254,7 @@ export const SAMPLE_INTERVIEW_SESSION: SessionResponse = {
       },
       role: "candidate",
       transcriptClarity: "clear",
-      content: "E2 tech where I wrote our JWT based authentication, the deployment, pass review, and our test suite. But in staging, we started seeing users get logged out my mid session. I'd misconfig the token expiry against the refresh flow, so sessions died early. The worst part was our test never caught it because they validated tokens as at a single point in time, not across a session's lifespan. I wrote it back the same day, fixed the expiry logic, and before re redeploying, I added MoCA test that simulated full session life cycles, logging, token refresh, expiry. The bigger challenge the bigger change was to how I test coverage percentage wasn't the issue. We had 80%. It's that we were testing snapshots instead of instead of behavior behavior over time. That this that distinction that distinction stuck with me.",
+      content: "Vexley Learning where I wrote our JWT based authentication, the deployment, pass review, and our test suite. But in staging, we started seeing users get logged out my mid session. I'd misconfig the token expiry against the refresh flow, so sessions died early. The worst part was our test never caught it because they validated tokens as at a single point in time, not across a session's lifespan. I wrote it back the same day, fixed the expiry logic, and before re redeploying, I added MoCA test that simulated full session life cycles, logging, token refresh, expiry. The bigger challenge the bigger change was to how I test coverage percentage wasn't the issue. We had 80%. It's that we were testing snapshots instead of instead of behavior behavior over time. That this that distinction that distinction stuck with me.",
       timestamp: 1783895168
     },
     {
