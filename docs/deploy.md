@@ -236,6 +236,19 @@ statements, zero `Deny`**, so it does not block the identity permissions above.
 flags `false` — nothing overrides Statement 1, so the public-read grant is
 genuinely **live** and the direct-to-S3 bypass below is real, not dead config.
 
+**Bucket inventory (corrects an earlier wrong conclusion).** An earlier check
+read the silent `--dryrun` output as "the bucket holds nothing beyond the build
+output." That was **wrong**. Pulling the rollback backup revealed a `.DS_Store`
+in the bucket root; `--dryrun` was silent only because the **local** `dist/` held
+the *same* `.DS_Store` — Vite copies `public/.DS_Store` (which exists locally and
+is gitignored) into `dist/`, and past deploys were local `npm run build` + sync,
+so it rode along and both sides matched. Corrected conclusion: beyond build
+output the bucket has only ever held that one macOS artifact. The outcome is
+actually good — CI builds on a Linux runner from a fresh clone (no
+`public/.DS_Store`), so the **first `--delete` deploy removes it**, closing a
+small hole: with the public-read Statement 1 live, `.DS_Store` (which lists the
+directory's filenames) was anonymously fetchable straight from the S3 endpoint.
+
 > 📌 **Separate TODO — not a CD blocker, do not touch in this change.** The
 > public-read Statement 1 means every object is fetchable **directly from the S3
 > endpoint, bypassing CloudFront** (so the CDN's caching, logging, and anything
@@ -293,10 +306,33 @@ them out of CI logs.)
 > The point: on a public repo a *variable* is *published*. Don't treat
 > "variable = not secret = harmless" — decide what you're fine publishing.
 
-The deploy job (step 2 of this project — the workflow) will read the role ARN
-from `AWS_ROLE_ARN` and **skip cleanly if it's unset**, so CI stays green before
-this AWS setup is done; the deploy activates automatically once the variable
-exists.
+### Other build-time variables (not the six secrets)
+
+Two more `VITE_*` exist as repository **variables**, both currently `false`:
+
+- **`VITE_DEV_BYPASS`** — set deliberately, not because it's required. All three
+  code reads are fail-closed — `import.meta.env.VITE_DEV_BYPASS === 'true'`
+  ([App.tsx:21](../src/App.tsx#L21), [auth/AuthContext.tsx:44](../src/auth/AuthContext.tsx#L44),
+  [api/analysis.ts:5](../src/api/analysis.ts#L5); a 4th hit at `Dashboard.tsx:12`
+  is a comment, not a read) — so local `'false'` and a CI build where the var is
+  *undefined* both take the same (off) branch; behaviour is identical. It's set
+  explicitly only to erase the "missing vs false" ambiguity so nobody has to
+  wonder. **Trap to preserve:** the safety rests entirely on the `=== 'true'`
+  (fail-closed) comparison. If anyone rewrites it to `!== 'false'` or any
+  default-on form, a CI build (var undefined) would **silently enable the dev
+  bypass in production** while the local build (`'false'`) stays off — the worst
+  kind of divergence. And note the deploy job's secret guard covers only the six
+  secrets; it will **not** catch a misconfigured flag like this.
+- **`VITE_ENABLE_BILLING_UI`** — **dead on `main`**: a whole-repo grep of
+  `*.ts` / `*.tsx` / `*.html` finds **zero** references. **Do not delete it** —
+  it's consumed by the `free-pro-tier-plan` branch and is kept for that work.
+  Recorded here so nobody assumes it gates billing-UI visibility on `main`; it
+  doesn't.
+
+The deploy job (step 2 of this project — the workflow) reads the role ARN from
+`AWS_ROLE_ARN` and **skips cleanly if it's unset**. That single condition is
+two-purpose: it's both how CI stays green before AWS is configured *and* the only
+kill-switch for the first launch — see the "First launch runbook" below.
 
 ---
 
@@ -355,10 +391,11 @@ half needs a real run):
 
 2. **`--delete` is destructive.** `aws s3 sync dist/ s3://<SITE_BUCKET> --delete`
    removes anything in the bucket not present in `dist/`. That's correct for a
-   pure static-site bucket, but if the bucket also holds anything not produced by
-   the build, it will be deleted. The demo resumes are safe: they ship *inside*
-   `dist/demo-resumes/` from `public/` (verified). Confirm nothing else lives in
-   that bucket before enabling `--delete`, or scope the sync with `--exclude`.
+   pure static-site bucket. The demo resumes are safe: they ship *inside*
+   `dist/demo-resumes/` from `public/` (verified). The bucket was inventoried
+   (see "Bucket policy" above): beyond build output it held only a stray
+   `.DS_Store`, which the first `--delete` intentionally removes. If you ever put
+   non-build objects in this bucket, scope the sync with `--exclude`.
 
 3. **CloudFront caches; invalidate after sync.** New `dist/` in S3 won't be
    served until the CDN cache is invalidated (`/*`). The deploy job does this;
@@ -380,6 +417,89 @@ half needs a real run):
 
 ---
 
+## First launch runbook (the very first production deploy)
+
+The exact sequence used for the first launch — and *why* each step is forced, not
+just what to click. Read the Gotchas above first.
+
+### The `AWS_ROLE_ARN` variable is a two-purpose gate
+
+The deploy job's `if` includes `vars.AWS_ROLE_ARN != ''`. That one condition does
+**two** jobs:
+
+1. **Clean skip when AWS isn't configured** (noted above): with the variable
+   unset the job shows *skipped*, so CI isn't red before the role exists.
+2. **The only kill-switch for the first launch.** There is no other lever: the
+   deploy job's other two conditions (`push` + `ref == main`) are both satisfied
+   by the very commit that lands the workflow on `main`. So *deleting* the
+   variable is how you disarm production, and re-adding it is how you arm it. You
+   use this deliberately in the sequence below.
+
+### Why the ordering is forced (not a preference)
+
+The `workflow_dispatch` **Run workflow** button only appears once the workflow
+file already exists on the **default branch**. So `build-verify` **cannot** run
+before the workflow is on `main` — yet the moment you push it to `main`, the
+deploy job's three conditions all become true and it would deploy
+**immediately**, before you've inspected a single build. The only thing that
+breaks this deadlock is temporarily removing `AWS_ROLE_ARN`. Hence this order:
+
+1. **Delete the `AWS_ROLE_ARN` variable.** This is what makes the first push land
+   as *skipped* instead of a live deploy.
+2. **Back up the current bucket** — this bucket has **no versioning**, so this
+   copy is your *only* rollback source:
+   ```bash
+   aws s3 sync s3://<SITE_BUCKET> /tmp/prod-backup-<date>
+   ```
+   Rollback, if ever needed, is the reverse sync plus a fresh invalidation:
+   ```bash
+   aws s3 sync /tmp/prod-backup-<date> s3://<SITE_BUCKET> --delete
+   aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "/*"
+   ```
+3. **Commit + push to `main`.** Confirm the `deploy` job shows **skipped** (not
+   green, not red). If it did *not* skip, stop and read the typo trap below.
+4. **Run `build-verify`.** In the Actions tab, click into the **workflow itself**
+   in the left sidebar (**not** the "All workflows" list — the Run workflow button
+   isn't there), press **Run workflow**, choose `main`.
+5. **Download the `dist-verify` artifact and inspect it** (grep recipe below).
+6. **Re-add `AWS_ROLE_ARN`.** Production is now armed.
+7. **Push a tiny change** to trigger the first real deploy.
+8. **Smoke-test in an incognito window:** log in; open the demo account and view
+   all three PDFs; run one analysis end to end.
+
+### Inspecting the artifact — and what the check can and can't tell you
+
+Verify the six secrets actually baked into the bundle by grepping the build output
+for the *real* values from your local `.env`:
+
+```bash
+grep '^VITE_' .env | while IFS='=' read -r k v; do
+  [ -z "$v" ] && continue
+  if grep -rqF -- "$v" dist; then echo "FOUND   $k"; else echo "MISSING $k"; fi
+done
+```
+
+**Trustworthy only for the six long, unique values** — `VITE_USER_POOL_ID`,
+`VITE_USER_POOL_CLIENT_ID`, `VITE_COGNITO_OAUTH_DOMAIN`, `VITE_APP_URL`,
+`VITE_API_BASE_URL`, `VITE_API_KEY`. For short values like `true`/`false` (e.g.
+`VITE_DEV_BYPASS`) a `FOUND` is a **guaranteed false positive** — those
+substrings are all over minified JS. And grepping the bundle for the literal
+`undefined` proves nothing: minified output legitimately contains `undefined`
+everywhere, so a reverse `grep undefined` is meaningless.
+
+### Troubleshooting trap: a *skipped* deploy can mean a typo, not "not configured"
+
+The variable name must be **exactly** `AWS_ROLE_ARN`. A misspelling (this actually
+happened once — it was entered as `WS_ROLE_ARN`) leaves `vars.AWS_ROLE_ARN` empty,
+so the deploy job shows **skipped** — *visually identical* to the normal "AWS not
+configured yet" skip, with no error anywhere. So when a deploy skips unexpectedly,
+**check the variable-name spelling first**, before debugging workflow logic. Quick
+tell: the repository variables list is sorted ascending by name, so `AWS_ROLE_ARN`
+should sit **directly after** `AWS_REGION`. If it's anywhere else, the name is
+misspelled.
+
+---
+
 ## Local ↔ CI Node version parity (fresh-clone checks)
 
 CI runs **Node 20** (`setup-node` `node-version: 20` in `ci.yml`). Local dev on
@@ -396,6 +516,31 @@ Before a fresh-clone check: `nvm use 20` (or otherwise switch to Node 20), then
 > rule: it's a missing-`eval/` `ENOENT`, so it reproduces on both Node 18 and 20.
 > Version-independent bugs will show either way — but don't rely on that; run
 > parity checks on 20.
+
+---
+
+## Known coverage gap: parser has no CI coverage yet (TODO)
+
+`src/utils/resumeParser.test.ts` skips its real-resume suites when `eval/cases`
+is absent — which is **always** the case in CI (the corpus is gitignored). The
+synthetic bullet-reassembly and `sanitizeFilename` suites still run, but the
+parser's core name/section extraction across the three input shapes (newline /
+paragraph blob / flat blob) is **not exercised in CI at all**. The parser is a
+core path, so this shouldn't stay a permanent gap.
+
+**Plan (hybrid, ~30–60 min, no parser or test-logic changes):** commit a small
+set of **synthetic** resume fixtures to a *non-ignored* path (e.g.
+`src/utils/__fixtures__/resumes/`) and point a CI-runnable suite at them as a
+regression net, while the real `eval/` corpus stays local for fidelity. The whole
+cost is authoring 3–5 believable-but-fake fixtures that exercise the real
+pathologies (multi-section structure, contact preamble, soft-wrap rejoining) and
+regenerating the `case_01` inline snapshot against a synthetic fixture.
+
+**Limitation to record:** synthetic fixtures give CI a net for *known* behaviours
+only — they will **not** surface *new* real-world pathologies the way the real
+corpus does (messy Textract/LLM output is exactly what the `eval/` corpus exists
+to catch). So this reduces, but does not eliminate, the value of running the real
+corpus locally before shipping parser changes.
 
 ---
 
