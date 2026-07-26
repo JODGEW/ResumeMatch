@@ -224,8 +224,8 @@ export function Upload() {
       </div>
 
       {error && (
-        <div className="upload-alert animate-in">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <div className="upload-alert animate-in" role="alert">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
             <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
@@ -255,12 +255,13 @@ export function Upload() {
             <div className="upload-panel__head">
               <span className="upload-panel__step">1</span>
               <div className="upload-panel__heading">
-                <div className="upload-panel__title">Job Description</div>
+                <h2 className="upload-panel__title" id="upload-jd-heading">Job Description</h2>
                 <div className="upload-panel__sub">Paste the text straight from the posting</div>
               </div>
             </div>
 
             <textarea
+              aria-labelledby="upload-jd-heading"
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
               placeholder="Paste the job description here — include requirements, responsibilities, and preferred qualifications for the sharpest match."
@@ -290,7 +291,7 @@ export function Upload() {
             <div className="upload-panel__head">
               <span className="upload-panel__step">2</span>
               <div className="upload-panel__heading">
-                <div className="upload-panel__title">Resume</div>
+                <h2 className="upload-panel__title">Resume</h2>
                 <div className="upload-panel__sub">Choose which version to score</div>
               </div>
             </div>

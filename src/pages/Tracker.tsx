@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from 'rea
 import { useSearchParams } from 'react-router-dom';
 import { useApplications } from '../hooks/useApplications';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -299,7 +300,7 @@ function formatDate(iso: string) {
 }
 
 // ── Tag Input ──────────────────────────────────────────
-function TagInput({ tags, onChange, placeholder }: { tags: string[]; onChange: (t: string[]) => void; placeholder?: string }) {
+function TagInput({ tags, onChange, placeholder, inputId }: { tags: string[]; onChange: (t: string[]) => void; placeholder?: string; inputId?: string }) {
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -323,6 +324,7 @@ function TagInput({ tags, onChange, placeholder }: { tags: string[]; onChange: (
       ))}
       <input
         ref={inputRef}
+        id={inputId}
         className="tracker-tags__input"
         value={input}
         onChange={e => setInput(e.target.value)}
@@ -369,7 +371,11 @@ function ApplicationModal({
   const [form, setForm] = useState(initial);
   const [showDiscard, setShowDiscard] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock();
+  // The discard-changes ConfirmModal stacks its own trap on top; go inert
+  // while it's open so both traps don't fight over Tab and Escape.
+  useFocusTrap(panelRef, attemptClose, !showDiscard);
   // Bundle's "optional" disclosure. Opens by default when the record already
   // carries data in there, so editing never hides existing values.
   const [showAdvanced, setShowAdvanced] = useState(() =>
@@ -475,10 +481,17 @@ function ApplicationModal({
       onMouseDown={handleOverlayMouseDown}
       onClick={handleOverlayClick}
     >
-      <div className="tracker-modal" onClick={e => e.stopPropagation()}>
+      <div
+        ref={panelRef}
+        className="tracker-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tracker-modal-title"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="tracker-modal__header">
           <div>
-            <h2>{isEdit ? 'Edit Application' : 'Add Application'}</h2>
+            <h2 id="tracker-modal-title">{isEdit ? 'Edit Application' : 'Add Application'}</h2>
             <p className="tracker-modal__subtitle">Company, role and date are all you need to start.</p>
           </div>
           <button type="button" className="tracker-modal__close" onClick={attemptClose}>
@@ -495,28 +508,28 @@ function ApplicationModal({
             <div className="tracker-modal__section-title">Job info</div>
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Company name <span className="tracker-modal__req">*</span></label>
-                <input className="tracker-modal__input" placeholder="e.g. Linear" value={form.companyName} onChange={e => set('companyName', e.target.value)} />
+                <label className="tracker-modal__label" htmlFor="tm-company">Company name <span className="tracker-modal__req">*</span></label>
+                <input id="tm-company" className="tracker-modal__input" placeholder="e.g. Linear" value={form.companyName} onChange={e => set('companyName', e.target.value)} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Role title <span className="tracker-modal__req">*</span></label>
-                <input className="tracker-modal__input" placeholder="e.g. Software Engineer" value={form.roleTitle} onChange={e => set('roleTitle', e.target.value)} />
+                <label className="tracker-modal__label" htmlFor="tm-role">Role title <span className="tracker-modal__req">*</span></label>
+                <input id="tm-role" className="tracker-modal__input" placeholder="e.g. Software Engineer" value={form.roleTitle} onChange={e => set('roleTitle', e.target.value)} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Date applied <span className="tracker-modal__req">*</span></label>
-                <input className="tracker-modal__input" type="date" value={form.dateApplied} onChange={e => set('dateApplied', e.target.value)} />
+                <label className="tracker-modal__label" htmlFor="tm-date-applied">Date applied <span className="tracker-modal__req">*</span></label>
+                <input id="tm-date-applied" className="tracker-modal__input" type="date" value={form.dateApplied} onChange={e => set('dateApplied', e.target.value)} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Application status</label>
-                <select className="tracker-modal__select" value={form.applicationStatus} onChange={e => { set('applicationStatus', e.target.value as Application['applicationStatus']); set('statusChangedAt', new Date().toISOString()); }}>
+                <label className="tracker-modal__label" htmlFor="tm-app-status">Application status</label>
+                <select id="tm-app-status" className="tracker-modal__select" value={form.applicationStatus} onChange={e => { set('applicationStatus', e.target.value as Application['applicationStatus']); set('statusChangedAt', new Date().toISOString()); }}>
                   {Object.entries(APP_STATUS_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
                 </select>
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Resume Version</label>
-                <select className="tracker-modal__select" value={form.resumeVersion} onChange={e => set('resumeVersion', e.target.value as Application['resumeVersion'])}>
+                <label className="tracker-modal__label" htmlFor="tm-resume-version">Resume Version</label>
+                <select id="tm-resume-version" className="tracker-modal__select" value={form.resumeVersion} onChange={e => set('resumeVersion', e.target.value as Application['resumeVersion'])}>
                   <option value="fullstack">Full-Stack</option>
                   <option value="frontend">Frontend</option>
                   <option value="cloud_devops">Cloud/DevOps</option>
@@ -524,8 +537,8 @@ function ApplicationModal({
                 </select>
               </div>
               <div className="tracker-modal__field tracker-modal__field--full">
-                <label className="tracker-modal__label">Job posting URL</label>
-                <input className="tracker-modal__input" value={form.jobPostingUrl || ''} onChange={e => set('jobPostingUrl', e.target.value)} placeholder="https://..." />
+                <label className="tracker-modal__label" htmlFor="tm-job-url">Job posting URL</label>
+                <input id="tm-job-url" className="tracker-modal__input" value={form.jobPostingUrl || ''} onChange={e => set('jobPostingUrl', e.target.value)} placeholder="https://..." />
               </div>
             </div>
           </div>
@@ -550,16 +563,16 @@ function ApplicationModal({
           <div className="tracker-modal__advanced">
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field tracker-modal__field--full">
-                <label className="tracker-modal__label">Matched Skills</label>
-                <TagInput tags={form.skillMatch.matchedSkills} onChange={t => set('skillMatch', { ...form.skillMatch, matchedSkills: t })} placeholder="Type skill and press Enter" />
+                <label className="tracker-modal__label" htmlFor="tm-matched-skills">Matched Skills</label>
+                <TagInput inputId="tm-matched-skills" tags={form.skillMatch.matchedSkills} onChange={t => set('skillMatch', { ...form.skillMatch, matchedSkills: t })} placeholder="Type skill and press Enter" />
               </div>
               <div className="tracker-modal__field tracker-modal__field--full">
-                <label className="tracker-modal__label">Missing Skills</label>
-                <TagInput tags={form.skillMatch.missingSkills} onChange={t => set('skillMatch', { ...form.skillMatch, missingSkills: t })} placeholder="Type skill and press Enter" />
+                <label className="tracker-modal__label" htmlFor="tm-missing-skills">Missing Skills</label>
+                <TagInput inputId="tm-missing-skills" tags={form.skillMatch.missingSkills} onChange={t => set('skillMatch', { ...form.skillMatch, missingSkills: t })} placeholder="Type skill and press Enter" />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Match % (auto-calculated if 0)</label>
-                <input className="tracker-modal__input" type="number" min="0" max="100" value={form.skillMatch.matchPercentage} onChange={e => {
+                <label className="tracker-modal__label" htmlFor="tm-match-pct">Match % (auto-calculated if 0)</label>
+                <input id="tm-match-pct" className="tracker-modal__input" type="number" min="0" max="100" value={form.skillMatch.matchPercentage} onChange={e => {
                   const n = Number(e.target.value);
                   set('skillMatch', { ...form.skillMatch, matchPercentage: Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0 });
                 }} />
@@ -588,16 +601,16 @@ function ApplicationModal({
           <div className="tracker-modal__advanced">
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Company Size</label>
-                <select className="tracker-modal__select" value={form.companySize} onChange={e => set('companySize', e.target.value as Application['companySize'])}>
+                <label className="tracker-modal__label" htmlFor="tm-company-size">Company Size</label>
+                <select id="tm-company-size" className="tracker-modal__select" value={form.companySize} onChange={e => set('companySize', e.target.value as Application['companySize'])}>
                   {Object.entries(COMPANY_SIZE_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
                 </select>
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Posting Age</label>
-                <select className="tracker-modal__select" value={form.postingAgeWeeks ?? ''} onChange={e => set('postingAgeWeeks', e.target.value !== '' ? Number(e.target.value) : undefined)}>
+                <label className="tracker-modal__label" htmlFor="tm-posting-age">Posting Age</label>
+                <select id="tm-posting-age" className="tracker-modal__select" value={form.postingAgeWeeks ?? ''} onChange={e => set('postingAgeWeeks', e.target.value !== '' ? Number(e.target.value) : undefined)}>
                   <option value="">Unknown</option>
                   {POSTING_AGE_BUCKETS.map(bucket => (
                     <option key={bucket.value} value={bucket.value}>{bucket.label}</option>
@@ -605,8 +618,8 @@ function ApplicationModal({
                 </select>
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Seniority Fit</label>
-                <select className="tracker-modal__select" value={form.seniorityFit ?? ''} onChange={e => set('seniorityFit', e.target.value ? e.target.value as Application['seniorityFit'] : undefined)}>
+                <label className="tracker-modal__label" htmlFor="tm-seniority">Seniority Fit</label>
+                <select id="tm-seniority" className="tracker-modal__select" value={form.seniorityFit ?? ''} onChange={e => set('seniorityFit', e.target.value ? e.target.value as Application['seniorityFit'] : undefined)}>
                   <option value="">Unknown</option>
                   <option value="entry">Entry/Junior (0-2 yrs)</option>
                   <option value="mid">Mid (2-4 yrs)</option>
@@ -639,24 +652,24 @@ function ApplicationModal({
             <div className="tracker-modal__section-title">Contact</div>
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Contact name</label>
-                <input className="tracker-modal__input" value={form.contact?.name || ''} onChange={e => set('contact', { name: e.target.value, role: form.contact?.role || '', source: form.contact?.source || '', email: form.contact?.email, linkedinUrl: form.contact?.linkedinUrl })} />
+                <label className="tracker-modal__label" htmlFor="tm-contact-name">Contact name</label>
+                <input id="tm-contact-name" className="tracker-modal__input" value={form.contact?.name || ''} onChange={e => set('contact', { name: e.target.value, role: form.contact?.role || '', source: form.contact?.source || '', email: form.contact?.email, linkedinUrl: form.contact?.linkedinUrl })} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Contact role</label>
-                <input className="tracker-modal__input" value={form.contact?.role || ''} onChange={e => set('contact', { ...form.contact!, role: e.target.value })} />
+                <label className="tracker-modal__label" htmlFor="tm-contact-role">Contact role</label>
+                <input id="tm-contact-role" className="tracker-modal__input" value={form.contact?.role || ''} onChange={e => set('contact', { ...form.contact!, role: e.target.value })} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Email</label>
-                <input className="tracker-modal__input" type="email" placeholder="name@company.com" value={form.contact?.email || ''} onChange={e => set('contact', { ...form.contact!, email: e.target.value || undefined })} />
+                <label className="tracker-modal__label" htmlFor="tm-contact-email">Email</label>
+                <input id="tm-contact-email" className="tracker-modal__input" type="email" placeholder="name@company.com" value={form.contact?.email || ''} onChange={e => set('contact', { ...form.contact!, email: e.target.value || undefined })} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">LinkedIn URL</label>
-                <input className="tracker-modal__input" value={form.contact?.linkedinUrl || ''} onChange={e => set('contact', { ...form.contact!, linkedinUrl: e.target.value || undefined })} placeholder="https://linkedin.com/in/..." />
+                <label className="tracker-modal__label" htmlFor="tm-contact-linkedin">LinkedIn URL</label>
+                <input id="tm-contact-linkedin" className="tracker-modal__input" value={form.contact?.linkedinUrl || ''} onChange={e => set('contact', { ...form.contact!, linkedinUrl: e.target.value || undefined })} placeholder="https://linkedin.com/in/..." />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Source</label>
-                <input className="tracker-modal__input" value={form.contact?.source || ''} onChange={e => set('contact', { ...form.contact!, source: e.target.value })} placeholder="e.g. Hunter.io, LinkedIn" />
+                <label className="tracker-modal__label" htmlFor="tm-contact-source">Source</label>
+                <input id="tm-contact-source" className="tracker-modal__input" value={form.contact?.source || ''} onChange={e => set('contact', { ...form.contact!, source: e.target.value })} placeholder="e.g. Hunter.io, LinkedIn" />
               </div>
             </div>
           </div>
@@ -666,8 +679,8 @@ function ApplicationModal({
             <div className="tracker-modal__section-title">Outreach</div>
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Outreach status</label>
-                <select className="tracker-modal__select" value={form.outreachStatus} onChange={e => {
+                <label className="tracker-modal__label" htmlFor="tm-outreach-status">Outreach status</label>
+                <select id="tm-outreach-status" className="tracker-modal__select" value={form.outreachStatus} onChange={e => {
                   const newStatus = e.target.value as Application['outreachStatus'];
                   set('outreachStatus', newStatus);
                   // Auto-fill follow-up date when status changes to "sent" and outreach date exists
@@ -684,8 +697,8 @@ function ApplicationModal({
                 </select>
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Outreach Date</label>
-                <input className="tracker-modal__input" type="date" value={form.outreachDate || ''} onChange={e => {
+                <label className="tracker-modal__label" htmlFor="tm-outreach-date">Outreach Date</label>
+                <input id="tm-outreach-date" className="tracker-modal__input" type="date" value={form.outreachDate || ''} onChange={e => {
                   const val = e.target.value || undefined;
                   set('outreachDate', val);
                   // Auto-fill follow-up date when outreach date is entered and status is "sent"
@@ -698,8 +711,8 @@ function ApplicationModal({
                 }} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Follow-up Due Date</label>
-                <input className="tracker-modal__input" type="date" value={form.followUpDate || ''} onChange={e => set('followUpDate', e.target.value || undefined)} />
+                <label className="tracker-modal__label" htmlFor="tm-followup-date">Follow-up Due Date</label>
+                <input id="tm-followup-date" className="tracker-modal__input" type="date" value={form.followUpDate || ''} onChange={e => set('followUpDate', e.target.value || undefined)} />
               </div>
               <div className="tracker-modal__field tracker-modal__field--checkbox">
                 <label className="tracker-modal__checkbox-label">
@@ -715,12 +728,12 @@ function ApplicationModal({
             <div className="tracker-modal__section-title">Response Tracking</div>
             <div className="tracker-modal__grid">
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Response Date</label>
-                <input className="tracker-modal__input" type="date" value={form.response?.date || ''} onChange={e => set('response', { date: e.target.value, type: form.response?.type || 'positive', notes: form.response?.notes || '', nextStep: form.response?.nextStep || '' })} />
+                <label className="tracker-modal__label" htmlFor="tm-response-date">Response Date</label>
+                <input id="tm-response-date" className="tracker-modal__input" type="date" value={form.response?.date || ''} onChange={e => set('response', { date: e.target.value, type: form.response?.type || 'positive', notes: form.response?.notes || '', nextStep: form.response?.nextStep || '' })} />
               </div>
               <div className="tracker-modal__field">
-                <label className="tracker-modal__label">Response type</label>
-                <select className="tracker-modal__select" value={form.response?.type || 'positive'} onChange={e => set('response', { date: form.response?.date || '', type: e.target.value as 'positive' | 'negative' | 'referral' | 'no_response', notes: form.response?.notes || '', nextStep: form.response?.nextStep || '' })}>
+                <label className="tracker-modal__label" htmlFor="tm-response-type">Response type</label>
+                <select id="tm-response-type" className="tracker-modal__select" value={form.response?.type || 'positive'} onChange={e => set('response', { date: form.response?.date || '', type: e.target.value as 'positive' | 'negative' | 'referral' | 'no_response', notes: form.response?.notes || '', nextStep: form.response?.nextStep || '' })}>
                   <option value="positive">Positive</option>
                   <option value="negative">Negative</option>
                   <option value="referral">Referral</option>
@@ -728,12 +741,12 @@ function ApplicationModal({
                 </select>
               </div>
               <div className="tracker-modal__field tracker-modal__field--full">
-                <label className="tracker-modal__label">Notes</label>
-                <textarea className="tracker-modal__textarea" value={form.response?.notes || ''} onChange={e => set('response', { date: form.response?.date || '', type: form.response?.type || 'positive', notes: e.target.value, nextStep: form.response?.nextStep || '' })} placeholder="What did they say? Next steps..." />
+                <label className="tracker-modal__label" htmlFor="tm-response-notes">Notes</label>
+                <textarea id="tm-response-notes" className="tracker-modal__textarea" value={form.response?.notes || ''} onChange={e => set('response', { date: form.response?.date || '', type: form.response?.type || 'positive', notes: e.target.value, nextStep: form.response?.nextStep || '' })} placeholder="What did they say? Next steps..." />
               </div>
               <div className="tracker-modal__field tracker-modal__field--full">
-                <label className="tracker-modal__label">Next Step</label>
-                <input className="tracker-modal__input" value={form.response?.nextStep || ''} onChange={e => set('response', { date: form.response?.date || '', type: form.response?.type || 'positive', notes: form.response?.notes || '', nextStep: e.target.value })} placeholder="e.g. Schedule interview, send portfolio" />
+                <label className="tracker-modal__label" htmlFor="tm-next-step">Next Step</label>
+                <input id="tm-next-step" className="tracker-modal__input" value={form.response?.nextStep || ''} onChange={e => set('response', { date: form.response?.date || '', type: form.response?.type || 'positive', notes: form.response?.notes || '', nextStep: e.target.value })} placeholder="e.g. Schedule interview, send portfolio" />
               </div>
             </div>
           </div>
@@ -742,7 +755,7 @@ function ApplicationModal({
           <div className="tracker-modal__section">
             <div className="tracker-modal__section-title">Notes</div>
             <div className="tracker-modal__field">
-              <textarea className="tracker-modal__textarea" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Personal notes about this application..." />
+              <textarea aria-label="Personal notes" className="tracker-modal__textarea" value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Personal notes about this application..." />
             </div>
           </div>
           </div>
@@ -1770,7 +1783,7 @@ export function Tracker() {
           </div>
           {view !== 'outreach' && (
             <div className="tracker-controls__right">
-              <select className="tracker-sort" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
+              <select className="tracker-sort" aria-label="Sort applications" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
                 <option value="dateApplied">Date Applied</option>
                 <option value="matchPercentage">Match Score</option>
                 <option value="outreachScore">Worth Score</option>
@@ -1845,7 +1858,7 @@ export function Tracker() {
             <rect x="12" y="8" width="40" height="48" rx="6" stroke="var(--border-light)" strokeWidth="2" />
             <path d="M22 22h20M22 30h14M22 38h17" stroke="var(--border-light)" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
-          <h3>{filter === 'all' ? 'No applications yet' : 'No matching applications'}</h3>
+          <h2>{filter === 'all' ? 'No applications yet' : 'No matching applications'}</h2>
           <p className="text-secondary">
             {filter === 'all' ? 'Add your first application to get started' : 'Try a different filter'}
           </p>
@@ -1875,7 +1888,22 @@ export function Tracker() {
                   className={`tracker-card animate-in${isExpanded ? ' tracker-card--expanded' : ''}${flashId === app.id ? ' tracker-card--flash' : ''}`}
                   style={{ animationDelay: `${0.16 + i * 0.04}s` }}
                 >
-                  <div className="tracker-card__row" onClick={() => setExpandedId(isExpanded ? null : app.id)}>
+                  <div
+                    className="tracker-card__row"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    onClick={() => setExpandedId(isExpanded ? null : app.id)}
+                    onKeyDown={e => {
+                      // Only toggle for keys pressed on the row itself — the
+                      // checkbox, links and quick actions inside handle their own.
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setExpandedId(isExpanded ? null : app.id);
+                      }
+                    }}
+                  >
                     <label className="tracker-card__checkbox" onClick={e => e.stopPropagation()}>
                       <input className="tracker-check" type="checkbox" title="Select for export" checked={selectedIds.has(app.id)} onChange={() => toggleSelect(app.id)} />
                     </label>

@@ -1384,6 +1384,12 @@
   color: var(--text-secondary);
 }
 
+/* Inline links need more than color to stand out from surrounding text (WCAG 1.4.1) */
+.landing-faq__item p a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── Footer ─────────────────────────────────────────── */
 .landing-footer {
   border-top: 1px solid var(--border-subtle);

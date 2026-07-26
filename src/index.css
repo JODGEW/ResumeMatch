@@ -33,7 +33,7 @@
   --text-primary: #f7f8f8;
   --text-secondary: #d0d6e0;
   --text-muted: #8a8f98;
-  --text-tertiary: #62666d;
+  --text-tertiary: #82878f; /* ≥4.5:1 on dark surfaces (WCAG AA); keep below --text-muted brightness */
   --text-inverse: #ffffff;
   --text-on-accent: #ffffff;
 
@@ -172,8 +172,8 @@
 
   --text-primary: #111318;
   --text-secondary: #424956;
-  --text-muted: #6d7481;
-  --text-tertiary: #8b93a1;
+  --text-muted: #656d7a; /* ≥4.5:1 on white and --bg-secondary (WCAG AA) */
+  --text-tertiary: #6c7482; /* ≥4.5:1 on white card surfaces (WCAG AA) */
   --text-inverse: #ffffff;
   --text-on-accent: #ffffff;
 

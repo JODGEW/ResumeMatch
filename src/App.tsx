@@ -63,7 +63,7 @@ export default function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           {/* Public, bare (no Layout/auth): signed-out sample report, zero backend calls. */}
-          <Route path="/sample" element={<Results sample />} />
+          <Route path="/sample" element={<main><Results sample /></main>} />
 
           <Route
             element={

@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
@@ -175,6 +177,15 @@ function ResultsRouteLoadingState() {
   );
 }
 
+// useFocusTrap assumes mounted-means-open, but the resume modal is rendered
+// conditionally inside the page component where hooks can't be conditional.
+// Rendering this inside the modal gives the trap the right lifetime.
+function ModalFocusTrap({ panelRef, onEscape }: { panelRef: RefObject<HTMLDivElement>; onEscape: () => void }) {
+  useFocusTrap(panelRef, onEscape);
+  useBodyScrollLock();
+  return null;
+}
+
 export function Results({ sample = false }: { sample?: boolean }) {
   const { analysisId } = useParams<{ analysisId: string }>();
   const { user } = useAuth();
@@ -243,21 +254,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
     setResumeError(null);
     setIframeLoaded(false);
   }, []);
-
-  // ESC to close modal
-  useEffect(() => {
-    if (!resumeUrl) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeModal();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    // Prevent body scroll when modal is open
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [resumeUrl, closeModal]);
+  const resumeModalRef = useRef<HTMLDivElement>(null);
 
   async function handleDownload() {
     if (!resumeUrl) return;
@@ -585,7 +582,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
         {/* Score Breakdown */}
         {analysis.scoreBreakdown && (
           <div className="results-score-breakdown">
-            <h4 className="results-breakdown-title">Score Breakdown</h4>
+            <h2 className="results-breakdown-title">Score Breakdown</h2>
 
             {analysis.scoreSummary && (
               <p className="results-score-summary">{analysis.scoreSummary}</p>
@@ -635,7 +632,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
         <div className="results-keywords-row">
           {analysis.presentKeywords && analysis.presentKeywords.length > 0 && (
             <div className="card results-keyword-section">
-              <h4>
+              <h3>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   {/* --success-alt, not --success: the bundle's green for this
                       icon, and what the pills and the safe-edits callout use. */}
@@ -646,7 +643,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
                 <span className="results-keyword-count text-success">
                   {analysis.presentKeywords.length}
                 </span>
-              </h4>
+              </h3>
               <div className="results-badges">
                 {analysis.presentKeywords.map((kw) => (
                   <Badge key={kw} label={kw} variant="success" />
@@ -657,7 +654,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
 
           {analysis.missingKeywords && analysis.missingKeywords.length > 0 && (
             <div className="card results-keyword-section results-keyword-section--missing">
-              <h4>
+              <h3>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <circle cx="8" cy="8" r="6" stroke="var(--danger)" strokeWidth="1.5" />
                   <path d="M6 6l4 4M10 6l-4 4" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
@@ -666,7 +663,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
                 <span className="results-keyword-count text-danger">
                   {analysis.missingKeywords.length}
                 </span>
-              </h4>
+              </h3>
               <div className="results-badges">
                 {analysis.missingKeywords.map((kw) => (
                   <Badge key={kw} label={kw} variant="danger" />
@@ -841,8 +838,16 @@ export function Results({ sample = false }: { sample?: boolean }) {
 
       {/* Resume Modal */}
       {(resumeUrl || resumeError) && (
-        <div className="modal-overlay" onClick={closeModal} role="dialog" aria-modal="true" aria-label="Resume viewer">
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={closeModal}>
+          <div
+            ref={resumeModalRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Resume viewer"
+            onClick={e => e.stopPropagation()}
+          >
+            <ModalFocusTrap panelRef={resumeModalRef} onEscape={closeModal} />
             <div className="modal-header">
               <div className="modal-header__left">
                 <h3>{analysis.fileName ?? 'Resume'}</h3>
@@ -877,7 +882,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
                     </a>
                   </>
                 )}
-                <button className="modal-close" onClick={closeModal} aria-label="Close">
+                <button className="modal-close" autoFocus onClick={closeModal} aria-label="Close">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>

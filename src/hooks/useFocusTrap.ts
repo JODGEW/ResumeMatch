@@ -17,16 +17,23 @@ const FOCUSABLE_SELECTOR = [
  * While mounted: Tab / Shift+Tab cycle within `containerRef`'s focusable
  * elements, and Escape calls `onEscape`. On unmount, focus returns to the
  * element that was focused before the modal opened.
+ *
+ * `enabled` lets a dialog that stacks another dialog on top (e.g. the
+ * tracker's discard-changes confirm) hand keyboard handling to the inner
+ * trap while it is open — pass false and this trap goes inert without
+ * unmounting or giving up its focus-restore duty.
  */
-export function useFocusTrap(containerRef: RefObject<HTMLElement>, onEscape: () => void) {
+export function useFocusTrap(containerRef: RefObject<HTMLElement>, onEscape: () => void, enabled = true) {
   // Captured in a state initializer so it reads document.activeElement during
   // the first render — a mount effect would run after the modal's autoFocus
   // has already moved focus, and would capture the modal's own button.
   const [previouslyFocused] = useState<Element | null>(() => document.activeElement);
 
   const onEscapeRef = useRef(onEscape);
+  const enabledRef = useRef(enabled);
   useEffect(() => {
     onEscapeRef.current = onEscape;
+    enabledRef.current = enabled;
   });
 
   useEffect(() => {
@@ -35,6 +42,7 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement>, onEscape: () 
     const container = containerRef.current;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!enabledRef.current) return;
       if (event.key === 'Escape') {
         onEscapeRef.current();
         return;

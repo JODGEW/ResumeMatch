@@ -47,7 +47,7 @@ export function FileDropzone({ onFileSelect }: Props) {
         {...getRootProps()}
         className={`dropzone ${isDragActive ? 'dropzone--active' : ''} ${error ? 'dropzone--error' : ''}`}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps({ 'aria-label': 'Resume PDF file' })} />
 
         <span className="dropzone__icon">
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
