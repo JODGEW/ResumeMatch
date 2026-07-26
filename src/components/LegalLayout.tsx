@@ -52,6 +52,7 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
 
   return (
     <div className="legal-page">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="legal-nav">
         <div className="legal-nav__inner">
           <Link to="/" className="legal-nav__brand" aria-label={`${siteConfig.name} home`}>
@@ -66,7 +67,7 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
         </div>
       </header>
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <header className="legal-hero">
           <div className="legal-hero__glow" aria-hidden="true" />
           <div className="legal-hero__inner">

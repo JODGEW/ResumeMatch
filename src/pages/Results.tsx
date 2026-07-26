@@ -760,8 +760,8 @@ export function Results({ sample = false }: { sample?: boolean }) {
             <div className="results-no-rewrites">
               <span className="results-no-rewrites__icon">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="9" r="7.5" stroke="var(--danger)" strokeWidth="1.4" />
-                  <path d="M9 5.5v4M9 12v.01" stroke="var(--danger)" strokeWidth="1.6" strokeLinecap="round" />
+                  <circle cx="9" cy="9" r="7.5" stroke="var(--info)" strokeWidth="1.4" />
+                  <path d="M9 5.8v.01M9 8.5v4" stroke="var(--info)" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
               </span>
               <div className="results-no-rewrites__copy">

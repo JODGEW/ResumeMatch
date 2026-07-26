@@ -690,8 +690,8 @@
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: var(--pill-danger-bg);
-  border: 1px solid var(--pill-danger-border);
+  background: var(--info-dim);
+  border: 1px solid var(--info-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;

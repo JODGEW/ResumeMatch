@@ -113,6 +113,7 @@ export function Landing() {
 
   return (
     <div className="landing-page">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="landing-nav">
         <div className="landing-nav__inner">
           <Link to="/" className="landing-nav__brand" aria-label="ResumeMatch home">
@@ -175,7 +176,7 @@ export function Landing() {
         )}
       </header>
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <header className="landing-hero" id="top">
           <div className="landing-hero__row">
             <div className="landing-hero__content">

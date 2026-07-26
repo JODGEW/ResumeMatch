@@ -92,6 +92,7 @@ export function Layout() {
 
   return (
     <div className="layout" ref={layoutRef}>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="header-sticky" ref={headerRef}>
         <nav className="nav">
           <div className="nav__inner">
@@ -219,7 +220,7 @@ export function Layout() {
         </>
       )}
 
-      <main className="main">
+      <main className="main" id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
     </div>
