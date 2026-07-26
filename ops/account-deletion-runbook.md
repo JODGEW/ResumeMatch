@@ -8,6 +8,10 @@ answers). Written 2026-07-25 and proven the same day end-to-end on a real throwa
 **Script:** [`ops/delete_user_data.py`](./delete_user_data.py). Dry-run by default, `--apply`
 deletes, `--verify` is a standalone read-only post-deletion check. Manifests are written to
 `ops/deletion-manifests/` — gitignored because they contain user data; never commit them.
+A manifest is no longer just an audit artifact: `--apply` writes it *before* deleting
+anything, and `--verify` reads the purge keys back out of it, so it is the only record of the
+user's `sub` that survives the Cognito deletion `--apply` performs last. Losing it downgrades
+every later `--verify` for that user to `INCONCLUSIVE`.
 
 ---
 
@@ -68,14 +72,35 @@ python3 delete_user_data.py --email user@example.com
 #      add --yes only in non-interactive runs.
 python3 delete_user_data.py --email user@example.com --apply --delete-cognito-user
 
-# 5. Verify — standalone, read-only. Pass the sub recorded in step 1/the manifest
-#    (after deletion Cognito can no longer resolve it).
-python3 delete_user_data.py --email user@example.com --sub <recorded-sub> --verify
-# Expect: VERIFY PASS — rows=0 s3_objects=0, "Cognito lookup … absent", exit 0.
+# 5. Verify — standalone, read-only. No need to carry the sub over by hand: --verify
+#    reads the purge keys back out of the manifest step 3+4 wrote before deleting
+#    anything (Cognito is gone by now and can no longer resolve the sub).
+python3 delete_user_data.py --email user@example.com --verify
+# Expect, all on the VERIFY line:
+#   VERIFY PASS — rows=0 s3_objects=0 keys_checked=2 (<email>, <sub>) cognito=checked, absent
+#   plus "Manifest: …" and "keys recovered from manifest: […]" above it, and exit 0.
+# keys_checked must list EVERY key the manifest recorded — that is the point of the line.
 ```
 
+### `--verify` exit codes
+
+The exit code, not the wording, is what the audit trail rests on:
+
+| code | verdict | meaning |
+| --- | --- | --- |
+| `0` | `VERIFY PASS` | key set complete **and** nothing found under it |
+| `1` | `VERIFY FAIL` | data still present under the keys that were checked |
+| `2` | `VERIFY INCONCLUSIVE` | the run cannot support a conclusion — the key set is known-incomplete, or `--manifest` pointed at a different identity's manifest |
+
+Exit 2 is the one to watch: it prints `rows=0` like a pass does, because nothing *was* found
+under the keys it managed to check — it just knows it did not check them all. It is **not**
+evidence of deletion and must not be filed as such. Re-run as the `***` lines instruct
+(usually: supply `--manifest <path>`, or both `--email` and `--sub`), and file that result
+instead.
+
 Keep the user's deletion-request email and the `VERIFY PASS` output together — that is the
-audit trail for the 7-day promise.
+audit trail for the 7-day promise. File the whole `VERIFY` line, not just the word `PASS`:
+`keys_checked` and `cognito=` are what make it self-describing months later.
 
 ## Edge cases
 
@@ -94,5 +119,8 @@ audit trail for the 7-day promise.
    tracker application.
 2. Dry-run: expect 1 Users row, the three content rows, `counter#` rows, 1 idempotency row,
    1 S3 object — and nothing else.
-3. `--apply --delete-cognito-user`, then `--verify` → PASS, and a sign-in attempt fails.
+3. `--apply --delete-cognito-user`, then `--verify` → PASS (exit 0), and a sign-in attempt
+   fails. PASS now asserts two things at once: nothing remains, **and** the key set checked
+   covered every key the manifest recorded — confirm `keys_checked` lists them all. An
+   `INCONCLUSIVE` (exit 2) here means the recipe did not actually re-validate anything.
 4. Delete promptly — a lingering test account skews user counts.
