@@ -173,7 +173,11 @@
   --text-primary: #111318;
   --text-secondary: #424956;
   --text-muted: #656d7a; /* ≥4.5:1 on white and --bg-secondary (WCAG AA) */
-  --text-tertiary: #6c7482; /* ≥4.5:1 on white card surfaces (WCAG AA) */
+  /* Validated ≥4.5:1 against --bg-primary #ffffff only. NOT validated against
+     --surface-inset #f7f8f8, where it measures 4.42:1 and fails WCAG AA; that
+     pairing is a live finding in docs/section-508-accessibility-audit-2026-07-26.md
+     (1.4.3). Check both surfaces before reusing this token. */
+  --text-tertiary: #6c7482;
   --text-inverse: #ffffff;
   --text-on-accent: #ffffff;
 
