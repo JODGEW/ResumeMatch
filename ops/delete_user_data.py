@@ -174,7 +174,7 @@ def print_plan(plan, purge_keys, verb):
     return total, len(plan["s3_objects"])
 
 
-def load_manifest(email, explicit_path=None):
+def load_manifest(email, subs, explicit_path=None):
     """Manifest recorded by a previous --apply. Returns (path, data) or (None, None).
 
     WHY THIS EXISTS: --apply writes the manifest BEFORE deleting anything, then
@@ -193,9 +193,23 @@ def load_manifest(email, explicit_path=None):
         # rows=0 against keys that were never this user's, i.e. a false PASS, with
         # this user's real sub never queried. That is exactly the failure class
         # this function exists to close, so refuse rather than proceed.
+        #
+        # The operator proves kinship with this manifest by naming at least one key
+        # it records. Testing --email alone was not enough (2026-07-27): omitting
+        # --email, or passing "", skipped this check entirely, and Step 0 in main()
+        # would then adopt the manifest's own email and union in its keys, so the
+        # completeness comparison at Step 1b passed BY CONSTRUCTION and printed
+        # VERIFY PASS naming another identity's key set.
+        #
+        # Intersection, not equality, and not "every supplied key": an operator may
+        # legitimately name extra keys beyond the manifest (see the union note in
+        # main()), and a pure orphan-sub purge records no email at all, so demanding
+        # --email here would make that shape permanently unverifiable.
         keys = data.get("purge_keys") or []
-        if email and email not in keys:
-            print(f"--manifest {explicit_path} does not list {email} in purge_keys "
+        supplied = [k for k in ([email] + list(subs)) if k]
+        if not any(k in keys for k in supplied):
+            print(f"--manifest {explicit_path} lists none of the identity keys you "
+                  f"supplied ({supplied or 'none'}) in purge_keys "
                   f"(it lists: {keys}).", file=sys.stderr)
             print("Refusing to verify one identity against another's manifest — that "
                   "would report a false PASS.", file=sys.stderr)
@@ -246,7 +260,7 @@ def main():
     manifest_keys = []
     explicit_subs = list(args.sub)
     if args.verify:
-        mpath, mdata = load_manifest(args.email, args.manifest)
+        mpath, mdata = load_manifest(args.email, explicit_subs, args.manifest)
         manifest_keys = (mdata or {}).get("purge_keys") or []
         if manifest_keys:
             # UNION, not override. "Explicit --sub wins" means only that the
