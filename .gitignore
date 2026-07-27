@@ -48,3 +48,10 @@ __pycache__/
 
 # Account-deletion manifests contain user data — never commit
 ops/deletion-manifests/
+
+# Lighthouse writes its report next to the working directory, so ad-hoc runs land
+# at the repo root and get committed by accident. Three such files reached main in
+# 58fe0a0 and had to be relocated. Anchored to the root only: the archived runs
+# under docs/lighthouse-<date>/ are deliberately tracked evidence.
+/*.report.html
+/*.report.json
