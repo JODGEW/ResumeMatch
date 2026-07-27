@@ -46,7 +46,7 @@ Upload + Paste JD → Cache Check → [hit]  → Return cached result → Result
 1. **Upload** — User uploads a resume PDF and pastes the target job description. Returning users can reuse their last uploaded resume without re-uploading
 2. **Cache Check** — Lambda normalizes inputs (trim, lowercase, collapse whitespace), hashes them into a deterministic cache key (`v1#analysis#<sha256>`), and looks up the `ResumeCache` DynamoDB table. On hit, returns cached result instantly. On miss or failure, falls through silently to the pipeline
 3. **Extract** — Amazon Textract pulls structured text from the PDF
-4. **Analyze** — Amazon Bedrock (Claude Haiku) runs four passes: keyword extraction, match scoring, experience gap analysis, and resume rewriting
+4. **Analyze** — Amazon Bedrock runs four passes: keyword extraction, match scoring, and experience gap analysis on Claude Haiku 4.5, then resume rewriting on Claude Sonnet 4.6
 5. **Cache Write** — Result is written to `ResumeCache` with a 48-hour TTL. Payloads over 200KB are gzip-compressed; over 350KB are skipped. Write failures are logged and swallowed — never block the user
 6. **Store** — Results persist in `ResumeAnalysis` DynamoDB table with cache metadata (`cacheSource`, `cacheLatencyMs`) for dashboard analytics
 7. **Display** — Frontend renders match score with breakdown, keyword gaps with priority ranking, experience warnings, actionable suggestions, and a side-by-side diff of the rewritten resume
@@ -167,7 +167,7 @@ Built and deployed as a fully serverless stack:
 - **Compute:** AWS Lambda
 - **Storage:** S3, DynamoDB (ResumeAnalysis + ResumeCache)
 - **Caching:** DynamoDB read-through cache with TTL, compression, and fallback isolation
-- **AI/ML:** Amazon Textract (OCR), Amazon Bedrock (Claude Haiku)
+- **AI/ML:** Amazon Textract (OCR), Amazon Bedrock (Claude Haiku 4.5 and Claude Sonnet 4.6)
 - **API:** API Gateway
 - **Auth:** AWS Cognito (email/password authentication, signup verification, password reset flow, session management)
 - **CDN:** CloudFront
@@ -185,7 +185,7 @@ Backend:
 - API Gateway
 
 AI:
-- Amazon Bedrock (Claude Haiku)
+- Amazon Bedrock (Claude Haiku 4.5 and Claude Sonnet 4.6)
 
 Infrastructure:
 - S3
