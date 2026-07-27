@@ -665,7 +665,8 @@
 }
 
 .results-diff-callout__count {
-  color: var(--success-alt);
+  /* --success-alt is 3.76:1 on white; --pill-success-text is 5.00:1. */
+  color: var(--pill-success-text);
 }
 
 .results-diff-callout__body {

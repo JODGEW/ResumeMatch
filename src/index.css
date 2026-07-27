@@ -173,11 +173,16 @@
   --text-primary: #111318;
   --text-secondary: #424956;
   --text-muted: #656d7a; /* ≥4.5:1 on white and --bg-secondary (WCAG AA) */
-  /* Validated ≥4.5:1 against --bg-primary #ffffff only. NOT validated against
-     --surface-inset #f7f8f8, where it measures 4.42:1 and fails WCAG AA; that
-     pairing is a live finding in docs/section-508-accessibility-audit-2026-07-26.md
-     (1.4.3). Check both surfaces before reusing this token. */
-  --text-tertiary: #6c7482;
+  /* Darkened 2026-07-27 from #6c7482, which cleared 4.5:1 on --bg-primary #ffffff
+     but not on --surface-inset #f7f8f8 (4.42:1). Measured clearance now:
+     #ffffff 5.00, --surface-inset #f7f8f8 4.70, --bg-secondary #f3f4f5 4.54.
+     That last one is the real floor and the margin there is only +0.04. The window
+     is capped at 4.74 by --text-muted above, which this token must stay lighter
+     than; buying more headroom means darkening --text-muted, deliberately not done
+     (see docs/section-508-accessibility-audit-2026-07-26.md, 1.4.3). Check the
+     surface before reusing this token, and do not put it on anything darker
+     than #f3f4f5. */
+  --text-tertiary: #68707d;
   --text-inverse: #ffffff;
   --text-on-accent: #ffffff;
 
@@ -235,8 +240,15 @@
   --border-solid: #d0d6e0;
   --brand-tint-bg: rgba(94, 106, 210, 0.1);
   --brand-tint-border: rgba(94, 106, 210, 0.3);
-  --brand-tint-text: #5e6ad2;
-  --link: #5e6ad2;
+  /* Darkened 2026-07-27. Both were plain --accent #5e6ad2, the only tint-text
+     members in the light palette never darkened from their base (success, warn and
+     danger all were). --accent on tinted surfaces measured 4.41 down to 3.71.
+     --brand-tint-text #4852b8 clears 4.5:1 on all four accent-tinted surfaces,
+     worst case 5.22 on #e1e4f2. --link #515dc8 is 5.26 on --surface-inset #f7f8f8
+     and is deliberately LIGHTER than both --link-hover #4c58c4 and --accent-hover
+     #4852b8, so every link hover still darkens instead of going dead. */
+  --brand-tint-text: #4852b8;
+  --link: #515dc8;
   --link-hover: #4c58c4;
   --success-alt: #0e9668;
   --warn: #a3721c;
@@ -327,6 +339,18 @@ a {
   transition: color 0.2s;
 }
 a:hover { color: var(--accent-hover); }
+
+/* DO NOT MERGE THESE INTO ONE GLOBAL RULE. The two themes style anchors from
+   different tokens on purpose. Dark keeps --accent, which passes there and was
+   deliberately left byte-identical. Light needs --link, because --accent #5e6ad2
+   measures 4.42:1 on --surface-inset and fails WCAG AA. Collapsing this back into
+   `a { color: var(--link) }` would silently restyle every dark-theme anchor from
+   #5e6ad2 to #828fff for no accessibility gain. */
+/* :where() keeps this at specificity (0,0,1), identical to the plain `a` rule
+   above. Without it the selector is (0,1,1) and beats `.btn`, repainting every
+   anchor-styled button's label with --link over its accent fill (measured 1.19:1
+   on the /sample banner button). Do not drop the :where(). */
+:where([data-theme="light"]) a { color: var(--link); }
 
 /* ── Scrollbar ──────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

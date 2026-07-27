@@ -1192,8 +1192,10 @@
 }
 
 .tracker-detail__chip-pts--zero {
+  /* --surface-card-hover is a hover token and was being used as a RESTING
+     surface; --surface-inset is the resting equivalent and is lighter. */
   color: var(--text-tertiary);
-  background: var(--surface-card-hover);
+  background: var(--surface-inset);
   border-color: transparent;
 }
 
