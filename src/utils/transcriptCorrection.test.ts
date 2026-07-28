@@ -137,6 +137,32 @@ describe('applyNonsenseAliases — streaming-fallback path (no per-word confiden
   });
 });
 
+describe('correctTranscript — gate 1b anchor veto: swallow-class regression pins', () => {
+  it('never deletes correct neighbors: "PostgreSQL back end." survives (s20, real bench confidences)', () => {
+    // Real per-word confidences from the 2026-07-28 STT bench (eval/stt-bench/,
+    // results/raw/s20.kt_on.json). Before gate 1b this window fired at JW 0.918
+    // (min conf 0.548 from "back") and DELETED the correct words "back end."
+    // from a fully correct transcript. Both surrounding words must survive.
+    const out = correctTranscript(
+      words(['and', 0.989], ['a', 0.998], ['PostgreSQL', 0.992], ['back', 0.548], ['end.', 0.998]),
+      [],
+    );
+    expect(out).toBe('and a PostgreSQL back end.');
+  });
+
+  it('still corrects the garble but keeps the confident neighbor: "resume match yesterday."', () => {
+    // Fixture confidences (eval/stt-bench/controls.json ctl_resume_match).
+    // Before gate 1b the size-3 window swallowed "yesterday." (JW 0.91); the
+    // veto forces the clean size-2 fire instead — the correction still lands
+    // AND the neighbor survives. This is the fix-not-disable pin.
+    const out = correctTranscript(
+      words(['I', 0.99], ['opened', 0.98], ['resume', 0.2], ['match', 0.2], ['yesterday.', 0.99]),
+      ['ResumeMatch'],
+    );
+    expect(out).toBe('I opened ResumeMatch yesterday.');
+  });
+});
+
 describe('correctTranscript — robustness with absent data', () => {
   it('returns empty string for no words without throwing', () => {
     expect(correctTranscript([], ['Kubernetes'])).toBe('');

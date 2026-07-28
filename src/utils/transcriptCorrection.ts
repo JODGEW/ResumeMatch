@@ -53,6 +53,13 @@ const NONSENSE_ALIASES: Array<{ pattern: RegExp; replacement: string }> = [
 
 // Layer-1 gates / thresholds.
 const CONFIDENCE_GATE = 0.6; // replace only when window confidence is below this
+// Gate 1b: any token at/above this confidence vetoes its whole window — the STT
+// was sure of that word, so a fuzzy rewrite may not consume it. Value chosen
+// against measured anchors, not for roundness: every known must-fire window
+// tops out at a 0.35 max token, the observed destructive swallows anchor at
+// 0.99+, and the highest anchor among band-rescuable real garbles is 0.785.
+// Full measurement: eval/stt-bench/ (replay.ts, margin.ts; gitignored).
+const HIGH_CONFIDENCE_ANCHOR = 0.9;
 const JARO_WINKLER_THRESHOLD = 0.9; // the SOLE phonetic trigger; do not raise above 0.92
 const MIN_TARGET_LENGTH = 6; // normalized canonical target must be at least this long
 const MAX_WINDOW = 3; // slide windows of 1..3 tokens
@@ -128,6 +135,8 @@ function trailingPunctuation(token: string): string {
  * Slides 1..3 token windows left-to-right. A window is replaced with a canonical
  * term ONLY when all of these hold:
  *   1. window confidence (the MINIMUM word confidence) < 0.60
+ *   1b. no token in the window is >= 0.90 — a confidently-heard word is never
+ *       rewritten as part of a fuzzy window (anchor veto; stops swallows)
  *   2. Jaro-Winkler(normalized window, normalized target) >= 0.90
  *   3. the normalized canonical target is >= 6 chars
  *   4. the window is not a single common English word (at any confidence)
@@ -155,6 +164,13 @@ function applyPhoneticCorrection(words: TranscriptWord[], canonicalTerms: string
 
       // Gate 1: confidence.
       if (windowConfidence >= CONFIDENCE_GATE) continue;
+
+      // Gate 1b: high-confidence anchor veto. Gate 1 keys on the window MINIMUM,
+      // so one garbled token can drag confidently-heard neighbors into a rewrite
+      // ("PostgreSQL back end." -> "PostgreSQL" deleted correct words: the 0.548
+      // "back" pulled in PostgreSQL at 0.992 under longest-window-first). Any
+      // sure token kills the whole window.
+      if (Math.max(...window.map((w) => w.confidence)) >= HIGH_CONFIDENCE_ANCHOR) continue;
 
       // Gate 4: never "correct" a single token that is a common English word.
       // Multi-token windows are intentionally exempt so "resume chart" still maps.
