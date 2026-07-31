@@ -25,6 +25,7 @@ import {
   type SavedInterviewPointer,
 } from '../utils/interviewPointer';
 import { getInterviewClosingPromptKind, isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { splitKeyterms } from '../utils/interviewKeyterms';
 import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
 import './Interview.css';
 
@@ -115,6 +116,10 @@ export function Interview() {
   const [answerElapsed, setAnswerElapsed] = useState(0);
   const [warnedAt2Min, setWarnedAt2Min] = useState(false);
   const [sessionKeyterms, setSessionKeyterms] = useState<string[]>([]);
+  // Pass 0 employer names within sessionKeyterms. They stay in the Deepgram
+  // prompt but are excluded from correction targets (see useSpeechRecognition
+  // startListening). Empty until the interviewStart Lambda ships the field.
+  const [employerKeyterms, setEmployerKeyterms] = useState<string[]>([]);
   const [savingFinalAnswer, setSavingFinalAnswer] = useState(false);
   const [recordingInterrupted, setRecordingInterrupted] = useState(false);
   // Live closing state comes from the submitTurn response's closingKind field (not
@@ -282,6 +287,7 @@ export function Interview() {
       setConversation(session.conversation);
       setTimeLimit(session.timeLimit);
       setSessionKeyterms(session.keyterms ?? []);
+      setEmployerKeyterms(session.employerKeyterms ?? []);
 
       if (session.status === 'completed') {
         // Redirect to dedicated results page
@@ -429,6 +435,7 @@ export function Interview() {
 
         setSessionId(res.sessionId);
         setSessionKeyterms(res.keyterms ?? []);
+        setEmployerKeyterms(res.employerKeyterms ?? []);
         setCurrentQuestion(res.question);
         // The opening question has no prior answer to drill into — always a main question.
         setCurrentIsFollowUp(false);
@@ -704,9 +711,12 @@ export function Interview() {
         setAnswerElapsed(Math.floor((Date.now() - answerStartRef.current) / 1000));
       }, 1000);
     }
-    startListening(sessionId, sessionKeyterms);
+    // Employer names ride the Deepgram prompt but never the correction
+    // targets (JW 0.63-0.84 measured — permanently below the 0.90 gate).
+    const { promptTerms, correctionTargets } = splitKeyterms(sessionKeyterms, employerKeyterms);
+    startListening(sessionId, promptTerms, correctionTargets);
     return true;
-  }, [interviewState, isSupported, sessionId, sessionKeyterms, startListening]);
+  }, [interviewState, isSupported, sessionId, sessionKeyterms, employerKeyterms, startListening]);
 
   const handlePushToTalkUp = useCallback(async () => {
     if (!pushToTalkActiveRef.current) return;

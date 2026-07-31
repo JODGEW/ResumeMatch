@@ -89,7 +89,7 @@ export interface UseSpeechRecognitionReturn {
   isFinalizing: boolean;
   isSupported: boolean;
   error: string | null;
-  startListening: (sessionId: string, keyterms?: string[]) => void;
+  startListening: (sessionId: string, keyterms?: string[], correctionTargets?: string[]) => void;
   stopListening: () => Promise<string>;
   resetTranscript: () => void;
 }
@@ -208,7 +208,16 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     };
   }, [teardownAttempt]);
 
-  const startListening = useCallback((sessionId: string, keyterms: string[] = []): void => {
+  // `keyterms` feeds the Deepgram prompt (merged with UNIVERSAL_KEYTERMS,
+  // capped at 25). `correctionTargets` feeds transcriptCorrection only —
+  // callers pass the session keyterms MINUS employer names (employer garbles
+  // measure JW 0.63-0.84, below the 0.90 gate, so they can only ever be
+  // dead-weight targets). Defaults to `keyterms` for backward compatibility.
+  const startListening = useCallback((
+    sessionId: string,
+    keyterms: string[] = [],
+    correctionTargets?: string[],
+  ): void => {
     if (!isSupported) {
       setError(supportStatus.reason ?? 'Audio recording not supported');
       return;
@@ -239,7 +248,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       stopResolver: null,
       sessionId,
       keyterms: [],
-      canonicalKeyterms: keyterms,
+      canonicalKeyterms: correctionTargets ?? keyterms,
       mimeType: '',
       chunks: [],
       finalizing: false,

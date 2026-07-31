@@ -59,6 +59,12 @@ export interface StartInterviewResponse {
   totalQuestions: number;
   timeLimit: number;
   keyterms?: string[];
+  // Subset of `keyterms` that are Pass 0 employer names. They ride the
+  // Deepgram keyterm prompt (proper nouns, highest-value bias targets) but
+  // must be EXCLUDED from transcript-correction targets: measured employer
+  // garbles score JW 0.63-0.84, below the 0.90 gate, so a correction target
+  // would be dead weight. Absent until the interviewStart Lambda ships.
+  employerKeyterms?: string[];
 }
 
 export interface TurnRequest {
@@ -192,6 +198,8 @@ export interface SessionResponse {
   createdAtEpoch: number;
   assessment?: Assessment | null;
   keyterms?: string[];
+  // See StartInterviewResponse.employerKeyterms — same field on restore.
+  employerKeyterms?: string[];
 }
 
 export async function getSession(sessionId: string): Promise<SessionResponse> {
