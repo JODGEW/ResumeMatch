@@ -19,13 +19,6 @@ const navLinks = [
   { href: '#faq', label: 'FAQ' },
 ];
 
-// The pricing section only renders once the billing UI is enabled, so its
-// anchor has to disappear with it — a nav link to a missing section would
-// just scroll to nowhere.
-const visibleNavLinks = BILLING_UI_ENABLED
-  ? navLinks
-  : navLinks.filter((link) => link.href !== '#pricing');
-
 const steps = [
   {
     number: '01',
@@ -67,6 +60,18 @@ const features = [
     body: 'Practice with interview questions built from the same role once the resume is stronger.',
   },
 ];
+
+const freePlanFeatures = [
+  '10 resume analyses per day',
+  '5 mock interview sessions per day',
+  'Complete resume analysis',
+  'Keyword and alignment breakdown',
+  'Targeted improvement suggestions',
+  'Mock interview access',
+  'Saved history and session review',
+];
+
+const proPlanFeatures = ['Expanded limits', 'Future premium benefits', 'Pricing and details to be announced.'];
 
 const plans = [
   {
@@ -176,7 +181,7 @@ export function Landing() {
           </Link>
 
           <nav className="landing-nav__links" aria-label="Landing page">
-            {visibleNavLinks.map((link) => (
+            {navLinks.map((link) => (
               <a key={link.href} href={link.href}>
                 {link.label}
               </a>
@@ -216,7 +221,7 @@ export function Landing() {
 
         {menuOpen && (
           <nav id="landing-mobile-nav" className="landing-nav__mobile" aria-label="Landing page sections">
-            {visibleNavLinks.map((link) => (
+            {navLinks.map((link) => (
               <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
                 {link.label}
               </a>
@@ -324,8 +329,12 @@ export function Landing() {
           </p>
         </section>
 
-        {BILLING_UI_ENABLED && (
+        {/* One pricing section, one #pricing anchor. The billing flag swaps the
+            body: real 3-tier pricing when it is on, the production beta copy
+            from main when it is off — never both. */}
         <section className="landing-section" id="pricing">
+          {BILLING_UI_ENABLED ? (
+          <>
           <div className="landing-eyebrow">Pricing</div>
           <h2 className="landing-h2 landing-h2--gap-sm">Start free, upgrade for the full loop</h2>
           <p className="landing-lede landing-lede--intro">
@@ -387,8 +396,55 @@ export function Landing() {
               );
             })}
           </div>
+          </>
+          ) : (
+          <>
+          <div className="landing-eyebrow">Pricing</div>
+          <h2 className="landing-h2 landing-h2--gap-sm">Start free. Everything is included right now.</h2>
+          <p className="landing-lede landing-lede--intro">
+            ResumeMatch is currently free during beta. You can use the full workflow today, with daily limits on
+            analyses and mock interviews. Pro pricing and added benefits will come later.
+          </p>
+          <div className="landing-pricing" role="list">
+            <article className="landing-plan landing-plan--free" role="listitem">
+              <div className="landing-plan__title">
+                <h3>Free during beta</h3>
+                <span className="landing-plan__badge">Available now</span>
+              </div>
+              <p className="landing-plan__body">Use the full ResumeMatch workflow today.</p>
+              <ul className="landing-plan__features">
+                {freePlanFeatures.map((feature) => (
+                  <li key={feature}>
+                    <ListCheckIcon />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--plan landing-plan__cta">
+                Start Free
+              </Link>
+            </article>
+            <article className="landing-plan" role="listitem">
+              <div className="landing-plan__title">
+                <h3>Pro</h3>
+              </div>
+              <p className="landing-plan__body landing-plan__body--muted">Coming soon.</p>
+              <ul className="landing-plan__features landing-plan__features--muted">
+                {proPlanFeatures.map((feature) => (
+                  <li key={feature}>
+                    <span className="landing-plan__dash" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="landing-btn landing-btn--disabled landing-btn--plan landing-plan__cta" disabled aria-disabled="true">
+                Coming Soon
+              </button>
+            </article>
+          </div>
+          </>
+          )}
         </section>
-        )}
 
         <section className="landing-section" id="faq">
           <div className="landing-faq__header">

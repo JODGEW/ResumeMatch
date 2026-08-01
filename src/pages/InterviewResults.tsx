@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getAnalysis } from '../api/analysis';
 import { endInterview, getSession, type AssessmentCategory, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { getAssessmentDisplayState } from '../utils/assessmentDisplay';
 import { clearInterviewPointer } from '../utils/interviewPointer';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { BILLING_UI_ENABLED } from '../config/billing';
@@ -537,7 +538,14 @@ export function InterviewResults() {
   // Default to [] so the page renders an empty-transcript state instead of crashing.
   const conversation = session.conversation ?? [];
   const transcriptGroups = groupTranscript(conversation);
-  const hasCategoryScores = (assessment?.categories.length ?? 0) > 0;
+  // Single decision point for the assessment presentation. Paywall wins over
+  // the score-presence check — see getAssessmentDisplayState.
+  const assessmentDisplay = assessment ? getAssessmentDisplayState(assessment) : null;
+  const isPaywalled = assessmentDisplay === 'paywalled';
+  const hasCategoryScores = assessmentDisplay === 'complete';
+  // Overall score and rating are Free-visible even when paid detail is
+  // redacted; only the genuine no-scores state hides them.
+  const showOverallScore = hasCategoryScores || isPaywalled;
   const costliestCategory = hasCategoryScores
     ? findCostliestCategory(assessment!.categories)
     : null;
@@ -893,7 +901,7 @@ export function InterviewResults() {
             <section className="ir-panel ir-overall">
               <div className="ir-panel__title">Overall Score</div>
               <div className="ir-overall__body">
-                {hasCategoryScores && (
+                {showOverallScore && (
                   <div className="ir-overall__ring">
                     <svg width="132" height="132" viewBox="0 0 132 132">
                       <circle cx="66" cy="66" r="56" fill="none" stroke="var(--track)" strokeWidth="11" />
@@ -911,17 +919,22 @@ export function InterviewResults() {
                 <div className="ir-overall__text">
                   <div
                     className="ir-overall__band"
-                    style={hasCategoryScores ? { color: scoreColor(assessment.overallScore) } : undefined}
+                    style={showOverallScore ? { color: scoreColor(assessment.overallScore) } : undefined}
                   >
-                    {hasCategoryScores ? assessment.overallRating : 'Assessment incomplete'}
+                    {showOverallScore ? assessment.overallRating : 'Assessment incomplete'}
                   </div>
-                  <div className="ir-overall__hint">
-                    {hasCategoryScores
-                      ? `${assessment.overallScore}% overall across ${assessment.categories.length} scoring categories`
-                      : 'No category scores were generated for this session.'}
-                  </div>
+                  {/* Paywalled assessments show no hint at all: the per-category
+                      phrasing is paid detail, and the incomplete copy would
+                      mislabel an entitlement state as a processing failure. */}
+                  {!isPaywalled && (
+                    <div className="ir-overall__hint">
+                      {hasCategoryScores
+                        ? `${assessment.overallScore}% overall across ${assessment.categories.length} scoring categories`
+                        : 'No category scores were generated for this session.'}
+                    </div>
+                  )}
                 </div>
-                {assessment.upgradeRequired !== true && costliestCategory && (
+                {costliestCategory && (
                   <div className="ir-overall__focus">
                     <div className="ir-overall__focus-label">Costing you the most</div>
                     {/* nbsp so a long category name wraps before the figure rather
@@ -937,7 +950,7 @@ export function InterviewResults() {
               </div>
             </section>
 
-            {assessment.upgradeRequired !== true && hasCategoryScores && (
+            {hasCategoryScores && (
               <div className="ir-cat-grid" aria-label="Dimension scores">
                 {assessment.categories.map((cat, i) => (
                   <div
@@ -967,7 +980,7 @@ export function InterviewResults() {
               )}
             </section>
 
-            {assessment.upgradeRequired !== true && (
+            {!isPaywalled && (
             <div className="ir-feedback">
               <section className="ir-panel ir-feedback__col">
                 <div className="ir-feedback__head">
@@ -1033,7 +1046,7 @@ export function InterviewResults() {
             </div>
             )}
 
-            {assessment.upgradeRequired !== true && hasCategoryScores && (
+            {hasCategoryScores && (
               <section className="ir-panel ir-dimensions">
                 <h3>Detailed Dimension Feedback</h3>
                 <div className="ir-dimensions__list">
@@ -1063,7 +1076,7 @@ export function InterviewResults() {
               </section>
             )}
 
-            {BILLING_UI_ENABLED && assessment.upgradeRequired === true && (
+            {BILLING_UI_ENABLED && isPaywalled && (
               <UpgradePrompt
                 variant="card"
                 message="Detailed dimension feedback and per-answer breakdowns are available with Pro. See your scores across every category, with strengths and improvements called out for each answer."
