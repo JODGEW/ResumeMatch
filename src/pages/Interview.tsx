@@ -3,14 +3,19 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useMicrophoneCheck } from '../hooks/useMicrophoneCheck';
 import { useMicrophoneLevel } from '../hooks/useMicrophoneLevel';
+import { LogoMark } from '../components/LogoMark';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { extractApiErrorMessage } from '../api/errors';
 import {
   startInterview,
   submitTurn,
   endInterview,
   getSession,
   isMissingInterviewSessionError,
+  type ClosingKind,
   type ConversationTurn,
   type StartInterviewResponse,
+  type TurnFeedback,
 } from '../api/interview';
 import {
   clearInterviewPointerKey,
@@ -19,7 +24,8 @@ import {
   saveInterviewPointer,
   type SavedInterviewPointer,
 } from '../utils/interviewPointer';
-import { isInterviewClosingPrompt, isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { getInterviewClosingPromptKind, isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { splitKeyterms } from '../utils/interviewKeyterms';
 import { awaitPendingTurnSubmission, getInterviewControlState } from '../utils/interviewControls';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { PRO_LIMITS } from '../utils/entitlements';
@@ -48,6 +54,35 @@ function getPositiveNumber(value: unknown): number | null {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }
 
+// Pick the interviewer voice. Prefer natural-sounding network voices (e.g. Chrome's
+// "Google US English" or Edge's "…Online (Natural)" voices) because on-device/local
+// voices tend to sound robotic; fall back to local US English voices only if no
+// network voice is available. Returns null until the browser has loaded its voice
+// list (getVoices() is populated asynchronously, after the `voiceschanged` event).
+function pickPreferredVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices.length) return null;
+  const enVoices = voices.filter(v => v.lang.startsWith('en'));
+  const enUSVoices = enVoices.filter(v => v.lang.toLowerCase().startsWith('en-us'));
+  const networkEnUS = enUSVoices.filter(v => !v.localService);
+  const networkEn = enVoices.filter(v => !v.localService);
+  return (
+    // Natural-sounding network US English voices first.
+    networkEnUS.find(v => v.name === 'Google US English')
+    || networkEnUS.find(v => /natural|online|neural|enhanced|premium/i.test(v.name))
+    || networkEnUS[0]
+    || networkEn.find(v => v.name === 'Google US English')
+    || networkEn[0]
+    // Fall back to local on-device voices only if no network voice is available.
+    || enUSVoices.find(v => /siri/i.test(v.name) && /female|zoe|nicky|samantha/i.test(v.name))
+    || enUSVoices.find(v => /siri/i.test(v.name))
+    || enUSVoices.find(v => /samantha|nicky|ava|allison|victoria/i.test(v.name))
+    || enUSVoices.find(v => /enhanced|premium/i.test(v.name))
+    || enUSVoices[0]
+    || enVoices[0]
+    || null
+  );
+}
+
 export function Interview() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -62,33 +97,61 @@ export function Interview() {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionNumber, setQuestionNumber] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
-  const [conversation, setConversation] = useState<ConversationTurn[]>([]);
+  // Metadata for the *current* interviewer question, surfaced from submitTurn so the
+  // live UI can distinguish a real follow-up from a clarification/restate request.
+  const [currentIsFollowUp, setCurrentIsFollowUp] = useState(false);
+  const [currentClarity, setCurrentClarity] = useState<'clear' | 'unclear'>('clear');
+  // Per-answer coaching about the *previous* answer, surfaced from submitTurn. Null whenever
+  // the backend returns no feedback (intro / short / unclear / closing / model-fail) — all
+  // shown identically as "no panel". Reset on the opening question and on every null response.
+  const [currentFeedback, setCurrentFeedback] = useState<TurnFeedback | null>(null);
+  const [currentFillerWords, setCurrentFillerWords] = useState<Record<string, number> | null>(null);
+  // Candidate's private scratchpad. Client-only: never sent to the backend, never
+  // part of the conversation/transcript, intentionally lost on refresh. Persists
+  // across turns; cleared only when a session starts or is restored.
+  const [scratchpadNotes, setScratchpadNotes] = useState('');
+  const [notesOpen, setNotesOpen] = useState(true);
+  // Accumulated in-memory transcript. Write-only since the live screen stopped
+  // rendering a scrolling conversation — the backend owns the transcript of
+  // record, and the results page reads it from there.
+  const [, setConversation] = useState<ConversationTurn[]>([]);
   const [turnNumber, setTurnNumber] = useState(0);
   const [error, setError] = useState('');
   const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null);
   const [timeLimit, setTimeLimit] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [answerElapsed, setAnswerElapsed] = useState(0);
-  const [answerDurations, setAnswerDurations] = useState<number[]>([]);
   const [warnedAt2Min, setWarnedAt2Min] = useState(false);
   const [sessionKeyterms, setSessionKeyterms] = useState<string[]>([]);
+  // Pass 0 employer names within sessionKeyterms. They stay in the Deepgram
+  // prompt but are excluded from correction targets (see useSpeechRecognition
+  // startListening). Empty until the interviewStart Lambda ships the field.
+  const [employerKeyterms, setEmployerKeyterms] = useState<string[]>([]);
   const [savingFinalAnswer, setSavingFinalAnswer] = useState(false);
+  const [recordingInterrupted, setRecordingInterrupted] = useState(false);
+  // Live closing state comes from the submitTurn response's closingKind field (not
+  // message text). On restore it's recovered via getInterviewClosingPromptKind.
+  const [closingKind, setClosingKind] = useState<ClosingKind>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const answerTimerRef = useRef<ReturnType<typeof setInterval>>();
   const answerStartRef = useRef(0);
-  const conversationEndRef = useRef<HTMLDivElement>(null);
   const startedAtRef = useRef(0);
   const lsKeyRef = useRef('');
   const pushToTalkActiveRef = useRef(false);
+  // True only while a recording started BY the Space key is held. Gates the keyup
+  // handler's end-the-hold-regardless-of-focus path; typing can never set it.
+  const spaceHoldActiveRef = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
 
   const startInFlightRef = useRef(false);
   const submitInFlightRef = useRef<Promise<unknown> | null>(null);
+  const endingRef = useRef(false);
 
   const {
     isListening,
     isArming,
+    isFinalizing,
     isSupported,
     error: speechError,
     startListening,
@@ -104,6 +167,21 @@ export function Interview() {
   });
   const ttsEnabledRef = useRef(ttsEnabled);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  // Browser voices load asynchronously: getVoices() is empty on the first call and
+  // only fills in after `voiceschanged` fires. Resolve the voice once here and cache
+  // it so every question (including the first) uses the same one.
+  useEffect(() => {
+    if (typeof speechSynthesis === 'undefined') return;
+    const resolve = () => {
+      const voice = pickPreferredVoice(speechSynthesis.getVoices());
+      if (voice) preferredVoiceRef.current = voice;
+    };
+    resolve();
+    speechSynthesis.addEventListener('voiceschanged', resolve);
+    return () => speechSynthesis.removeEventListener('voiceschanged', resolve);
+  }, []);
 
   function toggleTts() {
     const next = !ttsEnabled;
@@ -120,8 +198,10 @@ export function Interview() {
     utteranceRef.current = null;
   }
 
-  const speakQuestion = useCallback((text: string) => {
-    if (!ttsEnabledRef.current || typeof speechSynthesis === 'undefined') {
+  // `force` is set by the Replay button: an explicit click is its own consent to
+  // hear the question, so it plays even while the interviewer voice is muted.
+  const speakQuestion = useCallback((text: string, force = false) => {
+    if (typeof speechSynthesis === 'undefined' || (!ttsEnabledRef.current && !force)) {
       setInterviewState('active');
       return;
     }
@@ -129,24 +209,13 @@ export function Interview() {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    // Pick the best available US English voice.
-    const voices = speechSynthesis.getVoices();
-    const enVoices = voices.filter(v => v.lang.startsWith('en'));
-    const enUSVoices = enVoices.filter(v => v.lang.toLowerCase().startsWith('en-us'));
+    // Use the cached voice; resolve inline as a fallback if voices loaded late.
     const preferred =
-      // Chrome network voice
-      enUSVoices.find(v => v.name === 'Google US English')
-      // macOS US voices
-      || enUSVoices.find(v => /siri/i.test(v.name) && /female|zoe|nicky|samantha/i.test(v.name))
-      || enUSVoices.find(v => /siri/i.test(v.name))
-      || enUSVoices.find(v => /samantha|nicky|ava|allison|victoria/i.test(v.name))
-      || enUSVoices.find(v => /enhanced|premium/i.test(v.name))
-      || enUSVoices[0]
-      // Chrome network voices (higher quality than local)
-      || enVoices.find(v => v.name === 'Google US English')
-      // Any English voice
-      || enVoices[0];
-    if (preferred) utterance.voice = preferred;
+      preferredVoiceRef.current || pickPreferredVoice(speechSynthesis.getVoices());
+    if (preferred) {
+      preferredVoiceRef.current = preferred;
+      utterance.voice = preferred;
+    }
 
     utterance.onend = () => {
       utteranceRef.current = null;
@@ -166,10 +235,24 @@ export function Interview() {
     return () => cancelTts();
   }, []);
 
-  // Auto-scroll conversation
+  // A live interview is the one flow in the app that owns the whole screen: the
+  // app nav is an escape hatch a candidate can hit mid-answer, so it is hidden
+  // (via Layout.css) while a question is on screen and restored on the way out.
   useEffect(() => {
-    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation, currentQuestion]);
+    const immersive =
+      interviewState === 'active' ||
+      interviewState === 'thinking' ||
+      interviewState === 'speaking';
+    document.body.classList.toggle('interview-immersive', immersive);
+    return () => document.body.classList.remove('interview-immersive');
+  }, [interviewState]);
+
+  // Each new question resets to the top of the screen. This used to scroll to a
+  // marker below the notes, which made sense when the transcript grew down the
+  // page; in the current layout it pushed the question itself off the top edge.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentQuestion]);
 
   // On mount: check for saved pointer, fetch from backend or start new
   useEffect(() => {
@@ -211,6 +294,7 @@ export function Interview() {
       setConversation(session.conversation);
       setTimeLimit(session.timeLimit);
       setSessionKeyterms(session.keyterms ?? []);
+      setEmployerKeyterms(session.employerKeyterms ?? []);
 
       if (session.status === 'completed') {
         // Redirect to dedicated results page
@@ -255,15 +339,32 @@ export function Interview() {
           if (lastInterviewerTurn) {
             setCurrentQuestion(lastInterviewerTurn.content);
           }
+          // KNOWN LIMITATION: getSession does not persist per-question isFollowUp, so a
+          // restored session can't show the follow-up/clarification badge until the next
+          // turn — fall back to a plain main question. Pending a backend follow-up flag on
+          // the persisted conversation turns, after which this can be recovered on restore.
+          setCurrentIsFollowUp(false);
+          setCurrentClarity('clear');
+          setCurrentFeedback(null);
+          setCurrentFillerWords(null);
+          setScratchpadNotes('');
+          // getSession does not persist closingKind, so recover the closing state
+          // from the last interviewer message (restore-only fallback).
+          const restoredClosingKind = getInterviewClosingPromptKind(lastInterviewerTurn?.content || '');
+          setClosingKind(restoredClosingKind);
           speakQuestion(lastInterviewerTurn?.content || '');
 
-          timerRef.current = setInterval(() => {
-            const secs = Math.floor((Date.now() - createdEpochMs) / 1000);
-            setElapsed(secs);
-            if (secs >= session.timeLimit) {
-              clearInterval(timerRef.current);
-            }
-          }, 1000);
+          // On a closing prompt, freeze: do not resume the countdown. The control
+          // state (driven by closingKind) shows "View report".
+          if (restoredClosingKind === null) {
+            timerRef.current = setInterval(() => {
+              const secs = Math.floor((Date.now() - createdEpochMs) / 1000);
+              setElapsed(secs);
+              if (secs >= session.timeLimit) {
+                clearInterval(timerRef.current);
+              }
+            }, 1000);
+          }
         }
       }
     } catch (err) {
@@ -341,7 +442,14 @@ export function Interview() {
 
         setSessionId(res.sessionId);
         setSessionKeyterms(res.keyterms ?? []);
+        setEmployerKeyterms(res.employerKeyterms ?? []);
         setCurrentQuestion(res.question);
+        // The opening question has no prior answer to drill into — always a main question.
+        setCurrentIsFollowUp(false);
+        setCurrentClarity('clear');
+        setCurrentFeedback(null);
+        setCurrentFillerWords(null);
+        setScratchpadNotes('');
         setQuestionNumber(firstConversation.filter(isInterviewQuestionTurn).length);
         setTotalQuestions(res.totalQuestions);
         setTimeLimit(res.timeLimit);
@@ -399,8 +507,9 @@ export function Interview() {
           setUpgradeMessage(TECHNICAL_PRO_MESSAGE);
           setError('');
         } else {
-          const msg = err instanceof Error ? err.message : 'Failed to start interview';
-          setError(msg);
+          // Surface the backend body copy (e.g. the daily interview limit) instead
+          // of axios's "Request failed with status code 429".
+          setError(extractApiErrorMessage(err, 'Failed to start interview'));
         }
         setInterviewState('setup');
       } finally {
@@ -419,11 +528,11 @@ export function Interview() {
 
   // Auto-end when timer expires
   useEffect(() => {
-    if (timeLimit > 0 && elapsed >= timeLimit && (interviewState === 'active' || interviewState === 'thinking' || interviewState === 'speaking')) {
+    if (timeLimit > 0 && elapsed >= timeLimit && closingKind === null && (interviewState === 'active' || interviewState === 'thinking' || interviewState === 'speaking')) {
       handleEnd('timer_expired');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsed, timeLimit, interviewState]);
+  }, [elapsed, timeLimit, interviewState, closingKind]);
 
   // 2-minute warning — subtle audio beep
   useEffect(() => {
@@ -461,11 +570,16 @@ export function Interview() {
   useEffect(() => {
     if (interviewState !== 'setup') return;
     if (isIOS) return;
-    if (microphoneCheck.status === 'ready' && micLevel.status !== 'active' && micLevel.status !== 'starting') {
-      void micLevel.start();
+    if (microphoneCheck.status === 'ready') {
+      // Probe the live input for narrowband/Bluetooth quality (non-blocking warning).
+      void microphoneCheck.inspectInputQuality();
+      if (micLevel.status !== 'active' && micLevel.status !== 'starting') {
+        void micLevel.start();
+      }
     }
     return () => {
-      micLevel.stop();
+      // Cleanup can't await; the context closes on its own schedule here.
+      void micLevel.stop();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewState, microphoneCheck.status, isIOS]);
@@ -475,9 +589,6 @@ export function Interview() {
     if (!answer || !sessionId) return;
 
     clearInterval(answerTimerRef.current);
-    const answerDuration = answerStartRef.current > 0
-      ? Math.floor((Date.now() - answerStartRef.current) / 1000)
-      : null;
     answerStartRef.current = 0;
     setAnswerElapsed(0);
 
@@ -501,11 +612,6 @@ export function Interview() {
         throw new Error('The interviewer did not return a response. Please try your answer again.');
       }
 
-      // Record answer duration only after the backend accepts the turn.
-      if (answerDuration !== null) {
-        setAnswerDurations(prev => [...prev, answerDuration]);
-      }
-
       setTurnNumber(newTurn);
 
       const userTurn: ConversationTurn = {
@@ -516,8 +622,18 @@ export function Interview() {
         fillerWords: res.fillerWords,
       };
 
-      const isClosingPrompt = isInterviewClosingPrompt(nextQuestion);
+      // Drive the closing/freeze state off the lambda's explicit field, not text.
+      const responseClosingKind = res.closingKind ?? null;
+      const isClosingPrompt = responseClosingKind !== null;
+      setClosingKind(responseClosingKind);
+      if (isClosingPrompt) {
+        clearInterval(timerRef.current);
+      }
       setCurrentQuestion(nextQuestion);
+      setCurrentIsFollowUp(res.isFollowUp ?? false);
+      setCurrentClarity(res.transcriptClarity ?? 'clear');
+      setCurrentFeedback(res.feedback);
+      setCurrentFillerWords(res.fillerWords);
       setQuestionNumber(prev => {
         const nextQuestionNumber = isClosingPrompt ? prev : prev + 1;
         return totalQuestions > 0 ? Math.min(nextQuestionNumber, totalQuestions) : nextQuestionNumber;
@@ -531,8 +647,7 @@ export function Interview() {
       setConversation(prev => [...prev, userTurn, aiTurn]);
       speakQuestion(nextQuestion);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to get next question';
-      setError(msg);
+      setError(extractApiErrorMessage(err, 'Failed to get next question'));
       setInterviewState('active');
     } finally {
       if (submitInFlightRef.current === submitPromise) {
@@ -547,18 +662,43 @@ export function Interview() {
       return;
     }
 
-    // If the timer fires (or last question completes) while a submit is still in flight,
-    // await it unbounded — submitTurn p99 is ~10s and a truncated final answer is worse
-    // than a few extra seconds on the spinner. Show a "Saving..." banner after 2s so the
-    // user knows we're not frozen.
-    if (submitInFlightRef.current) {
-      const pending = submitInFlightRef.current;
+    // Re-entrancy guard: handleEnd now awaits transcription + submit, widening the
+    // window in which the timer effect or the End button could fire it again.
+    if (endingRef.current) return;
+    endingRef.current = true;
+
+    // Never discard an in-progress answer. If the candidate is mid-answer when the
+    // session ends (e.g. the timer expires while they're still talking), stop
+    // listening, await the final transcript, and submit it on the normal turn path
+    // BEFORE finalizing — the answer must survive into the transcript/grade. If a
+    // submit is already in flight, await that instead. Empty transcript => finalize
+    // normally. submitTurn p99 is ~10s, so show a "Saving..." banner after 3s.
+    const turnInProgress = pushToTalkActiveRef.current;
+    if (turnInProgress) {
+      pushToTalkActiveRef.current = false;
+      activePointerIdRef.current = null;
+      setRecordingInterrupted(false);
+    }
+    if (turnInProgress || submitInFlightRef.current) {
       const savingTimer = window.setTimeout(() => setSavingFinalAnswer(true), 3000);
       try {
-        await awaitPendingTurnSubmission(pending);
+        if (turnInProgress) {
+          const finalText = (await stopListening()).trim();
+          if (finalText && !submitInFlightRef.current) {
+            submitInFlightRef.current = submitTurn({
+              sessionId,
+              userAnswer: finalText,
+              turnNumber: turnNumber + 1,
+            });
+          }
+        }
+        if (submitInFlightRef.current) {
+          await awaitPendingTurnSubmission(submitInFlightRef.current);
+        }
       } finally {
         window.clearTimeout(savingTimer);
         setSavingFinalAnswer(false);
+        submitInFlightRef.current = null;
       }
     }
 
@@ -569,7 +709,9 @@ export function Interview() {
     }
     answerStartRef.current = 0;
     pushToTalkActiveRef.current = false;
+    spaceHoldActiveRef.current = false;
     activePointerIdRef.current = null;
+    setRecordingInterrupted(false);
     cancelTts();
     void stopListening();
 
@@ -590,7 +732,7 @@ export function Interview() {
     navigate(`/interview/results/${sessionId}`, {
       replace: true,
     });
-  }, [interviewState, sessionId, stopListening, navigate]);
+  }, [interviewState, sessionId, stopListening, navigate, turnNumber]);
 
   const handlePushToTalkDown = useCallback(() => {
     if (
@@ -601,6 +743,7 @@ export function Interview() {
       return false;
     }
     pushToTalkActiveRef.current = true;
+    setRecordingInterrupted(false);
     cancelTts();
     setInterviewState('active');
     // Start per-answer timer
@@ -611,9 +754,12 @@ export function Interview() {
         setAnswerElapsed(Math.floor((Date.now() - answerStartRef.current) / 1000));
       }, 1000);
     }
-    startListening(sessionId, sessionKeyterms);
+    // Employer names ride the Deepgram prompt but never the correction
+    // targets (JW 0.63-0.84 measured — permanently below the 0.90 gate).
+    const { promptTerms, correctionTargets } = splitKeyterms(sessionKeyterms, employerKeyterms);
+    startListening(sessionId, promptTerms, correctionTargets);
     return true;
-  }, [interviewState, isSupported, sessionId, sessionKeyterms, startListening]);
+  }, [interviewState, isSupported, sessionId, sessionKeyterms, employerKeyterms, startListening]);
 
   const handlePushToTalkUp = useCallback(async () => {
     if (!pushToTalkActiveRef.current) return;
@@ -654,18 +800,50 @@ export function Interview() {
     void handlePushToTalkUp();
   }, [handlePushToTalkUp]);
 
+  // A pointercancel is an OS-level interruption (notification, gesture, the pointer
+  // leaving the button), NOT an intentional release. Per "the candidate owns when
+  // their turn ends": do not submit and do not stop the recorder — keep the turn
+  // alive (audio keeps being captured) and require an explicit Finish action.
+  const handlePushToTalkCancel = useCallback((e: PointerEvent<HTMLButtonElement>) => {
+    if (activePointerIdRef.current === null || e.pointerId !== activePointerIdRef.current) return;
+    e.preventDefault();
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Browser may have already released capture.
+    }
+    activePointerIdRef.current = null;
+    if (pushToTalkActiveRef.current) {
+      setRecordingInterrupted(true);
+    }
+  }, []);
+
   // Keyboard: hold Space to speak
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
       e.preventDefault();
       if (!e.repeat && (interviewState === 'active' || interviewState === 'speaking') && !pushToTalkActiveRef.current) {
-        handlePushToTalkDown();
+        if (handlePushToTalkDown()) {
+          spaceHoldActiveRef.current = true;
+        }
       }
     }
     function handleKeyUp(e: KeyboardEvent) {
-      if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+      if (e.code !== 'Space') return;
+      // A Space-initiated hold must end on Space release even if focus moved into
+      // the notes scratchpad mid-hold — otherwise the swallowed keyup would leave
+      // the mic recording with no way to stop it. Gated strictly on
+      // spaceHoldActiveRef: typing can never set it, so a Space keyup while typing
+      // still returns early here and cannot stop a mic-button-initiated recording.
+      if (
+        !spaceHoldActiveRef.current
+        && ((e.target as HTMLElement)?.tagName === 'TEXTAREA' || (e.target as HTMLElement)?.tagName === 'INPUT')
+      ) return;
       e.preventDefault();
+      spaceHoldActiveRef.current = false;
       if (pushToTalkActiveRef.current) {
         void handlePushToTalkUp();
       }
@@ -690,9 +868,10 @@ export function Interview() {
       }
       void microphoneCheck.recheck();
     }
-    micLevel.stop();
-    // Yield a frame so AudioContext.close() flushes before Deepgram acquires a fresh stream.
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    // Await the real close, not a painted frame: requestAnimationFrame never
+    // fires in a hidden tab, so clicking Start and switching away used to park
+    // here until the tab was refocused. Deepgram acquires a fresh stream next.
+    await micLevel.stop();
     initNewSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [microphoneCheck.status, micLevel]);
@@ -706,10 +885,11 @@ export function Interview() {
   const remaining = Math.max(0, timeLimit - elapsed);
   const activeError = error || speechError;
   const controls = getInterviewControlState({
-    currentQuestion,
+    closingKind,
     interviewState,
     isListening,
     isArming,
+    isFinalizing,
   });
   const currentPromptIsClosing = controls.isClosingPrompt;
   const isDailyLimitBlocked = upgradeMessage === DAILY_LIMIT_MESSAGE;
@@ -721,10 +901,44 @@ export function Interview() {
       : questionNumber;
 
   const questionProgressLabel = currentPromptIsClosing
-    ? 'All questions complete'
+    ? totalQuestions > 0
+      ? `All ${totalQuestions} answered`
+      : 'All questions complete'
     : totalQuestions > 0
     ? `Question ${displayedQuestionNumber} of ${totalQuestions}`
     : `Question ${displayedQuestionNumber || 1}`;
+
+  // A follow-up/clarification only applies to a live, non-thinking, non-closing
+  // question. questionNumber intentionally does NOT advance on these (the backend
+  // keeps drilling the same main question), so "Question 3 of 10 · Follow-up" is correct.
+  const currentQuestionKind: 'main' | 'followup' | 'clarification' =
+    interviewState === 'thinking' || currentPromptIsClosing
+      ? 'main'
+      : currentIsFollowUp && currentClarity === 'unclear'
+        ? 'clarification'
+        : currentIsFollowUp
+          ? 'followup'
+          : 'main';
+  const questionKindClass =
+    currentQuestionKind === 'followup'
+      ? ' interview-question--followup'
+      : currentQuestionKind === 'clarification'
+        ? ' interview-question--clarification'
+        : '';
+
+  // Progress strip. questionNumber does not advance on follow-ups (see above), so
+  // the active segment deliberately stays put while the interviewer drills deeper.
+  const answeredSegments = currentPromptIsClosing
+    ? totalQuestions
+    : Math.max(0, questionNumber - 1);
+
+  // The bundle's "advancing" state: the answer is captured and the interview is
+  // moving on. Covers both real phases that sit between release and the next
+  // question — batch transcription, then the backend turn.
+  const isAdvancing = !currentPromptIsClosing && (isFinalizing || interviewState === 'thinking');
+  // Best-effort: closingKind only arrives with the backend's next turn, so the
+  // last question is inferred from the counter. Falls back to the generic label.
+  const isLastQuestion = totalQuestions > 0 && questionNumber >= totalQuestions;
 
   // --- Render ---
 
@@ -749,42 +963,41 @@ export function Interview() {
       <div className="page-container interview-setup-page">
         <div className="interview-setup animate-in">
           <button type="button" className="interview-setup__back" onClick={() => navigate(-1)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M7.5 2L3.5 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Back to results
+            Back
           </button>
 
-          <div className="interview-setup__card card">
-            <div className="interview-setup__icon">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <rect x="6" y="2" width="16" height="20" rx="8" stroke="currentColor" strokeWidth="2" />
-                <path d="M4 14c0 5.5 4.5 10 10 10s10-4.5 10-10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <path d="M14 24v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </div>
+          <div className="interview-setup__card">
+            <div className="interview-setup__head">
+              <div className="interview-setup__icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
+                  <path d="M6 11a6 6 0 0 0 12 0M12 17v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </div>
 
-            <h1 className="interview-setup__title">Mock Interview</h1>
-            <div className="interview-setup__context">
-              <span>Interviewing for</span>
-              <strong>{setupJobTitle}</strong>
+              <h1 className="interview-setup__title">Mock Interview</h1>
+              <div className="interview-setup__eyebrow">Interviewing for</div>
+              <div className="interview-setup__role">{setupJobTitle}</div>
+              <p className="interview-setup__subtitle">
+                Practice a realistic interview tailored to this role, with live follow-up questions and instant feedback.
+              </p>
             </div>
-            <p className="interview-setup__subtitle">
-              Practice a realistic interview tailored to this role, with live follow-up questions and instant feedback.
-            </p>
 
             {upgradeMessage && (
               <UpgradePrompt message={upgradeMessage} />
             )}
 
             {error && (
-              <div className="interview-error" style={{ marginBottom: '1rem' }}>
+              <div className="interview-error interview-setup__error">
                 <p>{error}</p>
               </div>
             )}
 
-            <div className="interview-setup__type">
-              <label className="interview-setup__label">Choose Format</label>
+            <div className="interview-setup__section">
+              <div className="interview-setup__label">Choose format</div>
               <div className="interview-setup__toggle">
                 <button
                   type="button"
@@ -796,37 +1009,49 @@ export function Interview() {
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <circle cx="10" cy="6" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M3 17c0-3.5 3-5.5 7-5.5s7 2 7 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <circle cx="10" cy="6.8" r="3.1" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M4.2 16.2a5.8 5.8 0 0 1 11.6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                   </span>
                   <span className="interview-setup__option-text">
                     <strong>Behavioral</strong>
                     <span>STAR-based questions about past experience</span>
                   </span>
+                  {selectedType === 'behavioral' && (
+                    <span className="interview-setup__option-check" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 12 12">
+                        <polyline points="2.5,6.2 5,8.5 9.5,3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"
                   className={`interview-setup__option ${selectedType === 'technical' ? 'interview-setup__option--active' : ''}`}
-                  onClick={() => {
-                    setSelectedType('technical');
-                  }}
+                  onClick={() => setSelectedType('technical')}
                 >
                   <span className="interview-setup__option-icon">
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <path d="M6 6L2 10l4 4M14 6l4 4-4 4M11.5 3l-3 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M7.5 6.5L4 10l3.5 3.5M12.5 6.5L16 10l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </span>
                   <span className="interview-setup__option-text">
                     <strong>Technical</strong>
                     <span>System design and problem-solving questions</span>
                   </span>
+                  {selectedType === 'technical' && (
+                    <span className="interview-setup__option-check" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 12 12">
+                        <polyline points="2.5,6.2 5,8.5 9.5,3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
 
-            <div className="interview-setup__mic">
-              <label className="interview-setup__label">Microphone</label>
+            <div className="interview-setup__section">
+              <div className="interview-setup__label">Microphone</div>
 
               {microphoneCheck.status === 'permission-needed' && (
                 <div className="interview-mic-check interview-mic-check--neutral">
@@ -935,38 +1160,60 @@ export function Interview() {
                   </div>
                 </div>
               )}
+
+              {/* Low-quality input warning from the live track (narrowband sample rate
+                  or headset/hands-free label). Non-blocking, and only shown when the
+                  label-based Bluetooth card above isn't already covering it. */}
+              {microphoneCheck.status === 'ready'
+                && microphoneCheck.lowQualityWarning
+                && microphoneCheck.defaultMicKind !== 'bluetooth' && (
+                <div className="interview-mic-check interview-mic-check--warning" aria-live="polite">
+                  <div className="interview-mic-check__icon">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M9 2l7 13H2L9 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                      <path d="M9 6.25v4M9 13.25h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="interview-mic-check__body">
+                    <strong>Low-quality microphone input detected</strong>
+                    <p>
+                      Your mic appears to be running in a narrowband or Bluetooth (hands-free) mode, which lowers transcription accuracy. Your laptop&apos;s built-in microphone or wired earbuds will produce more accurate transcripts. You can still continue.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
-              className="btn btn-primary interview-setup__start"
+              className="interview-setup__start"
               onClick={handleStartClick}
               disabled={microphoneCheck.status === 'checking' || microphoneCheck.status === 'error' || isStartBlocked}
             >
-              {isStartBlocked ? 'Upgrade required' : 'Start Interview'}
+              {isStartBlocked ? 'Upgrade required' : 'Start interview'}
               {!isStartBlocked && (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M3 7h8M8 3.5L11 7 8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M3 8h9M9 5l3 3-3 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </button>
 
             <div className="interview-setup__meta">
               <span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.25" />
-                  <path d="M6 3v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                 </svg>
                 25 min session
               </span>
               <span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1 3h10M1 6h6M1 9h8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                 </svg>
                 Full transcript
               </span>
               <span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M6 1v3l2 1M1 7.5a5 5 0 009.5 0M.5 5a5 5 0 019.5-2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.6l1-4.1L2.2 6.7l4.2-.3L8 1.5Z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round" />
                 </svg>
                 Instant feedback
               </span>
@@ -979,46 +1226,138 @@ export function Interview() {
 
   // Active / Thinking
   return (
-    <div className="page-container">
-      <div className="interview-header animate-in">
-        <div>
-          <h1>Mock Interview</h1>
-          <p className="text-secondary">{questionProgressLabel}</p>
-        </div>
-        <div className="interview-timer">
-          <span className={`interview-timer__value ${remaining <= 120 ? 'interview-timer__value--warning' : ''}`}>
-            {formatTime(remaining)}
+    <div className="interview-live">
+      {/* Stands in for the app nav, which is hidden while the interview is live.
+          The brand is deliberately not a link — every exit runs through End interview. */}
+      <div className="interview-topbar">
+        <div className="interview-topbar__inner">
+          <span className="interview-topbar__brand">
+            <LogoMark width={26} height={26} />
+            <span className="interview-topbar__name">ResumeMatch</span>
           </span>
-          <span className="interview-timer__label">remaining</span>
-          {(answerElapsed > 0 || answerDurations.length > 0) && (
-            <div className="interview-timer__stats">
-              {answerElapsed > 0 && (
-                <span className="interview-timer__answer">
-                  {formatTime(answerElapsed)}
-                </span>
+          {/* App-level controls live here, not in the question card: neither one
+              touches the session, and the nav that normally hosts them is hidden.
+              Keeping them out of the card leaves it bundle-exact (Replay only). */}
+          <div className="interview-topbar__right">
+            <span
+              className={`interview-topbar__pill${currentPromptIsClosing ? ' interview-topbar__pill--done' : ''}`}
+              aria-live="polite"
+            >
+              <span className="interview-topbar__dot" />
+              {currentPromptIsClosing ? 'Interview complete' : 'Interview in progress'}
+            </span>
+            <button
+              type="button"
+              className={`interview-topbar__mute${ttsEnabled ? '' : ' interview-topbar__mute--off'}`}
+              onClick={toggleTts}
+              title={ttsEnabled ? 'Mute interviewer voice' : 'Unmute interviewer voice'}
+              aria-label={ttsEnabled ? 'Mute interviewer voice' : 'Unmute interviewer voice'}
+              aria-pressed={!ttsEnabled}
+            >
+              {ttsEnabled ? (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M11 4.5c1.2 1 2 2.1 2 3.5s-.8 2.5-2 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M11 5.5l4 5M15 5.5l-4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
               )}
-              {answerDurations.length > 0 && (
-                <span className="interview-timer__avg">
-                  avg {formatTime(Math.round(answerDurations.reduce((a, b) => a + b, 0) / answerDurations.length))}
-                </span>
-              )}
-            </div>
-          )}
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
-      <div className={`interview-question card animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}`}>
-        <div className="interview-question__avatar">
-          {interviewState === 'speaking' ? (
-            <div className="interview-speaking-bars">
-              <span /><span /><span /><span />
+      <div className="interview-live__body">
+        <div className="interview-head animate-in">
+          <div className="interview-head__lead">
+            <div className="interview-head__eyebrow">
+              Mock interview · {selectedType === 'technical' ? 'Technical' : 'Behavioral'}
             </div>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M3 17.5c0-3.5 3-5.5 7-5.5s7 2 7 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <h1 className="interview-head__role">{setupJobTitle}</h1>
+          </div>
+          <span className={`interview-clock${remaining <= 120 ? ' interview-clock--warning' : ''}`}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
+            {formatTime(remaining)}
+            <span className="interview-clock__sr"> remaining</span>
+          </span>
+        </div>
+
+        <div className="interview-progress animate-in">
+          {totalQuestions > 0 && (
+            <div className="interview-progress__track" aria-hidden="true">
+              {Array.from({ length: totalQuestions }, (_, i) => (
+                <span
+                  key={i}
+                  className={`interview-progress__seg${
+                    i < answeredSegments
+                      ? ' interview-progress__seg--done'
+                      : i === answeredSegments && !currentPromptIsClosing
+                        ? ' interview-progress__seg--current'
+                        : ''
+                  }`}
+                />
+              ))}
+            </div>
           )}
+          <span className={`interview-progress__count${currentPromptIsClosing ? ' interview-progress__count--done' : ''}`}>
+            {questionProgressLabel}
+          </span>
+          {currentQuestionKind === 'followup' && (
+            <span className="interview-status__badge interview-status__badge--followup">Follow-up</span>
+          )}
+          {currentQuestionKind === 'clarification' && (
+            <span className="interview-status__badge interview-status__badge--clarification">Clarification</span>
+          )}
+        </div>
+
+      <div className={`interview-question animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}${questionKindClass}`}>
+        <div className="interview-question__head">
+          <span className="interview-question__who">
+            <span className="interview-question__avatar">
+              {interviewState === 'speaking' ? (
+                <div className="interview-speaking-bars">
+                  <span /><span /><span /><span />
+                </div>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="6.5" r="3" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M4 15a5 5 0 0 1 10 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
+            </span>
+            Interviewer
+          </span>
+          <span className="interview-question__audio">
+            <button
+              type="button"
+              className="interview-question__btn"
+              onClick={() => speakQuestion(currentQuestion, true)}
+              disabled={interviewState === 'speaking' || interviewState === 'thinking' || !currentQuestion}
+              title="Replay question audio"
+            >
+              {interviewState === 'speaking' ? (
+                <>
+                  <span className="loading-spinner interview-question__spinner" />
+                  Playing…
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M3 6v4h2.5L9 13V3L5.5 6H3Z" fill="currentColor" />
+                    <path d="M11 6a2.5 2.5 0 0 1 0 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                  Replay
+                </>
+              )}
+            </button>
+          </span>
         </div>
         {interviewState === 'thinking' ? (
           <div className="interview-thinking">
@@ -1027,9 +1366,73 @@ export function Interview() {
             <span className="interview-thinking__dot" />
           </div>
         ) : (
-          <p className="interview-question__text">{currentQuestion}</p>
+          <div className="interview-question__body">
+            {currentQuestionKind === 'followup' && (
+              <span className="interview-question__tag interview-question__tag--followup">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d="M2 4h6a3 3 0 013 3v3M8.5 7.5L11 10l-2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Follow-up — going deeper on your last answer
+              </span>
+            )}
+            {currentQuestionKind === 'clarification' && (
+              <span className="interview-question__tag interview-question__tag--clarification">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d="M7 1.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M5.5 5.2a1.5 1.5 0 012.9.5c0 1-1.4 1.3-1.4 2.1M7 10.2h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                The transcription couldn&apos;t make out your last answer — please say it again
+              </span>
+            )}
+            <p className="interview-question__text">{currentQuestion}</p>
+          </div>
         )}
       </div>
+
+      {currentFeedback && (
+        <div className="interview-feedback card animate-in" aria-live="polite">
+          <p className="interview-feedback__label">On your last answer</p>
+          {currentFeedback.star && (
+            <div className="interview-feedback__star">
+              {(['situation', 'task', 'action', 'result'] as const).map(key => (
+                <span
+                  key={key}
+                  className={`interview-feedback__star-item${currentFeedback.star![key] ? ' interview-feedback__star-item--met' : ''}`}
+                >
+                  {currentFeedback.star![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
+          {currentFeedback.technical && (
+            <div className="interview-feedback__star">
+              {(['accuracy', 'tradeoffs', 'depth'] as const).map(key => (
+                <span
+                  key={key}
+                  className={`interview-feedback__star-item${currentFeedback.technical![key] ? ' interview-feedback__star-item--met' : ''}`}
+                >
+                  {currentFeedback.technical![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
+          {currentFeedback.strengths.length > 0 && (
+            <div className="interview-feedback__list interview-feedback__list--strengths">
+              {currentFeedback.strengths.map((s, i) => <span key={i}>{s}</span>)}
+            </div>
+          )}
+          {currentFeedback.improvements.length > 0 && (
+            <div className="interview-feedback__list interview-feedback__list--improvements">
+              {currentFeedback.improvements.map((s, i) => <span key={i}>{s}</span>)}
+            </div>
+          )}
+          {currentFillerWords && Object.keys(currentFillerWords).length > 0 && (
+            <p className="interview-feedback__fillers">
+              Filler words: {Object.entries(currentFillerWords).map(([word, count]) => `"${word}" (${count})`).join(', ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {activeError && (
         <div className="interview-error animate-in" role="alert">
@@ -1044,62 +1447,163 @@ export function Interview() {
         </div>
       )}
 
-      {(isListening || isArming) && (
-        <div className="interview-answer card animate-in interview-answer--recording">
-          <span className="interview-answer__label">{isArming ? 'Connecting mic...' : 'Listening...'}</span>
+      {/* The per-phase status (arming -> listening -> transcribing -> thinking) is
+          shown once, by the controls hint line below. This card is reserved for the
+          pointercancel recovery state so the two never compete. */}
+      {recordingInterrupted && (
+        <div className="interview-answer card animate-in interview-answer--recording interview-answer--interrupted">
+          <span className="interview-answer__label">
+            Mic hold was interrupted — but you&apos;re still being recorded and nothing was lost. Keep talking, then tap Finish to submit your answer.
+          </span>
+          <button
+            type="button"
+            className="btn btn-primary btn--sm interview-answer__finish"
+            onClick={() => { setRecordingInterrupted(false); void handlePushToTalkUp(); }}
+          >
+            Finish answer
+          </button>
         </div>
       )}
 
-      <div className="interview-controls">
-        <button
-          type="button"
-          className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
-          onPointerDown={handlePushToTalkPointerDown}
-          onPointerUp={handlePushToTalkPointerUp}
-          onPointerCancel={handlePushToTalkPointerUp}
-          disabled={controls.micDisabled}
-          aria-label={currentPromptIsClosing ? 'Interview questions complete' : 'Hold to speak'}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect x="8" y="2" width="8" height="12" rx="4" stroke="currentColor" strokeWidth="2" />
-            <path d="M5 11c0 3.866 3.134 7 7 7s7-3.134 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <path d="M12 18v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          {controls.micActive ? <span className="interview-mic__pulse" /> : null}
-        </button>
-        <p className="interview-controls__hint">
-          {controls.hint}
-        </p>
-        <div className="interview-controls__row">
+      {currentPromptIsClosing ? (
+        <div className="interview-stage interview-stage--wrap animate-in">
+          <span className="interview-stage__seal">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+              <polyline points="7,13.5 11.5,18 19,8.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <div className="interview-stage__title">That&apos;s a wrap</div>
+          <p className="interview-stage__blurb">
+            Your responses are being scored. Open your report for the full assessment and transcript.
+          </p>
           <button
             type="button"
-            className={`btn btn-ghost interview-tts-toggle ${ttsEnabled ? '' : 'interview-tts-toggle--off'}`}
-            onClick={toggleTts}
-            title={ttsEnabled ? 'Mute interviewer voice' : 'Unmute interviewer voice'}
-          >
-            {ttsEnabled ? (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M11 4.5c1.2 1 2 2.1 2 3.5s-.8 2.5-2 3.5M10 6.5c.6.5 1 1 1 1.5s-.4 1-1 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 5.5h2.5L8 2v12L4.5 10.5H2a1 1 0 01-1-1v-3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M11 5.5l4 5M15 5.5l-4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            )}
-          </button>
-          <button
-            className={`btn ${currentPromptIsClosing ? 'btn-primary' : 'btn-ghost'} interview-end-btn`}
+            className="interview-stage__report"
             onClick={() => handleEnd(controls.endReason)}
             disabled={controls.endDisabled}
           >
             {controls.endButtonLabel}
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className={`interview-stage${controls.micActive ? ' interview-stage--live' : ''}`}>
+            <div className="interview-stage__mic-wrap">
+              <button
+                type="button"
+                className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
+                onPointerDown={handlePushToTalkPointerDown}
+                onPointerUp={handlePushToTalkPointerUp}
+                onPointerCancel={handlePushToTalkCancel}
+                disabled={controls.micDisabled}
+                aria-label="Hold to speak"
+              >
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                  <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
+                  <path d="M6 11a6 6 0 0 0 12 0M12 17v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                {controls.micActive ? <span className="interview-mic__pulse" /> : null}
+              </button>
+            </div>
 
-      <div ref={conversationEndRef} />
+            {/* Decorative, exactly as the bundle has it. A real meter is not
+                possible here: useMicrophoneLevel's AudioContext is torn down
+                before Deepgram acquires the mic, so it only runs on setup. */}
+            <div className={`interview-eq${controls.micActive ? ' interview-eq--live' : ''}`} aria-hidden="true">
+              <span /><span /><span /><span /><span /><span /><span /><span /><span />
+            </div>
+
+            {!recordingInterrupted && (
+              <>
+                {/* Releasing the mic left no positive confirmation that the
+                    answer was captured — the bundle's green "Answer recorded"
+                    fills that gap. The phase-accurate string from
+                    getInterviewControlState moves to the line below it. */}
+                <p
+                  className={`interview-stage__status${
+                    controls.micActive
+                      ? ' interview-stage__status--live'
+                      : isAdvancing
+                        ? ' interview-stage__status--recorded'
+                        : ''
+                  }`}
+                  aria-live="polite"
+                >
+                  {isAdvancing ? 'Answer recorded' : controls.hint}
+                </p>
+                <p className="interview-stage__timer">
+                  {isAdvancing
+                    ? controls.hint
+                    : controls.micActive && answerElapsed > 0
+                      ? formatTime(answerElapsed)
+                      : ' '}
+                </p>
+                {isAdvancing && (
+                  <span className="interview-stage__advancing">
+                    <span className="loading-spinner interview-stage__advancing-spinner" />
+                    {isLastQuestion ? 'Wrapping up…' : 'Next question'}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="interview-endrow">
+            <button
+              type="button"
+              className="interview-endrow__btn"
+              onClick={() => handleEnd(controls.endReason)}
+              disabled={controls.endDisabled}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor" />
+              </svg>
+              {controls.endButtonLabel}
+            </button>
+          </div>
+        </>
+      )}
+
+      <section className="interview-notes animate-in">
+        <button
+          type="button"
+          className="interview-notes__toggle"
+          onClick={() => setNotesOpen(o => !o)}
+          aria-expanded={notesOpen}
+          aria-controls="interview-scratchpad-input"
+        >
+          <span className="interview-notes__label">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 2.5h6l2.5 2.5v8.5h-8.5V2.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M5.5 7.5h5M5.5 10h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            Scratch notes
+            <span className="interview-notes__hint">private · never scored</span>
+          </span>
+          <span className={`interview-notes__chevron${notesOpen ? ' interview-notes__chevron--open' : ''}`}>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </button>
+        {notesOpen && (
+          <div className="interview-notes__body">
+            <textarea
+              id="interview-scratchpad-input"
+              className="interview-notes__input"
+              value={scratchpadNotes}
+              onChange={(e) => setScratchpadNotes(e.target.value)}
+              placeholder="Jot notes while you think — bullet points, keywords, the STAR beat you want to hit."
+              rows={4}
+            />
+          </div>
+        )}
+      </section>
+
+      </div>
     </div>
   );
 }

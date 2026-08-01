@@ -1,24 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { signInWithRedirect } from 'aws-amplify/auth';
 import { useAuth } from '../auth/AuthContext';
 import { CodeInput } from '../components/CodeInput';
 import { useResendTimer } from '../hooks/useResendTimer';
-import './Login.css';
+import { validatePassword, friendlyPasswordPolicyError } from '../utils/passwordPolicy';
+import { AuthLayout } from './auth/AuthLayout';
+import { AuthPasswordMeter, AuthMatchNote } from './auth/AuthPasswordMeter';
+import { GoogleIcon, EyeIcon, ErrorIcon } from './auth/authIcons';
+import './auth/Auth.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function getPasswordStrength(pw: string): 'weak' | 'medium' | 'strong' {
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[a-z]/.test(pw)) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/\d/.test(pw)) score++;
-  if (/[^a-zA-Z0-9]/.test(pw)) score++;
-  if (pw.length >= 12) score++;
-  if (score <= 2) return 'weak';
-  if (score <= 4) return 'medium';
-  return 'strong';
-}
 
 export function Signup() {
   const [step, setStep] = useState<'register' | 'confirm'>('register');
@@ -29,6 +21,7 @@ export function Signup() {
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -38,6 +31,7 @@ export function Signup() {
   const { remaining, canResend, restart } = useResendTimer(30);
 
   const emailValid = EMAIL_RE.test(email);
+  const emailShowsError = emailTouched && email.length > 0 && !emailValid;
 
   async function handleRegister(e: FormEvent) {
     e.preventDefault();
@@ -54,8 +48,9 @@ export function Signup() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const policyError = validatePassword(password);
+    if (policyError) {
+      setError(policyError);
       return;
     }
 
@@ -64,7 +59,10 @@ export function Signup() {
       await signup(email, password, '');
       setStep('confirm');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-up failed.');
+      setError(
+        friendlyPasswordPolicyError(err)
+          ?? (err instanceof Error ? err.message : 'Sign-up failed.')
+      );
     } finally {
       setLoading(false);
     }
@@ -88,6 +86,10 @@ export function Signup() {
   async function handleConfirm(e: FormEvent) {
     e.preventDefault();
     setError('');
+    if (code.length !== 6) {
+      setError('Enter the 6-digit verification code from your email.');
+      return;
+    }
     setLoading(true);
     try {
       await confirmAccount(email, code);
@@ -101,46 +103,53 @@ export function Signup() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-page__bg">
-        <div className="login-page__grid" />
-        <div className="login-page__glow" />
-      </div>
-
-      <div className="login-card animate-in">
-        <div className="login-card__header">
-          <div className="login-card__logo">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
-              <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h1>ResumeMatch</h1>
-          <p>
-            {step === 'register'
-              ? 'Create your account'
-              : <>We sent a verification code to <strong>{email}</strong></>}
-          </p>
+    <AuthLayout
+      title="Create your account"
+      subtitle={
+        step === 'register' ? (
+          'Start matching your resume in under a minute.'
+        ) : (
+          <>
+            We sent a verification code to <strong>{email}</strong>
+          </>
+        )
+      }
+    >
+      {error && (
+        <div className="auth-banner auth-banner--error" role="alert">
+          <ErrorIcon />
+          {error}
         </div>
+      )}
 
-        {error && (
-          <div className="login-card__error animate-in">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
-              <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            {error}
+      {step === 'register' ? (
+        <>
+          <button
+            type="button"
+            className="auth-btn auth-btn--soft"
+            disabled={loading}
+            onClick={() => {
+              signInWithRedirect({ provider: 'Google' }).catch((err) => {
+                setError(err instanceof Error ? err.message : 'Google sign-up failed');
+              });
+            }}
+          >
+            <GoogleIcon />
+            Sign up with Google
+          </button>
+
+          <div className="auth-divider">
+            <span>or sign up with email</span>
           </div>
-        )}
 
-        {step === 'register' ? (
-          <form onSubmit={handleRegister} className="login-card__form">
-            <div className={`login-card__field${emailTouched && email.length > 0 && !emailValid ? ' login-card__field--error' : ''}`}>
+          <form onSubmit={handleRegister}>
+            <div className="auth-field">
               <label htmlFor="email">Email address</label>
               <input
                 id="email"
                 name="email"
                 type="email"
+                className={`auth-input${emailShowsError ? ' is-error' : ''}`}
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setEmailTouched(true); }}
                 onBlur={() => setEmailTouched(true)}
@@ -149,74 +158,45 @@ export function Signup() {
                 autoComplete="email"
                 autoFocus
               />
-              {emailTouched && email.length > 0 && !emailValid && (
-                <span className="login-card__pw-mismatch">Enter a valid email address</span>
-              )}
+              {emailShowsError && <span className="auth-inline-error">Enter a valid email address</span>}
             </div>
 
-            <div className="login-card__field">
+            <div className="auth-field auth-field--pw">
               <label htmlFor="password">Password</label>
-              <div className="login-card__password-wrapper">
+              <div className="auth-pw-wrap">
                 <input
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
+                  className="auth-input"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
                   placeholder="Create a strong password"
                   required
                   autoComplete="new-password"
                 />
                 <button
                   type="button"
-                  className="login-card__password-toggle"
+                  className="auth-pw-toggle"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
+                  <EyeIcon open={!showPassword} />
                 </button>
               </div>
-              {password.length === 0 ? (
-                <p className="login-card__pw-hint">Use 8+ characters with letters, numbers &amp; symbols</p>
-              ) : (
-                <ul className="login-card__pw-rules">
-                  <li data-met={password.length >= 8}>8+ chars</li>
-                  <li data-met={/[a-z]/.test(password)}>lowercase</li>
-                  <li data-met={/[A-Z]/.test(password)}>uppercase</li>
-                  <li data-met={/\d/.test(password)}>number</li>
-                  <li data-met={/[^a-zA-Z0-9]/.test(password)}>symbol</li>
-                </ul>
-              )}
-              {password.length > 0 && (
-                <div className={`login-card__pw-strength login-card__pw-strength--${getPasswordStrength(password)}`}>
-                  <div className="login-card__pw-strength-track">
-                    <div className="login-card__pw-strength-seg" />
-                    <div className="login-card__pw-strength-seg" />
-                    <div className="login-card__pw-strength-seg" />
-                  </div>
-                  <span className="login-card__pw-strength-label">{getPasswordStrength(password)}</span>
-                </div>
-              )}
+              <AuthPasswordMeter password={password} visible={passwordFocused || password.length > 0} />
             </div>
 
-            <div className={`login-card__field${confirmPassword.length > 0 && confirmPassword !== password ? ' login-card__field--error' : ''}`}>
+            <div className="auth-field">
               <label htmlFor="confirmPassword">Confirm password</label>
-              <div className="login-card__password-wrapper">
+              <div className="auth-pw-wrap">
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
+                  className={`auth-input${confirmPassword.length > 0 && confirmPassword !== password ? ' is-error' : ''}`}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter your password"
@@ -225,47 +205,20 @@ export function Signup() {
                 />
                 <button
                   type="button"
-                  className="login-card__password-toggle"
+                  className="auth-pw-toggle"
                   onClick={() => setShowConfirmPassword((v) => !v)}
                   aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showConfirmPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
+                  <EyeIcon open={!showConfirmPassword} />
                 </button>
               </div>
-              {confirmPassword.length > 0 && (
-                confirmPassword === password ? (
-                  <span className="login-card__pw-match login-card__pw-match--yes">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    Passwords match
-                  </span>
-                ) : (
-                  <span className="login-card__pw-match login-card__pw-match--no">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                    Passwords do not match
-                  </span>
-                )
-              )}
+              <AuthMatchNote password={password} confirm={confirmPassword} />
             </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary login-card__submit"
-              disabled={loading}
-            >
+            <button type="submit" className="auth-btn auth-btn--primary" disabled={loading}>
               {loading ? (
                 <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                  <span className="loading-spinner loading-spinner--sm" />
                   Creating account...
                 </>
               ) : (
@@ -273,52 +226,53 @@ export function Signup() {
               )}
             </button>
 
-            <p className="login-card__link">
-              Already have an account? <Link to="/login">Sign in</Link>
+            <p className="auth-consent">
+              {/* New tab: same-tab navigation would discard the half-filled signup form. */}
+              By creating an account, you agree to our{' '}
+              <Link to="/terms" target="_blank" rel="noopener noreferrer">Terms</Link> and{' '}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.
             </p>
           </form>
-        ) : (
-          <form onSubmit={handleConfirm} className="login-card__form">
-            {resent && (
-              <div className="login-card__success animate-in">
-                A new code has been sent to your email.
-              </div>
-            )}
 
-            <div className="login-card__field">
-              <label>Verification code</label>
-              <CodeInput value={code} onChange={setCode} />
-            </div>
+          <div className="auth-switch">
+            Already have an account? <Link to="/login">Sign in</Link>
+          </div>
+        </>
+      ) : (
+        <form onSubmit={handleConfirm}>
+          {resent && (
+            <div className="auth-banner auth-banner--success">A new code has been sent to your email.</div>
+          )}
 
+          <div className="auth-field auth-field--tight">
+            <label>Verification code</label>
+            <CodeInput value={code} onChange={setCode} />
+          </div>
+
+          <p className="auth-resend-line">
+            Didn&apos;t receive the code?{' '}
             <button
-              type="submit"
-              className="btn btn-primary login-card__submit"
-              disabled={loading}
+              type="button"
+              className="auth-resend"
+              onClick={handleResend}
+              disabled={!canResend || resending}
             >
-              {loading ? (
-                <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                  Verifying...
-                </>
-              ) : (
-                'Verify email'
-              )}
+              {resending ? 'Resending...' : canResend ? 'Resend code' : `Resend (${remaining}s)`}
             </button>
+          </p>
 
-            <p className="login-card__link">
-              Didn&apos;t receive the code?{' '}
-              <button
-                type="button"
-                className="login-card__resend"
-                onClick={handleResend}
-                disabled={!canResend || resending}
-              >
-                {resending ? 'Resending...' : canResend ? 'Resend code' : `Resend (${remaining}s)`}
-              </button>
-            </p>
-          </form>
-        )}
-      </div>
-    </div>
+          <button type="submit" className="auth-btn auth-btn--primary" disabled={loading}>
+            {loading ? (
+              <>
+                <span className="loading-spinner loading-spinner--sm" />
+                Verifying...
+              </>
+            ) : (
+              'Verify email'
+            )}
+          </button>
+        </form>
+      )}
+    </AuthLayout>
   );
 }

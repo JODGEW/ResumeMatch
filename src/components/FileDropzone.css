@@ -1,55 +1,38 @@
+/* Resume dropzone — implementation of the dashed drop target in the approved
+   Claude Design bundle (New Analysis.dc.html). Rendered only by Upload.tsx.
+   react-dropzone config (PDF-only, 5 MB, single file) is unchanged. */
+
 .dropzone {
-  border: 1px dashed var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 3rem 2rem;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.25s;
-  background: var(--surface-card);
-  position: relative;
-  overflow: hidden;
-}
-
-.dropzone::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--accent-dim);
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-}
-
-.dropzone:hover {
-  border-color: var(--text-muted);
-  background: var(--surface-card-hover);
-}
-
-.dropzone--active {
-  border-color: var(--accent);
-  background: var(--surface-card-hover);
-}
-
-.dropzone--active::before {
-  opacity: 1;
-}
-
-.dropzone--has-file {
-  border-color: var(--success-border);
-  border-style: solid;
-}
-
-.dropzone__content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  position: relative;
-  z-index: 1;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  background: var(--surface-inset);
+  border: 1.5px dashed var(--border-standard);
+  border-radius: 13px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.dropzone:hover,
+.dropzone--active {
+  background: var(--surface-card-hover);
+  border-color: var(--brand-tint-border);
 }
 
 .dropzone__icon {
-  margin-bottom: 0.5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.2s;
 }
 
@@ -57,48 +40,34 @@
   transform: translateY(-4px);
 }
 
-.dropzone__text {
-  font-family: var(--font-display);
-  font-weight: 510;
-  font-size: 1rem;
+.dropzone__title {
+  font-size: 15px;
+  font-weight: 590;
   color: var(--text-primary);
 }
 
-.dropzone__filename {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  font-weight: 510;
-  color: var(--success);
-}
-
-.dropzone__size {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-
 .dropzone__hint {
-  font-size: 0.75rem;
+  font-size: 13px;
   color: var(--text-muted);
-  margin-top: 0.25rem;
 }
 
 .dropzone--error {
-  border-color: var(--danger-border);
+  border-color: var(--pill-danger-border);
 }
 
 .dropzone__error {
-  font-size: 0.75rem;
+  margin-top: 10px;
+  font-size: 12.5px;
   color: var(--danger);
-  margin-top: 0.5rem;
 }
 
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 480px) {
   .dropzone {
-    padding: 2rem 1rem;
+    padding: 30px 16px;
   }
 
-  .dropzone__text {
-    font-size: 0.9375rem;
+  .dropzone__title {
+    font-size: 14.5px;
   }
 }

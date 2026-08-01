@@ -1,50 +1,237 @@
-/* ── Interview Header ────────────────────────────────── */
-.interview-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.interview-timer {
+/* ── Live interview screen ──────────────────────────────
+   Implementation of the approved Claude Design bundle (In Interview.dc.html).
+   All four bundle states are implemented: idle, listening, advancing, wrap-up.
+   Four deliberate departures:
+   - The bundle's nav brand links to the landing page. Ours is inert: the app nav
+     is hidden here precisely so a mid-answer click can't abandon the session, and
+     a live brand link would reopen that exit.
+   - The bundle's three-state mock (idle / recording / advancing) puts one label
+     per state. Ours keeps the bundle's headline labels but pairs them with
+     getInterviewControlState's hint on the line below, because the real screen
+     has five phases (arming, listening, transcribing, thinking, speaking) and
+     those hint strings are unit-tested.
+   - The bundle's equaliser is a decorative CSS animation and so is ours. A real
+     level meter is not available on this screen: useMicrophoneLevel's
+     AudioContext is closed before Deepgram acquires the mic, so MicLevelMeter
+     stays on the setup screen. See ROADMAP.md for the real-levels follow-up.
+   - The bundle has no mute control. Ours keeps the existing TTS toggle, but in
+     the top bar with the theme toggle rather than in the question card, so the
+     card stays bundle-exact (Replay only) and the two app-level controls sit
+     together.
+   Colour: the recording red is the bundle's own --rec family (#e5484d and its
+   tints), not --danger — recording is a state, not an error. The bundle is
+   dark-only, so the light --rec is derived from the design system's light
+   palette (LIGHT_TOKENS in the page bundles) rather than invented. */
+.interview-live {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 0.125rem;
+  background: var(--bg-root);
 }
 
-.interview-timer__value {
-  font-family: var(--font-mono);
-  font-size: 1.5rem;
-  font-weight: 510;
+.interview-live__body {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 1.75rem 1.5rem 3.5rem;
+}
+
+/* ── Minimal top bar ─────────────────────────────────── */
+.interview-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--nav-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.interview-topbar__inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.interview-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   color: var(--text-primary);
 }
 
-.interview-timer__value--warning {
-  color: var(--danger);
+.interview-topbar__name {
+  font-size: 0.9375rem;
+  font-weight: 590;
+  letter-spacing: -0.18px;
 }
 
-.interview-timer__label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.interview-timer__stats {
+.interview-topbar__right {
+  margin-left: auto;
   display: flex;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.interview-timer__answer {
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  color: var(--accent);
-}
-
-.interview-timer__avg {
-  font-size: 0.75rem;
+.interview-topbar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.78125rem;
+  font-weight: 510;
   color: var(--text-muted);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 9999px;
+  padding: 5px 12px;
+}
+
+.interview-topbar__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rec);
+  animation: interview-rec-dot 1.3s ease-in-out infinite;
+}
+
+/* Matches ThemeToggle's geometry so the two sit as a pair. */
+.interview-topbar__mute {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.interview-topbar__mute:hover {
+  color: var(--text-primary);
+  border-color: var(--border-light);
+  background: var(--surface-card-hover);
+}
+
+.interview-topbar__mute--off {
+  color: var(--text-tertiary);
+}
+
+.interview-topbar__pill--done .interview-topbar__dot {
+  background: var(--success-alt);
+  animation: none;
+}
+
+@keyframes interview-rec-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ── Head: role + clock ──────────────────────────────── */
+.interview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.125rem;
+}
+
+.interview-head__eyebrow {
+  font-size: 0.71875rem;
+  font-weight: 590;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 0.375rem;
+}
+
+.interview-head__role {
+  margin: 0;
+  font-size: 1.4375rem;
+  font-weight: 590;
+  letter-spacing: -0.35px;
+  color: var(--text-primary);
+}
+
+.interview-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.8125rem;
+  font-weight: 590;
+  color: var(--text-secondary);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 10px;
+  padding: 8px 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Amber-free by design: the clock is the only element allowed to go red, so the
+   time-pressure cue never competes with the recording state. */
+.interview-clock--warning {
+  color: var(--rec);
+  border-color: var(--rec-tint-border);
+}
+
+.interview-clock__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── Segmented progress ──────────────────────────────── */
+.interview-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.625rem;
+}
+
+.interview-progress__track {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  gap: 5px;
+}
+
+.interview-progress__seg {
+  flex: 1;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--track);
+  transition: background 0.3s;
+}
+
+.interview-progress__seg--done {
+  background: var(--success-alt);
+}
+
+.interview-progress__seg--current {
+  background: var(--accent);
+}
+
+.interview-progress__count {
+  flex-shrink: 0;
+  font-size: 0.78125rem;
+  font-weight: 590;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.interview-progress__count--done {
+  color: var(--pill-success-text);
 }
 
 /* ── Loading ─────────────────────────────────────────── */
@@ -91,31 +278,236 @@
 
 /* ── Current Question ────────────────────────────────── */
 .interview-question {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 18px;
+  padding: 1.625rem 1.75rem;
+  margin-bottom: 1.375rem;
+  box-shadow: var(--card-shadow);
+}
+
+.interview-question__head {
   display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.interview-question__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5625rem;
+  font-size: 0.75rem;
+  font-weight: 590;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--brand-tint-text);
 }
 
 .interview-question__avatar {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--accent-dim);
-  color: var(--accent);
-  display: flex;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  color: var(--accent-hover);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
+.interview-question__audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.interview-question__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  color: var(--text-muted);
+  font-size: 0.78125rem;
+  font-weight: 510;
+  font-family: inherit;
+  padding: 6px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.interview-question__btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.interview-question__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.interview-question__btn--icon {
+  padding: 6px 9px;
+}
+
+.interview-question__btn--off {
+  color: var(--text-tertiary);
+}
+
+.interview-question__spinner {
+  width: 13px;
+  height: 13px;
+  border-width: 2px;
+}
+
 .interview-question__text {
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  font-weight: 510;
   color: var(--text-primary);
   margin: 0;
-  padding-top: 0.5rem;
+  text-wrap: pretty;
+}
+
+/* ── Follow-up / clarification indicators ────────────── */
+.interview-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.interview-status__progress {
+  margin: 0;
+}
+
+.interview-status__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 590;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.125rem 0.5rem;
+  border-radius: 100px;
+  border: 1px solid transparent;
+}
+
+.interview-status__badge--followup {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.interview-status__badge--clarification {
+  background: var(--warning-dim);
+  color: var(--warning);
+  border-color: var(--warning-border);
+}
+
+.interview-question__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.interview-question__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 510;
+  margin-bottom: 0.5rem;
+}
+
+.interview-question__tag--followup { color: var(--accent); }
+.interview-question__tag--clarification { color: var(--warning); }
+
+/* Follow-up: subtle accent edge (a deeper-but-normal question). Clarification:
+   amber tint to read as a different intent (restate, not a new question). */
+.interview-question--followup {
+  border-color: var(--accent-border);
+}
+
+.interview-question--clarification {
+  border-color: var(--warning-border);
+  background: var(--warning-dim);
+}
+
+/* ── Last-answer coaching panel ──────────────────────── */
+.interview-feedback {
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+  border-left: 2px solid var(--accent-border);
+}
+
+.interview-feedback__label {
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 590;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* STAR coverage is the focal element — full-size, met items in success green. */
+.interview-feedback__star {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
+}
+
+.interview-feedback__star-item {
+  font-size: 0.8125rem;
+  font-weight: 510;
+  color: var(--text-muted);
+}
+
+.interview-feedback__star-item--met {
+  color: var(--success);
+}
+
+.interview-feedback__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.interview-feedback__list span {
+  position: relative;
+  padding-left: 1.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.interview-feedback__list span::before {
+  position: absolute;
+  left: 0;
+  font-weight: 590;
+}
+
+.interview-feedback__list--strengths span::before {
+  content: '+';
+  color: var(--success);
+}
+
+.interview-feedback__list--improvements span::before {
+  content: '\2192';
+  color: var(--warning);
+}
+
+/* Secondary — small, muted, italic so it never competes with STAR. */
+.interview-feedback__fillers {
+  margin: 0.625rem 0 0;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--text-muted);
 }
 
 /* ── Speaking state ──────────────────────────────────── */
@@ -191,6 +583,14 @@
   box-shadow: var(--shadow-glow);
 }
 
+.interview-answer--interrupted {
+  border-color: var(--score-mid);
+}
+
+.interview-answer__finish {
+  margin-top: 0.5rem;
+}
+
 .interview-answer__label {
   display: block;
   font-size: 0.75rem;
@@ -199,41 +599,45 @@
   margin-bottom: 0.5rem;
 }
 
-.interview-answer__text {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--text-primary);
-  margin: 0;
-  min-height: 1.5em;
-}
-
-.interview-answer__interim {
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* ── Controls ────────────────────────────────────────── */
-.interview-controls {
+/* ── Stage: mic + live state ─────────────────────────── */
+.interview-stage {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 18px;
+  padding: 1.875rem 1.75rem 1.625rem;
+  margin-bottom: 1.375rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
+  transition: border-color 0.25s;
+}
+
+.interview-stage--live {
+  border-color: var(--rec-tint-border);
+}
+
+.interview-stage__mic-wrap {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .interview-mic {
-  position: relative;
-  width: 64px;
-  height: 64px;
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  border: 2px solid var(--border);
-  background: var(--surface-subtle);
+  border: 1px solid var(--border-standard);
+  background: var(--surface-inset);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  box-shadow: var(--card-shadow);
   -webkit-user-select: none;
   user-select: none;
   touch-action: none;
@@ -241,14 +645,14 @@
 
 .interview-mic:hover:not(:disabled) {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-hover);
   background: var(--accent-dim);
 }
 
 .interview-mic--active {
-  border-color: var(--danger);
-  background: var(--danger-dim);
-  color: var(--danger);
+  border-color: var(--rec);
+  background: var(--rec);
+  color: #fff;
 }
 
 .interview-mic:disabled {
@@ -256,516 +660,499 @@
   cursor: not-allowed;
 }
 
-.interview-mic__pulse {
+/* Two offset rings so the pulse reads as a continuous broadcast rather than a
+   single blink — matches the bundle's staggered recRing pair. */
+.interview-mic__pulse,
+.interview-mic__pulse::after {
   position: absolute;
-  inset: -6px;
+  inset: 0;
   border-radius: 50%;
-  border: 2px solid var(--danger);
-  animation: mic-pulse 1.2s ease-out infinite;
+  background: var(--rec-tint-bg);
+  animation: mic-pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+.interview-mic__pulse::after {
+  content: '';
+  animation-delay: 0.5s;
 }
 
 @keyframes mic-pulse {
-  0% { opacity: 0.6; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.3); }
+  0% { transform: scale(0.85); opacity: 0.5; }
+  70% { transform: scale(1.55); opacity: 0; }
+  100% { opacity: 0; }
 }
 
-.interview-controls__hint {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
+/* Decorative equaliser, per the bundle. It signals "recording" rather than
+   showing input level — the real MicLevelMeter can't run here (its AudioContext
+   is closed before Deepgram takes the mic), so it stays on the setup screen. */
+.interview-eq {
+  height: 30px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 0.875rem 0 0.625rem;
+}
+
+.interview-eq span {
+  width: 4px;
+  height: 30px;
+  border-radius: 2px;
+  background: var(--rec);
+  transform-origin: bottom;
+  transform: scaleY(0.28);
+  opacity: 0.18;
+  transition: opacity 0.2s;
+}
+
+.interview-eq--live span {
+  opacity: 1;
+  animation: interview-eqbar 1s ease-in-out infinite;
+}
+
+/* Bundle's staggered durations/delays, so the bars never march in lockstep. */
+.interview-eq--live span:nth-child(1) { animation-duration: 0.9s;  animation-delay: 0s; }
+.interview-eq--live span:nth-child(2) { animation-duration: 1.15s; animation-delay: 0.15s; }
+.interview-eq--live span:nth-child(3) { animation-duration: 0.75s; animation-delay: 0.3s; }
+.interview-eq--live span:nth-child(4) { animation-duration: 1.3s;  animation-delay: 0.05s; }
+.interview-eq--live span:nth-child(5) { animation-duration: 0.95s; animation-delay: 0.4s; }
+.interview-eq--live span:nth-child(6) { animation-duration: 1.05s; animation-delay: 0.22s; }
+.interview-eq--live span:nth-child(7) { animation-duration: 0.8s;  animation-delay: 0.5s; }
+.interview-eq--live span:nth-child(8) { animation-duration: 1.2s;  animation-delay: 0.12s; }
+.interview-eq--live span:nth-child(9) { animation-duration: 0.88s; animation-delay: 0.34s; }
+
+@keyframes interview-eqbar {
+  0%, 100% { transform: scaleY(0.28); }
+  50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interview-eq--live span {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
+.interview-stage__status {
+  margin: 0;
+  font-size: 0.90625rem;
+  font-weight: 510;
+  color: var(--text-secondary);
   text-align: center;
+  min-height: 20px;
 }
 
-.interview-controls__row {
-  display: flex;
+.interview-stage__status--live {
+  color: var(--rec);
+}
+
+.interview-stage__status--recorded {
+  color: var(--pill-success-text);
+}
+
+.interview-stage__timer {
+  margin: 0.25rem 0 0;
+  font-size: 0.78125rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  min-height: 18px;
+}
+
+/* Shown between mic release and the next question, over both real phases
+   (batch transcription, then the backend turn). */
+.interview-stage__advancing {
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.interview-tts-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  padding: 0.25rem 0.5rem;
-}
-
-.interview-tts-toggle--off {
-  opacity: 0.5;
-}
-
-.interview-end-btn {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-}
-
-.interview-end-btn:hover {
-  color: var(--danger);
-}
-
-/* ── Conversation History ────────────────────────────── */
-.interview-history {
-  margin-top: 1rem;
-}
-
-.interview-history h4 {
+  gap: 0.5625rem;
+  margin-top: 1.25rem;
   font-size: 0.8125rem;
   font-weight: 510;
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
+  color: var(--brand-tint-text);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  padding: 9px 16px;
+  border-radius: 9999px;
 }
 
-.interview-history__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+.interview-stage__advancing-spinner {
+  width: 15px;
+  height: 15px;
+  border-width: 2px;
 }
 
-.interview-history__turn {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
+/* ── Stage: wrap-up ──────────────────────────────────── */
+.interview-stage--wrap {
+  text-align: center;
+  padding: 2.125rem 1.75rem;
 }
 
-.interview-history__turn p {
-  margin: 0;
-}
-
-.interview-history__label {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 510;
-  color: var(--text-muted);
-  min-width: 2rem;
-  padding-top: 0.125rem;
-}
-
-.interview-history__turn--interviewer .interview-history__label {
-  color: var(--accent);
-}
-
-/* ── Completed: Transcript ───────────────────────────── */
-.interview-transcript {
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.interview-transcript h3 {
-  margin-bottom: 1rem;
-}
-
-.interview-transcript__body {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-height: 500px;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-}
-
-.interview-transcript__turn {
-  padding-left: 1rem;
-  border-left: 2px solid var(--border);
-}
-
-.interview-transcript__turn--interviewer {
-  border-left-color: var(--accent);
-}
-
-.interview-transcript__turn--user {
-  border-left-color: var(--success);
-}
-
-.interview-transcript__label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 510;
-  margin-bottom: 0.25rem;
-}
-
-.interview-transcript__turn--interviewer .interview-transcript__label {
-  color: var(--accent);
-}
-
-.interview-transcript__turn--user .interview-transcript__label {
-  color: var(--success);
-}
-
-.interview-transcript__turn p {
-  margin: 0;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--text-primary);
-}
-
-/* ── Feedback (per-answer) ───────────────────────────── */
-.interview-feedback {
-  margin-top: 0.625rem;
-  padding: 0.625rem 0.75rem;
-  background: var(--surface-subtle);
-  border-radius: var(--radius-sm);
-  font-size: 0.8125rem;
-}
-
-.interview-feedback__star {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.interview-feedback__star-item {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.interview-feedback__star-item--pass {
-  color: var(--success);
-}
-
-.interview-feedback__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-top: 0.375rem;
-}
-
-.interview-feedback__list span::before {
-  margin-right: 0.375rem;
-}
-
-.interview-feedback__list--strengths span::before {
-  content: '+';
-  color: var(--success);
-  font-weight: 510;
-}
-
-.interview-feedback__list--improvements span::before {
-  content: '\2192';
-  color: var(--warning);
-}
-
-.interview-feedback__list span {
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-.interview-feedback__fillers {
-  margin-top: 0.375rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* ── Assessment ──────────────────────────────────────── */
-.ia-assessment {
-  margin-bottom: 1.5rem;
-}
-
-.ia-overview {
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.ia-score {
-  display: flex;
-  align-items: flex-start;
-  gap: 1.25rem;
-}
-
-.ia-score__ring {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.ia-score__value {
-  position: absolute;
-  inset: 0;
-  display: flex;
+.interview-stage__seal {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--pill-success-bg);
+  border: 1px solid var(--pill-success-border);
+  color: var(--success-alt);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.375rem;
+  margin-bottom: 1rem;
+}
+
+.interview-stage__title {
+  font-size: 0.9375rem;
   font-weight: 590;
   color: var(--text-primary);
 }
 
-.ia-score__label strong {
-  display: block;
-  font-size: 1.125rem;
-  margin-bottom: 0.375rem;
-}
-
-.ia-score__label p {
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.ia-categories {
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.ia-categories h3 {
-  margin-bottom: 1rem;
-}
-
-.ia-categories__list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.ia-cat__header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.375rem;
-}
-
-.ia-cat__name {
-  font-size: 0.875rem;
-  font-weight: 510;
-  color: var(--text-primary);
-}
-
-.ia-cat__score {
-  font-family: var(--font-mono);
+.interview-stage__blurb {
   font-size: 0.8125rem;
-  font-weight: 510;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  margin: 0.3125rem 0 0;
+  max-width: 340px;
+  line-height: 1.55;
 }
 
-.ia-cat__bar {
-  height: 6px;
-  background: var(--surface-subtle);
-  border-radius: 3px;
+.interview-stage__report {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5625rem;
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-size: 0.90625rem;
+  font-weight: 590;
+  font-family: inherit;
+  padding: 12px 24px;
+  border-radius: 11px;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  margin-top: 1.25rem;
+  transition: background 0.15s;
+}
+
+.interview-stage__report:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.interview-stage__report:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── End interview ───────────────────────────────────── */
+.interview-endrow {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.625rem;
+}
+
+.interview-endrow__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface-inset);
+  border: 1px solid var(--rec-tint-border);
+  color: var(--rec-soft);
+  font-size: 0.84375rem;
+  font-weight: 510;
+  font-family: inherit;
+  padding: 9px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.interview-endrow__btn:hover:not(:disabled) {
+  background: var(--rec-tint-bg);
+}
+
+.interview-endrow__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Scratch notes (collapsible, private) ────────────── */
+.interview-notes {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 16px;
   overflow: hidden;
 }
 
-.ia-cat__fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
+.interview-notes__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
 }
 
-.ia-cat__comment {
-  margin: 0.25rem 0 0;
+.interview-notes__toggle:hover {
+  background: var(--surface-hover);
+}
+
+.interview-notes__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
   font-size: 0.8125rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-
-.ia-feedback-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.ia-feedback-col {
-  padding: 1.25rem;
-}
-
-.ia-feedback-col h4 {
-  margin-bottom: 0.75rem;
-  font-size: 0.875rem;
-}
-
-.ia-feedback-item {
-  font-size: 0.8125rem;
-  line-height: 1.5;
+  font-weight: 590;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
   color: var(--text-secondary);
-  margin: 0 0 0.5rem;
-  padding-left: 1rem;
-  position: relative;
 }
 
-.ia-feedback-item::before {
-  position: absolute;
-  left: 0;
-  font-weight: 510;
+.interview-notes__label svg {
+  color: var(--text-muted);
 }
 
-.ia-feedback-item--strength::before {
-  content: '+';
-  color: var(--success);
+.interview-notes__hint {
+  font-size: 0.71875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-tertiary);
 }
 
-.ia-feedback-item--improvement::before {
-  content: '\2192';
-  color: var(--warning);
+.interview-notes__chevron {
+  display: inline-flex;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.interview-notes__chevron--open {
+  transform: rotate(180deg);
+}
+
+.interview-notes__body {
+  padding: 0 1.25rem 1.25rem;
+}
+
+.interview-notes__input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 120px;
+  resize: vertical;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  font-family: inherit;
+}
+
+.interview-notes__input:focus {
+  outline: none;
+  border-color: var(--brand-tint-border);
+  box-shadow: 0 0 0 3px var(--brand-tint-bg);
 }
 
 @media (max-width: 640px) {
-  .ia-feedback-grid {
-    grid-template-columns: 1fr;
+  .interview-live__body {
+    padding: 1.25rem 1rem 3rem;
   }
 
-  .ia-score {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+  .interview-question {
+    padding: 1.25rem 1.125rem;
+  }
+
+  .interview-question__text {
+    font-size: 1.125rem;
+  }
+
+  .interview-topbar__inner {
+    padding: 0 1rem;
   }
 }
 
-/* ── Setup Screen ───────────────────────────────────── */
+/* ── Setup Screen ───────────────────────────────────────
+   Implementation of the approved Claude Design bundle (Start Interview.dc.html).
+   Two deliberate departures:
+   - The bundle's back chip derives its label from the referring page; ours keeps
+     navigate(-1) and the bundle's generic "Back" fallback, because the three
+     entry points (analysis detail, analysis history, interview result) don't
+     pass an origin and are out of scope to change.
+   - The bundle's mic card has two states and a decorative equaliser. Ours keeps
+     the five real states and the live MicLevelMeter, restyled into the bundle's
+     card idiom (success tint when ready, neutral while detecting). */
 .interview-setup-page {
   padding-top: 1rem;
 }
 
 .interview-setup {
   max-width: 500px;
-  margin: 0 auto 1.5rem;
+  margin: 0 auto 2rem;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
 }
 
-/* Back link — ghost button styling */
+/* Back chip */
 .interview-setup__back {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 7px;
   align-self: flex-start;
-  margin-bottom: 1rem;
-  padding: 0.4rem 0.75rem;
+  margin-bottom: 22px;
+  padding: 8px 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
-  font-size: 0.8125rem;
+  border-radius: 9px;
+  background: var(--surface-inset);
+  font-family: inherit;
+  font-size: 13px;
   font-weight: 510;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .interview-setup__back:hover {
-  background: var(--surface-card-hover);
-  border-color: var(--border-light);
+  background: var(--surface-hover);
   color: var(--text-primary);
 }
 
 .interview-setup__card {
   width: 100%;
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 34px 30px 28px;
+  box-shadow: var(--card-shadow-lg);
+}
+
+.interview-setup__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  padding: 2rem 1.5rem 1.5rem;
+  margin-bottom: 30px;
 }
 
 .interview-setup__icon {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto 1rem;
+  position: relative;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: var(--accent-dim);
-  color: var(--accent);
+  margin-bottom: 18px;
+  color: var(--accent-hover);
 }
 
-.interview-setup__icon svg {
-  width: 24px;
-  height: 24px;
+/* Outer halo ring */
+.interview-setup__icon::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--brand-tint-border);
+  opacity: 0.4;
 }
 
 .interview-setup__title {
-  font-size: 1.5rem;
-  font-weight: 510;
-  margin-bottom: 0.5rem;
-}
-
-.interview-setup__context {
-  max-width: 380px;
-  margin: 0 auto 0.625rem;
-}
-
-.interview-setup__context span {
-  display: block;
-  margin-bottom: 0.1875rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 510;
-}
-
-.interview-setup__context strong {
-  display: block;
-  color: var(--text-primary);
-  font-size: 0.9375rem;
+  margin: 0 0 12px;
+  font-size: 26px;
   font-weight: 590;
-  line-height: 1.35;
+  letter-spacing: -0.4px;
+  color: var(--text-primary);
+}
+
+.interview-setup__eyebrow {
+  font-size: 11.5px;
+  font-weight: 590;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 5px;
+}
+
+.interview-setup__role {
+  font-size: 18px;
+  font-weight: 590;
+  color: var(--text-primary);
+  margin-bottom: 14px;
   overflow-wrap: anywhere;
 }
 
 .interview-setup__subtitle {
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  margin-bottom: 1.375rem;
-  max-width: 360px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 0;
+  max-width: 400px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
 }
 
-/* Type selector */
-.interview-setup__type {
-  width: 100%;
-  margin-bottom: 1.375rem;
-  text-align: left;
+.interview-setup__error {
+  margin-bottom: 20px;
+}
+
+.interview-setup__section {
+  margin-bottom: 28px;
 }
 
 .interview-setup__label {
-  display: block;
-  font-size: 0.75rem;
+  font-size: 12px;
   font-weight: 590;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
 }
 
 .interview-setup__toggle {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 12px;
 }
 
 .interview-setup__option {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.875rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  gap: 16px;
+  width: 100%;
   text-align: left;
-  min-height: 68px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-inset);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .interview-setup__option:hover:not(.interview-setup__option--active) {
-  background: var(--surface-card-hover);
-  border-color: var(--border-light);
+  background: var(--surface-hover);
 }
 
 .interview-setup__option--active {
-  background: color-mix(in srgb, var(--surface-card) 88%, var(--accent) 12%);
-  border-color: var(--accent-border);
-  box-shadow: none;
+  background: var(--brand-tint-bg);
+  border-color: var(--brand-tint-border);
 }
 
 .interview-setup__option-icon {
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  display: flex;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
-  background: var(--surface-subtle);
+  border-radius: 11px;
+  background: var(--surface-hover);
   color: var(--text-muted);
   transition: background 0.15s, color 0.15s;
 }
@@ -776,94 +1163,105 @@
 }
 
 .interview-setup__option-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .interview-setup__option-text strong {
-  font-size: 0.875rem;
+  display: block;
+  font-size: 15px;
   font-weight: 590;
   color: var(--text-primary);
 }
 
-.interview-setup__option-text span:last-child {
-  font-size: 0.75rem;
+.interview-setup__option-text span {
+  display: block;
+  font-size: 13px;
   color: var(--text-muted);
+  margin-top: 2px;
   line-height: 1.35;
 }
 
-/* Microphone check */
-.interview-setup__mic {
-  width: 100%;
-  margin-bottom: 1.375rem;
-  text-align: left;
+.interview-setup__option-check {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
+/* Microphone check */
 .interview-mic-check {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem 0.875rem;
+  gap: 14px;
+  padding: 18px 20px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
+  border-radius: 14px;
+  background: var(--surface-inset);
   text-align: left;
+  transition: background 0.2s, border-color 0.2s;
 }
 
+.interview-mic-check + .interview-mic-check {
+  margin-top: 12px;
+}
+
+/* Permission-needed / detecting: the base card already reads as neutral. */
 .interview-mic-check--neutral {
   border-color: var(--border);
-  background: var(--surface-card);
+  background: var(--surface-inset);
 }
 
 .interview-mic-check--warning {
-  border-color: color-mix(in srgb, var(--border) 78%, var(--warning) 22%);
-  border-left-color: var(--warning-border);
-  border-left-width: 3px;
-  background: var(--surface-card);
+  border-color: var(--pill-warn-border);
+  background: var(--pill-warn-bg);
 }
 
 .interview-mic-check--ok {
-  border-color: color-mix(in srgb, var(--border) 82%, var(--success) 18%);
-  border-left-color: var(--success-border);
-  border-left-width: 3px;
-  background: var(--surface-card);
+  border-color: var(--pill-success-border);
+  background: var(--pill-success-bg);
 }
 
 .interview-mic-check--error {
-  border-color: color-mix(in srgb, var(--border) 78%, var(--danger) 22%);
-  border-left-color: var(--danger-border);
-  border-left-width: 3px;
-  background: var(--surface-card);
+  border-color: var(--danger-border);
+  background: var(--danger-dim);
 }
 
 .interview-mic-check__icon,
 .interview-mic-check__spinner {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
-  background: var(--surface-subtle);
+  border-radius: 9px;
+  background: var(--surface-hover);
   color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border);
 }
 
 .interview-mic-check--warning .interview-mic-check__icon {
-  color: var(--warning);
-  background: var(--warning-dim);
+  color: var(--warn);
+  background: var(--pill-warn-bg);
+  border-color: var(--pill-warn-border);
 }
 
 .interview-mic-check--ok .interview-mic-check__icon {
-  color: var(--success);
-  background: var(--success-dim);
+  color: var(--success-alt);
+  background: var(--pill-success-bg);
+  border-color: var(--pill-success-border);
 }
 
 .interview-mic-check--error .interview-mic-check__icon {
   color: var(--danger);
   background: var(--danger-dim);
+  border-color: var(--danger-border);
 }
 
 .interview-mic-check__spinner {
@@ -887,105 +1285,118 @@
 
 .interview-mic-check__body strong {
   display: block;
-  margin-bottom: 0.1875rem;
   color: var(--text-primary);
-  font-size: 0.8125rem;
+  font-size: 14px;
   font-weight: 590;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
 .interview-mic-check__body p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  line-height: 1.45;
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .interview-mic-check__action {
   display: inline-flex;
   align-items: center;
-  margin-top: 0.5rem;
+  margin-top: 14px;
   padding: 0;
   border: none;
   background: none;
-  color: var(--accent-hover);
-  font-size: 0.75rem;
+  color: var(--link);
+  font-family: inherit;
+  font-size: 13px;
   font-weight: 590;
   cursor: pointer;
   transition: color 0.15s;
 }
 
 .interview-mic-check__action:hover {
-  color: var(--accent);
+  color: var(--link-hover);
 }
 
-/* Mic level meter — 5-bar level indicator */
+/* Live input level — the bundle's equaliser bars, driven by real mic levels */
 .mic-meter {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 18px;
-  margin-top: 0.5rem;
-  margin-bottom: 0.125rem;
-  width: 84px;
+  gap: 4px;
+  height: 26px;
+  margin-top: 14px;
 }
 
 .mic-meter span {
-  flex: 1 1 0;
-  background: var(--text-muted);
+  width: 4px;
+  background: var(--accent-hover);
   border-radius: 2px;
-  min-height: 2px;
-  opacity: 0.45;
-  transition: height 80ms linear, background 200ms, opacity 200ms;
+  min-height: 3px;
+  opacity: 0.3;
+  transition: height 80ms linear, opacity 200ms;
 }
 
 .mic-meter--active span {
-  background: var(--accent);
   opacity: 1;
 }
 
 /* CTA */
 .interview-setup__start {
-  width: 100%;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  min-height: 44px;
-  margin-bottom: 1rem;
+  gap: 9px;
+  width: 100%;
+  background: var(--accent);
+  border: none;
+  color: var(--text-on-accent);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 590;
+  padding: 14px 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .interview-setup__start:not(:disabled):hover {
-  box-shadow: none;
+  background: var(--accent-hover);
+}
+
+.interview-setup__start:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Trust metadata */
 .interview-setup__meta {
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 1.25rem;
-  padding-top: 1.25rem;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  padding-top: 22px;
   border-top: 1px solid var(--border-subtle);
 }
 
 .interview-setup__meta span {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.6875rem;
-  font-weight: 400;
-  color: var(--text-tertiary);
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .interview-setup__meta svg {
   flex-shrink: 0;
-  opacity: 0.7;
-  color: var(--text-tertiary);
 }
 
 @media (max-width: 640px) {
   .interview-setup-page {
-    padding-top: 1.25rem;
+    padding-top: clamp(2rem, 8vh, 4rem);
   }
 
   .interview-setup {
@@ -993,20 +1404,17 @@
   }
 
   .interview-setup__card {
-    padding: 1.5rem 1rem 1.25rem;
+    padding: 26px 20px 22px;
+    border-radius: 16px;
+  }
+
+  .interview-setup__title {
+    font-size: 23px;
   }
 
   .interview-setup__meta {
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    gap: 14px;
   }
-}
-
-/* ── Actions ─────────────────────────────────────────── */
-.interview-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
 }
 
 /* ── Mobile ──────────────────────────────────────────── */
@@ -1044,6 +1452,10 @@
     padding: 1rem;
   }
 
+  .interview-scratchpad {
+    padding: 1rem;
+  }
+
   .interview-mic {
     width: 56px;
     height: 56px;
@@ -1052,53 +1464,12 @@
   .interview-controls__hint {
     font-size: 0.75rem;
   }
+}
 
-  .interview-transcript {
-    padding: 1rem;
-  }
-
-  .interview-transcript__body {
-    max-height: 400px;
-  }
-
-  .interview-feedback {
-    padding: 0.5rem 0.625rem;
-  }
-
-  .interview-feedback__star {
-    gap: 0.375rem;
-  }
-
-  .ia-overview {
-    padding: 1.25rem;
-  }
-
-  .ia-categories {
-    padding: 1.25rem;
-  }
-
-  .ia-feedback-col {
-    padding: 1rem;
-  }
-
-  .interview-actions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    margin-left: -1rem;
-    margin-right: -1rem;
-    padding: 0 1rem;
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
-    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
-  }
-
-  .interview-actions::-webkit-scrollbar {
-    display: none;
-  }
-
-  .interview-actions .btn {
-    flex-shrink: 0;
-    white-space: nowrap;
+/* ≤480px: keep the notes textarea at 16px so iOS Safari doesn't auto-zoom on
+   focus (matches the global input/textarea safeguard in index.css). */
+@media (max-width: 480px) {
+  .interview-scratchpad__input {
+    font-size: 1rem;
   }
 }

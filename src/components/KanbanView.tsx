@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
+import { scoreFamily, outreachBadge } from '../pages/Tracker';
 import './KanbanView.css';
 
 const COLUMNS: { key: Application['applicationStatus']; label: string }[] = [
@@ -12,40 +13,14 @@ const COLUMNS: { key: Application['applicationStatus']; label: string }[] = [
   { key: 'rejected', label: 'Rejected' },
 ];
 
-const STATUS_LABELS: Record<Application['outreachStatus'], string> = {
-  not_started: 'Not Started',
-  researching: 'Researching',
-  drafted: 'Drafted',
-  sent: 'Sent',
-  followed_up: 'Followed Up',
-  replied: 'Replied',
-  no_response: 'No Response',
-  skipped: 'Skipped',
-};
-
-function getScoreColor(score: number) {
-  if (score >= 86) return 'var(--score-high)';
-  if (score >= 76) return 'var(--score-good)';
-  if (score >= 61) return 'var(--score-mid)';
-  if (score >= 41) return 'var(--score-low)';
-  return 'var(--score-poor)';
-}
-
-function getScoreBackground(score: number) {
-  if (score >= 86) return 'var(--score-high-dim)';
-  if (score >= 76) return 'var(--score-good-dim)';
-  if (score >= 61) return 'var(--score-mid-dim)';
-  if (score >= 41) return 'var(--score-low-dim)';
-  return 'var(--score-poor-dim)';
-}
-
+// Bundle STAGE_DOT — the column marker colour per stage.
 function getColumnAccent(key: Application['applicationStatus']): string {
   switch (key) {
     case 'not_applied': return 'var(--text-muted)';
-    case 'applied': return 'var(--info)';
-    case 'screening': return 'var(--warning)';
-    case 'interviewing': return 'var(--accent)';
-    case 'offer': return 'var(--success)';
+    case 'applied': return 'var(--accent)';
+    case 'screening': return 'var(--warn)';
+    case 'interviewing': return 'var(--info)';
+    case 'offer': return 'var(--success-alt)';
     case 'rejected': return 'var(--danger)';
   }
 }
@@ -262,8 +237,6 @@ function KanbanCard({
   onUpdateStatus: (id: string, status: Application['applicationStatus']) => void;
 }) {
   const scoring = calculateOutreachScore(app);
-  const matchColor = getScoreColor(app.skillMatch.matchPercentage);
-  const matchBackground = getScoreBackground(app.skillMatch.matchPercentage);
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', app.id);
@@ -284,17 +257,14 @@ function KanbanCard({
     >
       <div className="kanban__card-header">
         <span className="kanban__card-company">{app.companyName}</span>
-        <span
-          className="kanban__card-match"
-          style={{ color: matchColor, background: matchBackground }}
-        >
+        <span className={`tk-pill tk-pill--sm tk-pill--${scoreFamily(app.skillMatch.matchPercentage)}`}>
           {app.skillMatch.matchPercentage}%
         </span>
       </div>
       <span className="kanban__card-role">{app.roleTitle}</span>
       <div className="kanban__card-tags">
-        <span className={`outreach-badge outreach-badge--${app.outreachStatus}`}>
-          {STATUS_LABELS[app.outreachStatus]}
+        <span className={`tk-pill tk-pill--sm ${outreachBadge(app).className}`}>
+          {outreachBadge(app).label}
         </span>
         {scoring.worth && (
           <span className="kanban__card-worth">Worth outreach</span>

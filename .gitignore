@@ -11,11 +11,29 @@ node_modules
 dist
 dist-ssr
 *.local
+local-run/.env
+# Machine-local MCP launcher config (absolute paths to this machine's python +
+# script). local-run/resumeMatch-mcp.py and .env.example ARE committed; this is
+# the one file in there that is per-machine.
+local-run/mcp-config.json
+
+# Claude Code per-project state (permission grants, session settings). The
+# global git ignore only hides the exact name settings.local.json — conflict
+# copies like "settings.local 2.json" would otherwise get swept into commits.
+.claude/
 .env
+.env.*
+!.env.example
 .planning/
 eval/
 local_lambda/
 CLAUDE.md
+
+# Python venv for the eval harness. Ignored here rather than relying on the
+# venv's own auto-generated .gitignore, which only Python 3.11+ creates.
+.venv/
+__pycache__/
+*.pyc
 
 # Editor directories and files
 .vscode/*
@@ -27,3 +45,13 @@ CLAUDE.md
 *.njsproj
 *.sln
 *.sw?
+
+# Account-deletion manifests contain user data — never commit
+ops/deletion-manifests/
+
+# Lighthouse writes its report next to the working directory, so ad-hoc runs land
+# at the repo root and get committed by accident. Three such files reached main in
+# 58fe0a0 and had to be relocated. Anchored to the root only: the archived runs
+# under docs/lighthouse-<date>/ are deliberately tracked evidence.
+/*.report.html
+/*.report.json

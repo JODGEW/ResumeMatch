@@ -59,6 +59,12 @@ export interface StartInterviewResponse {
   totalQuestions: number;
   timeLimit: number;
   keyterms?: string[];
+  // Subset of `keyterms` that are Pass 0 employer names. They ride the
+  // Deepgram keyterm prompt (proper nouns, highest-value bias targets) but
+  // must be EXCLUDED from transcript-correction targets: measured employer
+  // garbles score JW 0.63-0.84, below the 0.90 gate, so a correction target
+  // would be dead weight. Absent until the interviewStart Lambda ships.
+  employerKeyterms?: string[];
 }
 
 export interface TurnRequest {
@@ -74,20 +80,38 @@ export interface StarFeedback {
   result: boolean;
 }
 
+export interface TechnicalFeedback {
+  accuracy: boolean;
+  tradeoffs: boolean;
+  depth: boolean;
+}
+
 export interface TurnFeedback {
-  star: StarFeedback;
+  // Exactly one of star (behavioral) / technical (technical) is present when feedback is
+  // non-null; both optional so each rubric type-checks independently.
+  star?: StarFeedback;
+  technical?: TechnicalFeedback;
   strengths: string[];
   improvements: string[];
 }
 
+// closingKind is an explicit field returned by the interviewTurn lambda so the
+// frontend can detect the wrap-up state without string-matching the message.
+export type ClosingKind = 'all_questions_answered' | 'time_running_out' | null;
+
 export interface TurnResponse {
   question: string;
+  closingKind: ClosingKind;
   questionNumber: number;
   isFollowUp: boolean;
   elapsedSeconds: number;
   remainingSeconds: number;
   feedback: TurnFeedback | null;
   fillerWords: Record<string, number> | null;
+  // Classifies res.question together with isFollowUp: isFollowUp + 'clear' => a real
+  // follow-up; isFollowUp + 'unclear' => a restate request after unparseable speech.
+  // Optional so a missing value is treated as 'clear' per the backend contract.
+  transcriptClarity?: 'clear' | 'unclear';
 }
 
 export interface EndRequest {
@@ -175,6 +199,8 @@ export interface SessionResponse {
   createdAtEpoch: number;
   assessment?: Assessment | null;
   keyterms?: string[];
+  // See StartInterviewResponse.employerKeyterms — same field on restore.
+  employerKeyterms?: string[];
 }
 
 export async function getSession(sessionId: string): Promise<SessionResponse> {

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { diffWords } from 'diff';
+import { diffResumeParts } from '../utils/resumeDiff';
 import './DiffView.css';
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
 }
 
 export function DiffView({ original, suggested }: Props) {
-  const parts = useMemo(() => diffWords(original, suggested), [original, suggested]);
+  const parts = useMemo(() => diffResumeParts(original, suggested), [original, suggested]);
 
   return (
     <div className="diff-view card">
@@ -16,13 +16,13 @@ export function DiffView({ original, suggested }: Props) {
         <h3>Resume Diff</h3>
         <div className="diff-view__legend">
           <span className="diff-view__legend-item diff-view__legend-item--original">
-            Original text
+            Original
           </span>
           <span className="diff-view__legend-item diff-view__legend-item--added">
             Suggested additions
           </span>
           <span className="diff-view__legend-item diff-view__legend-item--removed">
-            Removed text
+            Removed
           </span>
         </div>
       </div>

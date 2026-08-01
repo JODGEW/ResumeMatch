@@ -20,7 +20,7 @@ export function getTrackerPrefill(analysis: Analysis) {
     skillMatch: {
       matchedSkills: analysis.presentKeywords || [],
       missingSkills: analysis.missingKeywords || [],
-      matchPercentage: analysis.matchScore || 0,
+      matchPercentage: Number(analysis.matchScore) || 0,
     },
   };
 }

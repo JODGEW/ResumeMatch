@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getAnalysisHistory, getAnalysis } from '../api/analysis';
 import { useAuth } from '../auth/AuthContext';
@@ -8,9 +8,12 @@ import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
 import { getTrackerPrefill } from '../utils/trackerPrefill';
 import { isInProgress } from '../hooks/usePolling';
+import { getScoreBand } from '../utils/scoreBands';
+import { clearAnalysisNew, getNewAnalysisIds, markAnalysisNew } from '../utils/newAnalyses';
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { DEMO_ANALYSES } from '../types/demoAnalyses';
 import './History.css';
 
 function hasInProgress(items: Analysis[]) {
@@ -38,7 +41,7 @@ export function History() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [newlyCompleted, setNewlyCompleted] = useState<Set<string>>(new Set());
+  const [newAnalysisIds, setNewAnalysisIds] = useState<Set<string>>(() => getNewAnalysisIds());
   const prevStatusRef = useRef<Map<string, string>>(new Map());
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,6 +53,7 @@ export function History() {
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
   const [upgradePrompt, setUpgradePrompt] = useState<UpgradePromptContent | null>(null);
+  const [query, setQuery] = useState('');
 
   // Gate on plan === 'free' (not hasPro) so grandfathered Pro users — who
   // resolve to hasPro:false today but get full history from the backend —
@@ -76,6 +80,27 @@ export function History() {
     }, options);
   }, [setSearchParams]);
 
+  // Search runs over the already-loaded list, which the loader keeps sorted
+  // newest-first — that ordering is the only one the page offers.
+  const visibleAnalyses = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return analyses;
+    return analyses.filter(a => (a.jobTitle ?? '').toLowerCase().includes(q));
+  }, [analyses, query]);
+
+  // Opening the analysis from History is what retires its "New" badge. The
+  // report auto-revealing right after completion deliberately doesn't, or the
+  // badge would be gone before it was ever seen.
+  function handleOpenAnalysis(analysisId: string) {
+    if (!newAnalysisIds.has(analysisId)) return;
+    clearAnalysisNew(analysisId);
+    setNewAnalysisIds(current => {
+      const next = new Set(current);
+      next.delete(analysisId);
+      return next;
+    });
+  }
+
   function handleAddToTracker(a: Analysis) {
     const prefill = getTrackerPrefill(a);
     navigate(`/tracker?prefill=${encodeURIComponent(JSON.stringify(prefill))}`);
@@ -87,13 +112,31 @@ export function History() {
 
   useEffect(() => {
     if (loading) return;
-    const totalPages = Math.max(1, Math.ceil(analyses.length / ITEMS_PER_PAGE));
+    const totalPages = Math.max(1, Math.ceil(visibleAnalyses.length / ITEMS_PER_PAGE));
     if (currentPage > totalPages) {
       goToPage(totalPages, { replace: true });
     }
-  }, [analyses.length, currentPage, goToPage, loading]);
+  }, [visibleAnalyses.length, currentPage, goToPage, loading]);
+
+  // Narrowing the list should land you on its first page — but only on a real
+  // change, so a ?page=N deep link still resolves on first render.
+  const queryRef = useRef(query);
+  useEffect(() => {
+    if (queryRef.current === query) return;
+    queryRef.current = query;
+    goToPage(1, { replace: true });
+  }, [query, goToPage]);
 
   useEffect(() => {
+    // The shared demo account is read-only: serve the committed fixtures and
+    // never call the backend — same pattern as the interview tab's
+    // SAMPLE_INTERVIEW_SUMMARY. Array order is the display order.
+    if (isDemo) {
+      setAnalyses(DEMO_ANALYSES);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     const pollRef: { timer?: ReturnType<typeof setInterval>; started?: number } = {};
 
@@ -159,21 +202,16 @@ export function History() {
           }
           prev.set(a.analysisId, a.status);
         }
+        // Completing while History is open also earns the badge. It persists
+        // (utils/newAnalyses) and clears when the user opens the analysis, so
+        // there's no timed auto-clear here.
         if (justCompleted.size > 0) {
-          setNewlyCompleted(s => {
-            const next = new Set(s);
+          justCompleted.forEach(markAnalysisNew);
+          setNewAnalysisIds(current => {
+            const next = new Set(current);
             justCompleted.forEach(id => next.add(id));
             return next;
           });
-          // Auto-clear "New" badges after 5 seconds
-          setTimeout(() => {
-            if (cancelled) return;
-            setNewlyCompleted(s => {
-              const next = new Set(s);
-              justCompleted.forEach(id => next.delete(id));
-              return next;
-            });
-          }, 5000);
         }
 
         setAnalyses(filtered);
@@ -215,7 +253,7 @@ export function History() {
       cancelled = true;
       if (pollRef.timer) clearInterval(pollRef.timer);
     };
-  }, [pendingAnalysisId]);
+  }, [pendingAnalysisId, isDemo]);
 
   function formatDate(iso: string) {
     const normalized = iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
@@ -227,14 +265,6 @@ export function History() {
       minute: '2-digit',
       timeZoneName: 'short'
     });
-  }
-
-  function getScoreColor(score: number) {
-    if (score >= 86) return 'var(--score-high)';
-    if (score >= 76) return 'var(--score-good)';
-    if (score >= 61) return 'var(--score-mid)';
-    if (score >= 41) return 'var(--score-low)';
-    return 'var(--score-poor)';
   }
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -253,21 +283,34 @@ export function History() {
     try {
       // History endpoint may not include suggestedText — fetch full analysis if needed
       let text = a.suggestedText;
+      let original = a.originalText;
       if (!text) {
         const full = await getAnalysis(a.analysisId);
         text = full.suggestedText;
+        original = full.originalText;
       }
       clearTimeout(timeout);
       if (!text?.trim()) {
         setDownloadingId(null);
-        if (BILLING_UI_ENABLED && entitlements?.plan === 'free') {
-          setUpgradePrompt({
-            title: 'Upgrade to download DOCX',
-            body: 'AI rewrite suggestions and DOCX export are included with Pro. Upgrade to see the edit diff and download the optimized resume.',
-          });
-        } else {
-          setDownloadError('No optimized resume is available for this analysis.');
+        // With billing UI off this stays main's silent no-op; with it on, a
+        // free user gets the upsell and a paid user gets a real explanation.
+        if (BILLING_UI_ENABLED) {
+          if (entitlements?.plan === 'free') {
+            setUpgradePrompt({
+              title: 'Upgrade to download DOCX',
+              body: 'AI rewrite suggestions and DOCX export are included with Pro. Upgrade to see the edit diff and download the optimized resume.',
+            });
+          } else {
+            setDownloadError('No optimized resume is available for this analysis.');
+          }
         }
+        return;
+      }
+      // The rewrite guard can legitimately produce zero edits. Say so rather
+      // than handing back a DOCX identical to the resume they uploaded.
+      if (original?.trim() && text.trim() === original.trim()) {
+        setDownloadError('No safe rewrites for this analysis — open it to see what would close the gaps.');
+        setDownloadingId(null);
         return;
       }
       const parsed = parseResume(text);
@@ -311,22 +354,19 @@ export function History() {
     }
   }
 
-
   return (
-    <div className="page-container">
-      <div className="page-header animate-in">
-        <div className="history-header">
-          <div>
-            <h1>Analysis History</h1>
-            <p>Your past resume analyses</p>
-          </div>
-          <Link to="/upload" className="btn btn-primary btn-create-action">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            New analysis
-          </Link>
+    <div className="page-container history-page">
+      <div className="history-head animate-in">
+        <div>
+          <h1>Analysis History</h1>
+          <p>Your past resume analyses</p>
         </div>
+        <Link to="/upload" className="history-new-btn">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          </svg>
+          New analysis
+        </Link>
       </div>
 
       {loading && (
@@ -337,10 +377,10 @@ export function History() {
       )}
 
       {(error || downloadError || interviewError) && (
-        <div className="upload-error animate-in">
+        <div className="history-alert animate-in">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="7" stroke="var(--danger)" strokeWidth="1.5" />
-            <path d="M8 5v3.5M8 10.5v.5" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
           {error || downloadError || interviewError}
         </div>
@@ -360,129 +400,215 @@ export function History() {
         </div>
       )}
 
-      {!loading && analyses.length > 0 && (() => {
-        const totalPages = Math.max(1, Math.ceil(analyses.length / ITEMS_PER_PAGE));
+      {!loading && !error && analyses.length > 0 && (
+        <div className="history-controls animate-in">
+          <div className="history-search">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" className="history-search__icon">
+              <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+            <input
+              className="history-search__input"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search role or company..."
+              aria-label="Search role or company"
+            />
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && analyses.length > 0 && visibleAnalyses.length === 0 && (
+        <div className="history-no-match animate-in">
+          <div className="history-no-match__title">No analyses match "{query}"</div>
+          <div className="history-no-match__hint">Try a different company or role.</div>
+        </div>
+      )}
+
+      {!loading && visibleAnalyses.length > 0 && (() => {
+        const totalPages = Math.max(1, Math.ceil(visibleAnalyses.length / ITEMS_PER_PAGE));
         const pageInView = Math.min(currentPage, totalPages);
-        const paginatedItems = analyses.slice((pageInView - 1) * ITEMS_PER_PAGE, pageInView * ITEMS_PER_PAGE);
+        const paginatedItems = visibleAnalyses.slice((pageInView - 1) * ITEMS_PER_PAGE, pageInView * ITEMS_PER_PAGE);
 
         return (
           <>
             <div className="history-list">
               {paginatedItems.map((analysis, i) => {
                 const inProgress = isInProgress(analysis.status);
-                const badgeStatus = inProgress ? 'processing' : analysis.status;
-                const isNew = newlyCompleted.has(analysis.analysisId);
+                const badgeStatus = analysis.status;
+                const isNew = newAnalysisIds.has(analysis.analysisId);
+                const scored = analysis.status === 'completed' && analysis.matchScore != null;
+                const band = scored ? getScoreBand(analysis.matchScore!) : null;
+
+                // A job still in flight gets the bundle's processing card: same
+                // shell, spinner in the score-ring slot, and a live link through
+                // to the in-progress screen.
+                if (inProgress) {
+                  return (
+                    <Link
+                      key={analysis.analysisId}
+                      to={`/results/${analysis.analysisId}`}
+                      className="history-card history-card--processing animate-in"
+                      style={{ animationDelay: `${0.05 + i * 0.04}s` }}
+                      title="View live progress"
+                    >
+                      <div className="history-card__lead">
+                        <div className="history-card__spinner" aria-hidden="true">
+                          <svg width="50" height="50" viewBox="0 0 50 50">
+                            <circle cx="25" cy="25" r="21" fill="none" stroke="var(--track)" strokeWidth="4.5" />
+                            <path d="M25 4a21 21 0 0 1 21 21" fill="none" stroke="var(--accent-hover)" strokeWidth="4.5" strokeLinecap="round" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      <div className="history-card__body">
+                        <div className="history-card__head">
+                          <span className="history-card__title">Analysis in progress</span>
+                          <span className="history-card__processing-pill">
+                            <span className="history-card__processing-dot" />
+                            Processing
+                          </span>
+                        </div>
+
+                        <div className="history-card__meta">
+                          {analysis.fileName && (
+                            <span className="history-card__file">{analysis.fileName}</span>
+                          )}
+                          <span className="history-card__date">{formatDate(analysis.timestamp ?? analysis.createdAt)}</span>
+                        </div>
+
+                        <p className="history-card__summary">
+                          Comparing against the job description — scoring match, keyword gaps, and experience alignment.
+                        </p>
+
+                        <div className="history-card__indeterminate" aria-hidden="true">
+                          <span />
+                        </div>
+
+                        <div className="history-card__live">
+                          View live progress
+                          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                          </svg>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                }
 
                 return (
                   <Link
                     key={analysis.analysisId}
-                    to={inProgress ? '#' : `/results/${analysis.analysisId}`}
-                    className={`history-item card animate-in${inProgress ? ' history-item--disabled' : ''}${isNew ? ' history-item--new' : ''}`}
+                    to={`/results/${analysis.analysisId}`}
+                    className={`history-card animate-in${isNew ? ' history-card--new' : ''}`}
                     style={{ animationDelay: `${0.05 + i * 0.04}s` }}
-                    onClick={inProgress ? (e) => e.preventDefault() : undefined}
-                    title={inProgress ? 'Still processing — results aren\'t ready yet' : 'View analysis details'}
+                    onClick={() => handleOpenAnalysis(analysis.analysisId)}
+                    title="View analysis details"
                   >
-                    <div className="history-item__left">
-                      {analysis.status === 'completed' && analysis.matchScore != null ? (
-                        <div className="history-item__score" style={{ color: getScoreColor(analysis.matchScore) }}>
-                          <svg width="56" height="56" viewBox="0 0 44 44">
-                            <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="2.5" />
+                    {isNew && <span className="history-card__new-ring" aria-hidden="true" />}
+                    <div className="history-card__lead">
+                      {scored ? (
+                        <div className="history-card__ring" style={{ color: band!.color }}>
+                          <svg width="50" height="50" viewBox="0 0 50 50">
+                            <circle cx="25" cy="25" r="21" fill="none" stroke="var(--track)" strokeWidth="4.5" />
                             <circle
-                              cx="22" cy="22" r="18"
+                              cx="25" cy="25" r="21"
                               fill="none"
                               stroke="currentColor"
-                              strokeWidth="2.5"
+                              strokeWidth="4.5"
                               strokeLinecap="round"
-                              strokeDasharray={`${(analysis.matchScore / 100) * 113.1} 113.1`}
-                              transform="rotate(-90 22 22)"
+                              strokeDasharray={`${(analysis.matchScore! / 100) * 131.9} 131.9`}
+                              transform="rotate(-90 25 25)"
                             />
                           </svg>
-                          <span className="history-item__score-value">{analysis.matchScore}%</span>
+                          <span className="history-card__ring-value">{analysis.matchScore}</span>
                         </div>
                       ) : (
                         <div className={`status-badge status-badge--${badgeStatus}`}>
-                          {inProgress && <span className="status-badge__dot" />}
                           {badgeStatus.charAt(0).toUpperCase() + badgeStatus.slice(1)}
                         </div>
                       )}
                     </div>
 
-                    <div className="history-item__body">
-                      <div className="history-item__details">
-                        <h3 className="history-item__title">{analysis.jobTitle || 'Analysis Results'}</h3>
-                        <div className="history-item__meta">
-                          {analysis.fileName && (
-                            <span className="history-item__file">{analysis.fileName}</span>
-                          )}
-                          {isNew && <span className="history-item__new-badge">New</span>}
-                          <span className="history-item__date">{formatDate(analysis.timestamp ?? analysis.createdAt)}</span>
-                        </div>
-                        {inProgress ? (
-                          <p className="history-item__jd" style={{ fontStyle: 'italic' }}>
-                            Analyzing match score, keyword gaps, and experience alignment…
-                          </p>
-                        ) : analysis.status === 'failed' && analysis.errorMessage ? (
-                          <p className="history-item__jd" style={{ color: 'var(--danger)' }}>
-                            {analysis.errorMessage}
-                          </p>
-                        ) : (analysis.scoreSummaryShort || analysis.scoreSummary || analysis.jobDescription) ? (
-                          <p className="history-item__jd">
-                            {analysis.scoreSummaryShort ?? analysis.scoreSummary
-                              ?? (analysis.jobDescription!.substring(0, 140) + (analysis.jobDescription!.length > 140 ? '...' : ''))}
-                          </p>
-                        ) : null}
-                        {analysis.presentKeywords && analysis.missingKeywords && (
-                          <div className="history-item__stats">
-                            <span className="history-item__pill history-item__pill--success">
-                              <span className="history-item__pill-dot" />
-                              {analysis.presentKeywords.length} Matched
-                            </span>
-                            <span className="history-item__pill history-item__pill--danger">
-                              <span className="history-item__pill-dot" />
-                              {analysis.missingKeywords.length} Missing
-                            </span>
-                          </div>
+                    <div className="history-card__body">
+                      <div className="history-card__head">
+                        <span className="history-card__title">{analysis.jobTitle || 'Analysis Results'}</span>
+                        {isNew && (
+                          <span className="history-card__new-badge">
+                            <span className="history-card__new-dot" />
+                            New
+                          </span>
                         )}
-                        {analysis.missingKeywords && analysis.missingKeywords.length > 0 && (
-                          <p className="history-item__missing">
-                            <span className="history-item__missing-label">Missing: </span>
-                            <span className="history-item__missing-keywords">{analysis.missingKeywords.slice(0, 3).join(', ')}</span>
-                            {analysis.missingKeywords.length > 3 && (
-                              <span className="history-item__missing-more"> +{analysis.missingKeywords.length - 3} more</span>
-                            )}
-                          </p>
+                        {band && (
+                          <span className={`history-card__band history-card__band--${band.tier}`}>
+                            {band.label}
+                          </span>
                         )}
                       </div>
-                    </div>
 
-                    {analysis.status === 'completed' && analysis.matchScore != null && (
-                      <div className="history-item__actions">
-                        <button
-                          className="btn btn-primary history-item__interview-btn"
-                          title={isDemo ? 'Sign up for full access' : 'Start mock interview'}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (isDemo) {
-                              setSignupPrompt({
-                                title: 'Start Your Mock Interview',
-                                body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
-                              });
-                              return;
-                            }
-                            handleInterview(analysis);
-                          }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
-                            <path d="M2 7c0 2.75 2.25 5 5 5s5-2.25 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                            <path d="M7 12v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                          Start Interview
-                        </button>
-                        <div className="history-item__secondary-actions">
+                      <div className="history-card__meta">
+                        {analysis.fileName && (
+                          <span className="history-card__file">{analysis.fileName}</span>
+                        )}
+                        <span className="history-card__date">{formatDate(analysis.timestamp ?? analysis.createdAt)}</span>
+                      </div>
+
+                      {analysis.status === 'failed' && analysis.errorMessage ? (
+                        <p className="history-card__summary history-card__summary--failed">
+                          {analysis.errorMessage}
+                        </p>
+                      ) : (analysis.scoreSummaryShort || analysis.scoreSummary || analysis.jobDescription) ? (
+                        <p className="history-card__summary">
+                          {analysis.scoreSummaryShort ?? analysis.scoreSummary
+                            ?? (analysis.jobDescription!.substring(0, 140) + (analysis.jobDescription!.length > 140 ? '...' : ''))}
+                        </p>
+                      ) : null}
+
+                      {analysis.presentKeywords && analysis.missingKeywords && (
+                        <div className="history-card__stats">
+                          <span className="history-card__pill history-card__pill--success">
+                            <span className="history-card__pill-dot" />
+                            {analysis.presentKeywords.length} matched
+                          </span>
+                          <span className="history-card__pill history-card__pill--danger">
+                            <span className="history-card__pill-dot" />
+                            {analysis.missingKeywords.length} missing
+                          </span>
+                          {analysis.missingKeywords.length > 0 && (
+                            <span className="history-card__gaps">
+                              Gaps: {analysis.missingKeywords.slice(0, 3).join(', ')}
+                              {analysis.missingKeywords.length > 3 && ` +${analysis.missingKeywords.length - 3} more`}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {scored && (
+                        <div className="history-card__actions">
                           <button
-                            className="btn btn-secondary history-item__tracker-btn"
+                            className="history-action history-action--brand"
+                            title={isDemo ? 'Sign up for full access' : 'Start mock interview'}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (isDemo) {
+                                setSignupPrompt({
+                                  title: 'Start Your Mock Interview',
+                                  body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
+                                });
+                                return;
+                              }
+                              handleInterview(analysis);
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                              <rect x="6" y="2" width="4" height="8" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                              <path d="M4 8a4 4 0 0 0 8 0M8 12v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                            </svg>
+                            Start Interview
+                          </button>
+                          <button
+                            className="history-action"
                             title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
                             onClick={(e) => {
                               e.preventDefault();
@@ -497,10 +623,13 @@ export function History() {
                               handleAddToTracker(analysis);
                             }}
                           >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
                             Add to Tracker
                           </button>
                           <button
-                            className="btn btn-secondary history-item__download-btn"
+                            className="history-action"
                             disabled={downloadingId === analysis.analysisId}
                             title={isDemo ? 'Sign up for full access' : 'Download optimized resume'}
                             onClick={(e) => {
@@ -518,31 +647,20 @@ export function History() {
                           >
                             {downloadingId === analysis.analysisId ? (
                               <>
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 0.8s linear infinite' }}>
-                                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="8" strokeLinecap="round" />
-                                </svg>
+                                <span className="loading-spinner loading-spinner--sm" />
                                 Downloading...
                               </>
                             ) : (
                               <>
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M8 2v8m0 0L5 7m3 3l3-3" />
-                                  <path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" />
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                  <path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                                 Download
                               </>
                             )}
                           </button>
                         </div>
-                      </div>
-                    )}
-
-                    <div className="history-item__arrow">
-                      <span className="history-item__arrow-label">View details</span>
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                      )}
                     </div>
                   </Link>
                 );

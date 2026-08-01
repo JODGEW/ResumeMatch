@@ -2,10 +2,16 @@ import { useEffect, useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { getAnalysisHistory } from '../api/analysis';
+import { getScoreBand } from '../utils/scoreBands';
 import type { Analysis } from '../types';
 import './Dashboard.css';
 
-const DEMO_EMAIL = 'demo123@resumeapp.com';
+// Owner-only. This whole page IS the cost dashboard (estimatedCost + token counts), so the
+// gate is the cost gate. Deliberately NOT demo123@resumeapp.com — that is the public "Try
+// Demo" account, and gating on it exposed per-analysis unit economics to anyone who clicked
+// Try Demo. VITE_DEV_BYPASS is not an escape hatch here either: cost renders for this one
+// account and nobody else.
+const COST_VISIBLE_EMAIL = 'demo@resumeapp.com';
 
 // Fallback estimate for older records without tokenUsage
 const COST_BEDROCK_PER_PASS = 0.0032;
@@ -66,8 +72,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const isDemoAccount = user?.email === DEMO_EMAIL ||
-    import.meta.env.VITE_DEV_BYPASS === 'true';
+  const isDemoAccount = user?.email === COST_VISIBLE_EMAIL;
 
   useEffect(() => {
     if (!isDemoAccount) return;
@@ -374,12 +379,7 @@ export function Dashboard() {
                         </td>
                         <td className="dash-table__td dash-table__td--right">
                           {row.status === 'completed' && row.matchScore != null ? (
-                            <span className="dash-table__score" data-level={
-                              row.matchScore >= 86 ? 'high' :
-                              row.matchScore >= 76 ? 'good' :
-                              row.matchScore >= 61 ? 'mid' :
-                              row.matchScore >= 41 ? 'low' : 'poor'
-                            }>
+                            <span className="dash-table__score" data-level={getScoreBand(row.matchScore).tier}>
                               {row.matchScore}
                             </span>
                           ) : '—'}

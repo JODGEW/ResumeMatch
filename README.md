@@ -1,20 +1,22 @@
 # ResumeMatch
 
+[![CI](https://github.com/JODGEW/ResumeMatch/actions/workflows/ci.yml/badge.svg)](https://github.com/JODGEW/ResumeMatch/actions/workflows/ci.yml)
+
 ResumeMatch is a production-grade, fully serverless AI resume analyzer deployed on AWS that helps job seekers evaluate how well their resume matches a job description and identify gaps before applying.
 
 ## Screenshots
 
-### Login
+### Landing
 
-![Login Page](screenshots/login.png)
+![Landing Page](screenshots/landing.jpg)
 
 ### Resume Analysis
 
-![Results Page](screenshots/result.png)
+![Results Page](screenshots/landing_analysis_result.jpg)
 
 ### Outreach Tracker
 
-![Tracker](screenshots/tracker.png)
+![Tracker](screenshots/readme_tracker.jpg)
 
 ## Live Demo
 
@@ -44,7 +46,7 @@ Upload + Paste JD → Cache Check → [hit]  → Return cached result → Result
 1. **Upload** — User uploads a resume PDF and pastes the target job description. Returning users can reuse their last uploaded resume without re-uploading
 2. **Cache Check** — Lambda normalizes inputs (trim, lowercase, collapse whitespace), hashes them into a deterministic cache key (`v1#analysis#<sha256>`), and looks up the `ResumeCache` DynamoDB table. On hit, returns cached result instantly. On miss or failure, falls through silently to the pipeline
 3. **Extract** — Amazon Textract pulls structured text from the PDF
-4. **Analyze** — Amazon Bedrock (Claude Haiku) runs four passes: keyword extraction, match scoring, experience gap analysis, and resume rewriting
+4. **Analyze** — Amazon Bedrock runs four passes: keyword extraction, match scoring, and experience gap analysis on Claude Haiku 4.5, then resume rewriting on Claude Sonnet 4.6
 5. **Cache Write** — Result is written to `ResumeCache` with a 48-hour TTL. Payloads over 200KB are gzip-compressed; over 350KB are skipped. Write failures are logged and swallowed — never block the user
 6. **Store** — Results persist in `ResumeAnalysis` DynamoDB table with cache metadata (`cacheSource`, `cacheLatencyMs`) for dashboard analytics
 7. **Display** — Frontend renders match score with breakdown, keyword gaps with priority ranking, experience warnings, actionable suggestions, and a side-by-side diff of the rewritten resume
@@ -61,7 +63,7 @@ Upload + Paste JD → Cache Check → [hit]  → Return cached result → Result
 ### Mock Interview Practice
 - **Interview generation from analysis results** — start a mock interview directly from a resume/JD analysis
 - **Behavioral and technical formats** — choose the interview style before starting a session
-- **Voice-first interview flow** — push-to-talk recording with browser speech recognition and optional interviewer text-to-speech
+- **Voice-first interview flow** — push-to-talk recording transcribed with Deepgram (live interim text while you speak, plus a higher-accuracy batch transcript on release) and optional interviewer text-to-speech
 - **Live session state** — question progress, countdown timer, answer timing, active-session restore, and continue-interview support
 - **Follow-up aware progress** — follow-up prompts count as interview questions, while closing instructions are excluded from question totals
 - **Interview report** — assessment-first results page with overall score, dimension feedback, strengths, areas to improve, and full transcript
@@ -165,7 +167,7 @@ Built and deployed as a fully serverless stack:
 - **Compute:** AWS Lambda
 - **Storage:** S3, DynamoDB (ResumeAnalysis + ResumeCache)
 - **Caching:** DynamoDB read-through cache with TTL, compression, and fallback isolation
-- **AI/ML:** Amazon Textract (OCR), Amazon Bedrock (Claude Haiku)
+- **AI/ML:** Amazon Textract (OCR), Amazon Bedrock (Claude Haiku 4.5 and Claude Sonnet 4.6)
 - **API:** API Gateway
 - **Auth:** AWS Cognito (email/password authentication, signup verification, password reset flow, session management)
 - **CDN:** CloudFront
@@ -183,7 +185,7 @@ Backend:
 - API Gateway
 
 AI:
-- Amazon Bedrock (Claude Haiku)
+- Amazon Bedrock (Claude Haiku 4.5 and Claude Sonnet 4.6)
 
 Infrastructure:
 - S3

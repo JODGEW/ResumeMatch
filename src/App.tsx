@@ -20,7 +20,6 @@ import { InterviewResults } from './pages/InterviewResults';
 import { Pricing } from './pages/Pricing';
 import { UpgradeCancel } from './pages/UpgradeCancel';
 import { UpgradeSuccess } from './pages/UpgradeSuccess';
-import { ResultsPreview } from './pages/ResultsPreview';
 import { BILLING_UI_ENABLED } from './config/billing';
 
 const DEV_MODE = import.meta.env.VITE_DEV_BYPASS === 'true';
@@ -67,6 +66,8 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          {/* Public, bare (no Layout/auth): signed-out sample report, zero backend calls. */}
+          <Route path="/sample" element={<main><Results sample /></main>} />
 
           <Route
             element={
@@ -89,9 +90,6 @@ export default function App() {
                 <Route path="/upgrade/success" element={<UpgradeSuccess />} />
                 <Route path="/upgrade/cancel" element={<UpgradeCancel />} />
               </>
-            )}
-            {DEV_MODE && (
-              <Route path="/preview" element={<ResultsPreview />} />
             )}
           </Route>
 

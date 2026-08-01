@@ -1,10 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
 import { DiffView } from '../components/DiffView';
+import { countSafeEdits } from '../utils/resumeDiff';
+import { getScoreBand, getScoreColor, type ScoreTier } from '../utils/scoreBands';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
+import { AnalysisProgressCard, COMPLETION_BEAT_MS } from '../components/AnalysisProgressCard';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { UpgradePrompt } from '../components/UpgradePrompt';
 import { BILLING_UI_ENABLED } from '../config/billing';
@@ -14,12 +19,18 @@ import { getSession, isMissingInterviewSessionError, listSessions } from '../api
 import { clearInterviewPointer, loadInterviewPointer } from '../utils/interviewPointer';
 import { getTrackerPrefill } from '../utils/trackerPrefill';
 import { useAuth } from '../auth/AuthContext';
+import { SAMPLE_ANALYSIS } from '../types/sampleAnalysis';
+import { DEMO_ANALYSES_BY_ID } from '../types/demoAnalyses';
 import './Results.css';
 
 type LastInterview = {
   sessionId: string;
   createdAt?: string;
   completedAt?: string;
+  interviewType?: string;
+  // undefined = not looked up yet (a listSessions summary carries no assessment);
+  // null = looked up and the session has no score.
+  overallScore?: number | null;
 };
 
 type SignupPromptContent = {
@@ -32,24 +43,40 @@ function getLastInterviewTime(session: LastInterview) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function InterviewButton({ resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, navigate, isDemo, onDemoAction }: {
+// Same shape as the local helpers in InterviewHistory/InterviewResults.
+function formatInterviewType(type?: string): string {
+  if (!type) return '';
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function formatLastInterviewDate(session: LastInterview): string {
+  const raw = session.completedAt || session.createdAt;
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// The action-row entry shows the interview's score, which only getSession
+// returns — listSessions summaries have no assessment. The pointer path already
+// pays for a getSession; when the winning session came from listSessions
+// instead, fetch that one session once to fill the pill in.
+function useLastInterview({ resumeText, jobDescription, analysisId, enabled }: {
   resumeText: string;
   jobDescription: string;
-  fileName?: string;
   analysisId?: string;
-  jobTitle?: string;
-  matchScore?: number;
-  navigate: ReturnType<typeof useNavigate>;
-  isDemo: boolean;
-  onDemoAction: (content: SignupPromptContent) => void;
+  enabled: boolean;
 }) {
-  const [lastInterviewId, setLastInterviewId] = useState<string | null>(null);
+  const [lastInterview, setLastInterview] = useState<LastInterview | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadLastInterview() {
-      setLastInterviewId(null);
+      setLastInterview(null);
+      // Read-only (shared demo account or signed-out /sample) or nothing to key
+      // on: skip the authed session lookups (listSessions / getSession) entirely.
+      if (!enabled || !resumeText || !jobDescription) return;
       const candidates: LastInterview[] = [];
 
       const pointer = loadInterviewPointer(resumeText, jobDescription);
@@ -62,6 +89,8 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
               sessionId: session.sessionId,
               createdAt: session.createdAt,
               completedAt: session.completedAt,
+              interviewType: session.interviewType,
+              overallScore: session.assessment?.overallScore ?? null,
             });
           }
         } catch (err) {
@@ -82,6 +111,7 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
               sessionId: session.sessionId,
               createdAt: session.createdAt,
               completedAt: session.completedAt,
+              interviewType: session.interviewType,
             }));
         } catch (err) {
           console.error('Failed to load interview sessions:', err);
@@ -89,8 +119,24 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
       }
 
       const latest = candidates.sort((a, b) => getLastInterviewTime(b) - getLastInterviewTime(a))[0];
+      if (!latest) return;
+
+      if (latest.overallScore === undefined) {
+        try {
+          const session = await getSession(latest.sessionId);
+          if (cancelled) return;
+          latest.overallScore = session.assessment?.overallScore ?? null;
+          latest.interviewType = session.interviewType || latest.interviewType;
+        } catch (err) {
+          if (cancelled) return;
+          // The entry still links to a real session — render it without the pill.
+          console.error('Failed to load last interview score:', err);
+          latest.overallScore = null;
+        }
+      }
+
       if (!cancelled) {
-        setLastInterviewId(latest?.sessionId ?? null);
+        setLastInterview(latest);
       }
     }
 
@@ -99,143 +145,105 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
     return () => {
       cancelled = true;
     };
-  }, [resumeText, jobDescription, analysisId]);
+  }, [resumeText, jobDescription, analysisId, enabled]);
 
+  return lastInterview;
+}
+
+function InterviewButton({ resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, navigate, isDemo, onDemoAction }: {
+  resumeText: string;
+  jobDescription: string;
+  fileName?: string;
+  analysisId?: string;
+  jobTitle?: string;
+  matchScore?: number;
+  navigate: ReturnType<typeof useNavigate>;
+  isDemo: boolean;
+  onDemoAction: (content: SignupPromptContent) => void;
+}) {
   return (
-    <div className="results-interview-action">
-      <button
-        className="btn btn-primary"
-        title={isDemo ? 'Sign up for full access' : undefined}
-        onClick={() => {
-          if (isDemo) {
-            onDemoAction({
-              title: 'Start Your Mock Interview',
-              body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
-            });
-            return;
-          }
-          navigate('/interview', {
-            state: { resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, startFresh: true }
+    <button
+      className="btn btn-primary"
+      title={isDemo ? 'Sign up for full access' : undefined}
+      onClick={() => {
+        if (isDemo) {
+          onDemoAction({
+            title: 'Start Your Mock Interview',
+            body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
           });
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M2 7c0 2.75 2.25 5 5 5s5-2.25 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          <path d="M7 12v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-        Start Interview
-      </button>
-      {lastInterviewId ? (
-        <Link className="results-last-interview-link" to={`/interview/results/${lastInterviewId}`}>
-          View last interview
-        </Link>
-      ) : null}
-    </div>
+          return;
+        }
+        navigate('/interview', {
+          state: { resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, startFresh: true }
+        });
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M2 7c0 2.75 2.25 5 5 5s5-2.25 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M7 12v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+      Start Interview
+    </button>
   );
 }
 
-function getScoreInterpretation(score: number) {
-  if (score >= 86) {
-    return {
-      label: 'Strong Match',
-      action: 'You are well aligned. Apply with minimal changes and emphasize your strongest matched skills.',
-      color: 'var(--score-high)'
-    };
-  }
+// A completed interview is a result you can return to, so it reads as an entry
+// in the action row — divider, score pill, meta line, chevron — rather than a
+// link dangling under Start Interview.
+function LastInterviewEntry({ entry }: { entry: LastInterview }) {
+  const interviewType = formatInterviewType(entry.interviewType);
+  const date = formatLastInterviewDate(entry);
+  const meta = [interviewType, date].filter(Boolean).join(' · ');
+  const score = entry.overallScore != null ? Math.round(entry.overallScore) : null;
+  // Left to its text content the link announces as a bare "71%" ahead of the
+  // label, so name it explicitly instead.
+  const label = ['View last interview', score != null ? `${score}% score` : '', interviewType, date]
+    .filter(Boolean)
+    .join(', ');
 
-  if (score >= 76) {
-    return {
-      label: 'Good Match',
-      action: 'Apply after a light resume pass. Add missing keywords only where they honestly fit.',
-      color: 'var(--score-good)'
-    };
-  }
-
-  if (score >= 61) {
-    return {
-      label: 'Moderate Match',
-      action: 'Tailor your resume before applying. Focus on the highest-priority missing keywords.',
-      color: 'var(--score-mid)'
-    };
-  }
-
-  if (score >= 41) {
-    return {
-      label: 'Weak Match',
-      action: 'Apply selectively. The role has meaningful gaps, so prioritize stronger matches unless you can clearly address them.',
-      color: 'var(--score-low)'
-    };
-  }
-
-  return {
-    label: 'Poor Match',
-    action: 'This role is likely a poor fit based on the current resume. Target roles with closer alignment first.',
-    color: 'var(--score-poor)'
-  };
+  return (
+    <>
+      <span className="results-tools__divider" aria-hidden="true" />
+      <Link
+        className={`results-last-interview${score == null ? ' results-last-interview--no-score' : ''}`}
+        to={`/interview/results/${entry.sessionId}`}
+        aria-label={label}
+      >
+        {score != null && (
+          <span className="results-last-interview__score">{score}%</span>
+        )}
+        <span className="results-last-interview__text">
+          <span className="results-last-interview__label">View last interview</span>
+          {meta && <span className="results-last-interview__meta">{meta}</span>}
+        </span>
+        <svg className="results-last-interview__chevron" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </Link>
+    </>
+  );
 }
 
-function ResultsLoadingState({
-  title = 'Analyzing your resume',
-  description = 'Comparing keywords, skills, and qualifications...',
-  showActions = false,
-  analysisId,
-}: {
-  title?: string;
-  description?: string;
-  showActions?: boolean;
-  analysisId?: string;
-}) {
+// Only the recommended action is unique to this page — the label and colour
+// come from the shared rubric so they can't drift from the ring beside them.
+const SCORE_ACTIONS: Record<ScoreTier, string> = {
+  high: 'You are well aligned. Apply with minimal changes and emphasize your strongest matched skills.',
+  good: 'Apply after a light resume pass. Add missing keywords only where they honestly fit.',
+  mid: 'Tailor your resume before applying. Focus on the highest-priority missing keywords.',
+  low: 'Apply selectively. The role has meaningful gaps, so prioritize stronger matches unless you can clearly address them.',
+  poor: 'This role is likely a poor fit based on the current resume. Target roles with closer alignment first.',
+};
+
+function getScoreInterpretation(score: number) {
+  const band = getScoreBand(score);
+  return { label: band.label, color: band.color, action: SCORE_ACTIONS[band.tier] };
+}
+
+function ProgressPage({ children }: { children: React.ReactNode }) {
   return (
     <div className="page-container">
-      <div className="results-loading">
-        <div className="results-loading__ring">
-          <svg width="80" height="80" viewBox="0 0 80 80">
-            <circle
-              cx="40" cy="40" r="34"
-              fill="none"
-              stroke="var(--border)"
-              strokeWidth="6"
-            />
-            <circle
-              cx="40" cy="40" r="34"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray="60 154"
-              className="results-loading__arc"
-            />
-          </svg>
-        </div>
-        <h2>{title}</h2>
-        <p className="text-secondary">
-          {description}
-        </p>
-        {showActions && (
-          <>
-            <div className="results-loading__steps">
-              <div className="results-loading__step results-loading__step--done">
-                <span className="results-loading__dot" />
-                Upload received
-              </div>
-              <div className="results-loading__step results-loading__step--active">
-                <span className="results-loading__dot" />
-                Processing analysis
-              </div>
-            </div>
-            <div className="results-loading__bg-notice">
-              <p className="results-loading__bg-primary">Analysis is running in the background — you can safely leave.</p>
-              <p className="results-loading__bg-secondary">Results are saved automatically. View them anytime in <strong>History</strong>.</p>
-              <p className="results-loading__bg-tertiary">Usually takes ~30 seconds.</p>
-              <div className="results-loading__actions">
-                <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary btn--sm">Go to History</Link>
-                <Link to="/upload" className="btn btn-outline btn--sm">Do another analysis</Link>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+      <div className="analysis-progress-hero">{children}</div>
     </div>
   );
 }
@@ -251,9 +259,31 @@ function ResultsRouteLoadingState() {
   );
 }
 
-export function Results() {
+// useFocusTrap assumes mounted-means-open, but the resume modal is rendered
+// conditionally inside the page component where hooks can't be conditional.
+// Rendering this inside the modal gives the trap the right lifetime.
+function ModalFocusTrap({ panelRef, onEscape }: { panelRef: RefObject<HTMLDivElement>; onEscape: () => void }) {
+  useFocusTrap(panelRef, onEscape);
+  useBodyScrollLock();
+  return null;
+}
+
+export function Results({ sample = false }: { sample?: boolean }) {
   const { analysisId } = useParams<{ analysisId: string }>();
-  const { analysis, loading, error, timedOut } = usePolling(analysisId ?? null);
+  const { user } = useAuth();
+  const isDemo = user?.email === 'demo123@resumeapp.com';
+  // The shared demo account is read-only: its History deep-links resolve to
+  // committed fixtures, never the backend. An id outside the fixture map falls
+  // through with a null analysis and renders the normal not-found state.
+  const demoAnalysis = !sample && isDemo && analysisId ? DEMO_ANALYSES_BY_ID[analysisId] : undefined;
+  // In sample/demo-fixture mode we render canned data with no backend: pass
+  // `null` to usePolling so it short-circuits (no getAnalysis call, no
+  // stale-state guard), then override its outputs with the fixture.
+  const poll = usePolling(sample || demoAnalysis ? null : (analysisId ?? null));
+  const analysis = sample ? SAMPLE_ANALYSIS : demoAnalysis ?? poll.analysis;
+  const loading = sample || demoAnalysis ? false : poll.loading;
+  const error = sample || demoAnalysis ? null : poll.error;
+  const timedOut = sample || demoAnalysis ? false : poll.timedOut;
   const status = normalizeAnalysisStatus(analysis?.status);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState(false);
@@ -261,30 +291,58 @@ export function Results() {
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [jdOpen, setJdOpen] = useState(false);
   const [signupPrompt, setSignupPrompt] = useState<SignupPromptContent | null>(null);
-  const { user } = useAuth();
-  const isDemo = user?.email === 'demo123@resumeapp.com';
+  // Read-only covers both the shared demo account and the signed-out /sample page:
+  // every write/action button routes to the signup prompt instead of the backend.
+  const isReadOnly = isDemo || sample;
   const navigate = useNavigate();
+  const lastInterview = useLastInterview({
+    resumeText: analysis?.originalText || analysis?.suggestedText || '',
+    jobDescription: analysis?.jobDescription || '',
+    analysisId,
+    enabled: !isReadOnly,
+  });
+
+  // Completion beat: after the user has watched the analysis run, hold a brief
+  // all-steps-done card before revealing the report. Never plays when landing
+  // on an already-finished analysis (e.g. from History).
+  const sawProgressRef = useRef(false);
+  const [completionBeatDone, setCompletionBeatDone] = useState(false);
+  const isComplete = status === 'completed' && analysis?.matchScore != null;
+
+  useEffect(() => {
+    sawProgressRef.current = false;
+    setCompletionBeatDone(false);
+  }, [analysisId]);
+
+  useEffect(() => {
+    if (analysis && (isInProgress(status) || (status === 'completed' && analysis.matchScore == null))) {
+      sawProgressRef.current = true;
+    }
+  }, [analysis, status]);
+
+  const showCompletionBeat = isComplete && !completionBeatDone && sawProgressRef.current;
+
+  useEffect(() => {
+    if (!showCompletionBeat) return;
+    const timer = setTimeout(() => setCompletionBeatDone(true), COMPLETION_BEAT_MS);
+    return () => clearTimeout(timer);
+  }, [showCompletionBeat]);
+
+  // How many edits the guard let through. Drives the diff caption; 0 means the texts are
+  // identical and the no-safe-rewrites empty state renders instead.
+  const safeEditCount = useMemo(() => {
+    const originalText = analysis?.originalText;
+    const suggestedText = analysis?.suggestedText;
+    if (!originalText || !suggestedText) return 0;
+    return countSafeEdits(originalText, suggestedText);
+  }, [analysis?.originalText, analysis?.suggestedText]);
 
   const closeModal = useCallback(() => {
     setResumeUrl(null);
     setResumeError(null);
     setIframeLoaded(false);
   }, []);
-
-  // ESC to close modal
-  useEffect(() => {
-    if (!resumeUrl) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeModal();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    // Prevent body scroll when modal is open
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [resumeUrl, closeModal]);
+  const resumeModalRef = useRef<HTMLDivElement>(null);
 
   async function handleDownload() {
     if (!resumeUrl) return;
@@ -305,6 +363,14 @@ export function Results() {
   }
 
   async function handleViewResume() {
+    // Demo fixtures have no S3 object behind them; the PDF ships with the site
+    // (public/demo-resumes/, gitignored — see .gitignore). Skip the presigned
+    // URL mint entirely.
+    if (demoAnalysis) {
+      setResumeError(null);
+      setResumeUrl(`/demo-resumes/${demoAnalysis.fileName}`);
+      return;
+    }
     setResumeLoading(true);
     setResumeError(null);
     const timeout = setTimeout(() => {
@@ -352,74 +418,130 @@ export function Results() {
 
   if (!analysis || isInProgress(status)) {
     if (!timedOut) {
-      return <ResultsLoadingState showActions analysisId={analysisId} />;
+      return (
+        <ProgressPage>
+          <AnalysisProgressCard
+            key={analysisId}
+            mode="active"
+            status={status}
+            analysisId={analysisId}
+            fileName={analysis?.fileName}
+          />
+        </ProgressPage>
+      );
     }
 
     return (
-      <div className="page-container">
-        <div className="results-loading">
-          <h2>Still processing</h2>
-          <p className="text-secondary">
-            This is taking longer than expected. Refresh the page to check status.
-          </p>
-          <button
-            className="btn btn-primary"
-            style={{ marginTop: '1rem' }}
-            onClick={() => window.location.reload()}
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+      <ProgressPage>
+        <AnalysisProgressCard mode="timeout" analysisId={analysisId} />
+      </ProgressPage>
     );
   }
 
   if (status === 'failed') {
     return (
-      <div className="page-container">
-        <div className="results-empty">
-          <h2>Analysis failed</h2>
-          <p className="text-secondary">
-            {analysis.errorMessage || 'We couldn\'t process your resume. Please try uploading again.'}
-          </p>
-          <Link to="/upload" className="btn btn-primary" style={{ marginTop: '1rem' }}>
-            {analysis.errorMessage?.toLowerCase().includes('limit') ? 'Back to Upload' : 'Try again'}
-          </Link>
-        </div>
-      </div>
+      <ProgressPage>
+        <AnalysisProgressCard mode="failed" errorMessage={analysis.errorMessage} />
+      </ProgressPage>
     );
   }
 
   if (analysis.matchScore == null) {
     return (
-      <ResultsLoadingState
-        title="Finalizing results"
-        description="Your analysis is still being prepared..."
-      />
+      <ProgressPage>
+        <AnalysisProgressCard mode="finalizing" analysisId={analysisId} fileName={analysis.fileName} />
+      </ProgressPage>
+    );
+  }
+
+  if (showCompletionBeat) {
+    return (
+      <ProgressPage>
+        <AnalysisProgressCard
+          mode="complete"
+          analysisId={analysisId}
+          fileName={analysis.fileName}
+          roleLabel={analysis.jobTitle}
+          onViewReport={() => setCompletionBeatDone(true)}
+        />
+      </ProgressPage>
     );
   }
 
   const calculatedExperienceYears = analysis.experienceCheck?.displayYears ?? analysis.experienceCheck?.actualYears;
   const resumeStatedYears = analysis.experienceCheck?.resumeStatedYears || 'Not specified';
 
+  const analyzedAt = analysis.timestamp ?? analysis.createdAt;
+  const analyzedDate = analyzedAt
+    ? new Date(analyzedAt.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(analyzedAt) ? analyzedAt : analyzedAt + 'Z')
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+
   return (
-    <div className="page-container results-reading-page">
+    <div className={`page-container results-reading-page${completionBeatDone ? ' results-reading-page--reveal' : ''}`}>
+      {/* Sample-report banner: /sample renders bare (no app nav), so this is the
+          only persistent affordance for direct visitors. Required, not optional. */}
+      {sample && (
+        <div className="results-sample-banner" role="region" aria-label="Sample report">
+          <div className="results-sample-banner__text">
+            <span className="results-sample-banner__badge">Sample report</span>
+            <span className="results-sample-banner__note">
+              This is an example analysis. Run your own resume against any job — free, no card.
+            </span>
+          </div>
+          <div className="results-sample-banner__actions">
+            <Link to="/" className="btn btn-ghost btn--sm">Back to site</Link>
+            <Link to="/signup" className="btn btn-primary btn--sm">Create a free account</Link>
+          </div>
+        </div>
+      )}
+
+      {/* /sample renders bare for signed-out visitors — no history to go back to. */}
+      {!sample && (
+        <Link to="/history" className="results-back animate-in">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Back to history
+        </Link>
+      )}
+
       {/* Header */}
       <div className="page-header animate-in">
         <div className="results-header">
           <div className="results-header__top">
             <div className="results-header__title">
               <h1>{analysis.jobTitle || 'Analysis Results'}</h1>
-              {analysis.fileName && (
-                <p className="results-filename">{analysis.fileName}</p>
-              )}
+              <div className="results-header__meta">
+                {analysis.fileName && (
+                  <span className="results-filename">{analysis.fileName}</span>
+                )}
+                {analysis.fileName && analyzedDate && <span className="results-header__sep">·</span>}
+                {analyzedDate && <span className="results-analyzed">Analyzed {analyzedDate}</span>}
+              </div>
             </div>
-            <Link to="/upload" className="btn btn-primary btn-create-action results-header__primary">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              New analysis
-            </Link>
+            {isReadOnly ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-create-action results-header__primary"
+                onClick={() => setSignupPrompt({
+                  title: 'Run Your Own Analysis',
+                  body: 'Create a free account to match your resume against any job description — free, no card.',
+                })}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                New analysis
+              </button>
+            ) : (
+              <Link to="/upload" className="btn btn-primary btn-create-action results-header__primary">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                New analysis
+              </Link>
+            )}
           </div>
           <div className="results-header__tools">
             {analysis.jobDescription && (analysis.originalText || analysis.suggestedText) ? (
@@ -431,34 +553,36 @@ export function Results() {
                 jobTitle={analysis.jobTitle}
                 matchScore={analysis.matchScore}
                 navigate={navigate}
-                isDemo={isDemo}
+                isDemo={isReadOnly}
                 onDemoAction={setSignupPrompt}
               />
             ) : null}
-            <button
-              className="btn btn-secondary"
-              onClick={handleViewResume}
-              disabled={resumeLoading}
-            >
-              {resumeLoading ? (
-                <>
-                  <span className="btn-spinner" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 10v2h10v-2M7 2v7M4 6l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  View Resume
-                </>
-              )}
-            </button>
+            {!sample && (
+              <button
+                className="btn btn-secondary"
+                onClick={handleViewResume}
+                disabled={resumeLoading}
+              >
+                {resumeLoading ? (
+                  <>
+                    <span className="btn-spinner" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 10v2h10v-2M7 2v7M4 6l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    View Resume
+                  </>
+                )}
+              </button>
+            )}
             <button
               className="btn btn-outline"
-              title={isDemo ? 'Sign up for full access' : 'Add to Outreach Tracker'}
+              title={isReadOnly ? 'Sign up for full access' : 'Add to Outreach Tracker'}
               onClick={() => {
-                if (isDemo) {
+                if (isReadOnly) {
                   setSignupPrompt({
                     title: 'Add This Role to Your Outreach Tracker',
                     body: 'Create a free account to save roles, track follow-ups, and manage your application pipeline.',
@@ -470,6 +594,7 @@ export function Results() {
             >
               Add to Tracker
             </button>
+            {lastInterview && <LastInterviewEntry entry={lastInterview} />}
           </div>
         </div>
       </div>
@@ -491,7 +616,8 @@ export function Results() {
             >
               <path d="M4.5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Job Description
+            <span className="results-jd__label">Job Description</span>
+            <span className="results-jd__hint">{jdOpen ? 'Hide' : 'View full posting'}</span>
           </button>
           {jdOpen && (
             <div className="results-jd__content">
@@ -545,7 +671,7 @@ export function Results() {
         {/* Score Breakdown */}
         {analysis.scoreBreakdown && (
           <div className="results-score-breakdown">
-            <h4 className="results-breakdown-title">Score Breakdown</h4>
+            <h2 className="results-breakdown-title">Score Breakdown</h2>
 
             {analysis.scoreSummary && (
               <p className="results-score-summary">{analysis.scoreSummary}</p>
@@ -563,23 +689,27 @@ export function Results() {
                 { label: 'Tools',            value: analysis.scoreBreakdown.tools },
                 { label: 'Soft Skills',      value: analysis.scoreBreakdown.softSkills },
                 { label: 'Experience',       value: analysis.scoreBreakdown.experience },
-              ].map(({ label, value }) => (
-                <div key={label} className="results-breakdown-row">
-                  <div className="results-breakdown-label">
-                    <span>{label}</span>
-                    <span className="text-muted">{value}/100</span>
+              ].map(({ label, value }) => {
+                // Same rubric as the ring above it — a sub-score of 85 must not
+                // read green here while an 85 match score reads blue there.
+                const color = getScoreColor(value);
+                return (
+                  <div key={label} className="results-breakdown-row">
+                    <div className="results-breakdown-label">
+                      <span>{label}</span>
+                      <span className="results-breakdown-value" style={{ color }}>
+                        {value}<span className="results-breakdown-denom">/100</span>
+                      </span>
+                    </div>
+                    <div className="results-breakdown-track">
+                      <div
+                        className="results-breakdown-fill"
+                        style={{ width: `${value}%`, background: color }}
+                      />
+                    </div>
                   </div>
-                  <div className="results-breakdown-track">
-                    <div
-                      className="results-breakdown-fill"
-                      style={{
-                        width: `${value}%`,
-                        background: value >= 76 ? 'var(--success)' : value >= 51 ? 'var(--accent)' : 'var(--danger)'
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -591,16 +721,18 @@ export function Results() {
         <div className="results-keywords-row">
           {analysis.presentKeywords && analysis.presentKeywords.length > 0 && (
             <div className="card results-keyword-section">
-              <h4>
+              <h3>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6" stroke="var(--success)" strokeWidth="1.5" />
-                  <path d="M5.5 8l2 2 3.5-4" stroke="var(--success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* --success-alt, not --success: the bundle's green for this
+                      icon, and what the pills and the safe-edits callout use. */}
+                  <circle cx="8" cy="8" r="6" stroke="var(--success-alt)" strokeWidth="1.5" />
+                  <path d="M5.5 8l2 2 3.5-4" stroke="var(--success-alt)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 Matched Keywords
                 <span className="results-keyword-count text-success">
                   {analysis.presentKeywords.length}
                 </span>
-              </h4>
+              </h3>
               <div className="results-badges">
                 {analysis.presentKeywords.map((kw) => (
                   <Badge key={kw} label={kw} variant="success" />
@@ -611,7 +743,7 @@ export function Results() {
 
           {analysis.missingKeywords && analysis.missingKeywords.length > 0 && (
             <div className="card results-keyword-section results-keyword-section--missing">
-              <h4>
+              <h3>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <circle cx="8" cy="8" r="6" stroke="var(--danger)" strokeWidth="1.5" />
                   <path d="M6 6l4 4M10 6l-4 4" stroke="var(--danger)" strokeWidth="1.5" strokeLinecap="round" />
@@ -620,12 +752,20 @@ export function Results() {
                 <span className="results-keyword-count text-danger">
                   {analysis.missingKeywords.length}
                 </span>
-              </h4>
+              </h3>
               <div className="results-badges">
                 {analysis.missingKeywords.map((kw) => (
                   <Badge key={kw} label={kw} variant="danger" />
                 ))}
               </div>
+              {/* Only when there is in fact something below to point at — the
+                  sentence names the priorities and suggestions sections. */}
+              {((analysis.topMissing?.length ?? 0) > 0 || (analysis.suggestions?.length ?? 0) > 0) && (
+                <p className="results-keyword-note">
+                  These are real gaps, not phrasing differences — see the priorities and
+                  suggestions below to close them.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -640,17 +780,26 @@ export function Results() {
             High-impact keywords missing from your resume, ranked by importance
           </p>
 
-          <div className="results-suggestions">
-            {analysis.topMissing.map((item) => (
-              <div key={item.keyword} className="card results-suggestion">
-                <div className="results-suggestion__header">
-                  <span className="results-suggestion__section">{item.keyword}</span>
-                  <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                    {item.importanceScore}/10
-                  </span>
-                </div>
-                <div className="results-suggestion__copy">
-                  <p className="results-suggestion__reason text-muted">{item.reason}</p>
+          <div className="results-priority-list">
+            {analysis.topMissing.map((item, i) => (
+              <div key={item.keyword} className="results-priority">
+                <span className="results-priority__rank">{i + 1}</span>
+                <div className="results-priority__body">
+                  <div className="results-priority__head">
+                    <span className="results-priority__kw">{item.keyword}</span>
+                    <div className="results-priority__score">
+                      <div className="results-priority__track">
+                        <div
+                          className="results-priority__fill"
+                          style={{ width: `${Math.max(0, Math.min(10, Number(item.importanceScore) || 0)) * 10}%` }}
+                        />
+                      </div>
+                      <span className="results-priority__value">
+                        {item.importanceScore}<span className="results-priority__denom">/10</span>
+                      </span>
+                    </div>
+                  </div>
+                  <p className="results-priority__reason">{item.reason}</p>
                 </div>
               </div>
             ))}
@@ -660,7 +809,7 @@ export function Results() {
 
       {/* Suggestions */}
       {analysis.suggestions && analysis.suggestions.length > 0 && (
-        <div className="results-section animate-in stagger-3">
+        <div id="suggestions" className="results-section results-section--anchor animate-in stagger-3">
           <h2>Suggestions</h2>
           <p className="text-secondary results-section__intro">
             Recommended additions to improve your match score
@@ -699,26 +848,86 @@ export function Results() {
         </div>
       )}
 
-      {/* Diff View */}
+      {/* Diff View. The rewrite guard refuses to insert anything your resume doesn't back
+          up, so a clean run legitimately produces zero edits. Say so plainly instead of
+          rendering a "suggested improvements" heading over an unchanged document. */}
       {analysis.originalText && analysis.suggestedText && (
         <div className="results-section animate-in stagger-4">
           <h2>Detailed Changes</h2>
           <p className="text-secondary results-section__intro">
-            Side-by-side comparison of your resume with suggested improvements
+            Wording edits your resume already supports
           </p>
-          <DiffView
-            original={analysis.originalText}
-            suggested={analysis.suggestedText}
-          />
+          {analysis.suggestedText.trim() === analysis.originalText.trim() ? (
+            <div className="results-no-rewrites">
+              <span className="results-no-rewrites__icon">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="9" r="7.5" stroke="var(--info)" strokeWidth="1.4" />
+                  <path d="M9 5.8v.01M9 8.5v4" stroke="var(--info)" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </span>
+              <div className="results-no-rewrites__copy">
+                <p className="results-no-rewrites__title">No safe rewrites for this posting</p>
+                <p className="results-no-rewrites__body">
+                  Nothing in your resume backs up the missing keywords, so there&apos;s no honest
+                  wording change to make. These are real gaps, not phrasing differences — we
+                  won&apos;t add tools or skills you haven&apos;t used.
+                </p>
+                {analysis.suggestions && analysis.suggestions.length > 0 && (
+                  <a href="#suggestions" className="results-no-rewrites__cta">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 12V4M4.5 7.5L8 4l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Review suggestions to close these gaps
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="results-diff-callout">
+                <span className="results-diff-callout__icon">
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                    <circle cx="9" cy="9" r="7.5" stroke="var(--success-alt)" strokeWidth="1.4" />
+                    <polyline points="5.5,9 8,11.3 12.5,6.2" stroke="var(--success-alt)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <div>
+                  <div className="results-diff-callout__title">
+                    {safeEditCount > 0 && (
+                      <span className="results-diff-callout__count">
+                        {safeEditCount === 1 ? '1 safe edit found.' : `${safeEditCount} safe edits found.`}
+                      </span>
+                    )}{' '}
+                    We only change wording your resume already backs up.
+                  </div>
+                  <p className="results-diff-callout__body">
+                    Anything still missing is a real gap — see the suggestions above. Review the
+                    highlighted changes below before downloading.
+                  </p>
+                </div>
+              </div>
+              <DiffView
+                original={analysis.originalText}
+                suggested={analysis.suggestedText}
+              />
+            </>
+          )}
         </div>
       )}
 
-      {/* Download Optimized Resume */}
+      {/* Download Optimized Resume. Both bundles gate this on the rewrite
+          outcome: the no-safe-rewrites page ends at "Review suggestions to
+          close these gaps" with no download CTA. If originalText is absent we
+          can't prove there are no edits, so the button stays. */}
+      {(!analysis.originalText
+        || !analysis.suggestedText
+        || analysis.suggestedText.trim() !== analysis.originalText.trim()) && (
       <DownloadOptimizedButton
         suggestedText={analysis.suggestedText}
         status="completed"
-        isDemo={isDemo}
+        isDemo={isReadOnly}
       />
+      )}
 
       {signupPrompt && (
         <SignupPromptModal
@@ -730,8 +939,16 @@ export function Results() {
 
       {/* Resume Modal */}
       {(resumeUrl || resumeError) && (
-        <div className="modal-overlay" onClick={closeModal} role="dialog" aria-modal="true" aria-label="Resume viewer">
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={closeModal}>
+          <div
+            ref={resumeModalRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Resume viewer"
+            onClick={e => e.stopPropagation()}
+          >
+            <ModalFocusTrap panelRef={resumeModalRef} onEscape={closeModal} />
             <div className="modal-header">
               <div className="modal-header__left">
                 <h3>{analysis.fileName ?? 'Resume'}</h3>
@@ -766,7 +983,7 @@ export function Results() {
                     </a>
                   </>
                 )}
-                <button className="modal-close" onClick={closeModal} aria-label="Close">
+                <button className="modal-close" autoFocus onClick={closeModal} aria-label="Close">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>

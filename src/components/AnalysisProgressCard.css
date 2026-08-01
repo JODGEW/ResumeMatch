@@ -1,0 +1,457 @@
+/* Analysis in-progress screen — implementation of the approved Claude Design
+   bundle (Analyzing.dc.html). Bundle token roles map onto the shared semantic
+   tokens in index.css: --bg-panel → --surface-panel, --border-standard →
+   --border, --text-quaternary → --text-tertiary, --brand → --accent.
+
+   The bundle only models the running and complete states. The timeout and
+   failed states have no mock and keep their existing centered-card styling
+   at the bottom of this file, unchanged. */
+
+.analysis-progress-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 60px = navbar height (Layout.css) */
+  min-height: calc(100vh - 60px - 2 * var(--container-pad-y, 2rem));
+  min-height: calc(100dvh - 60px - 2 * var(--container-pad-y, 2rem));
+}
+
+/* ── Running / complete ─────────────────────────────── */
+.apc {
+  width: 100%;
+  max-width: 460px;
+}
+
+.apc__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.apc__badge {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 22px;
+}
+
+.apc__badge--done {
+  animation: apcPopIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.apc__badge-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--brand-tint-bg);
+  animation: apcPulseRing 1.8s ease-out infinite;
+}
+
+.apc__badge-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apc__badge--done .apc__badge-face {
+  background: var(--pill-success-bg);
+  border-color: var(--pill-success-border);
+}
+
+.apc__title {
+  margin: 0 0 10px;
+  font-size: 25px;
+  font-weight: 590;
+  letter-spacing: -0.4px;
+  color: var(--text-primary);
+}
+
+.apc__subtitle {
+  margin: 0 0 26px;
+  max-width: 380px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* ── Context card ───────────────────────────────────── */
+.apc__context {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  box-shadow: var(--card-shadow);
+}
+
+.apc__context-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.apc__context-body {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.apc__context-file {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.apc__context-line {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.apc__context-pct {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--brand-tint-text);
+}
+
+.apc--complete .apc__context-pct {
+  color: var(--success-alt);
+}
+
+/* ── Determinate bar ────────────────────────────────── */
+.apc__bar {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--track);
+  overflow: hidden;
+  margin-bottom: 26px;
+}
+
+.apc__bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--accent);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: apcBarGlow 1.6s ease-in-out infinite;
+}
+
+.apc--complete .apc__bar-fill {
+  background: var(--success-alt);
+  animation: none;
+}
+
+/* ── Stepper ────────────────────────────────────────── */
+.apc-steps {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.apc-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 44px;
+}
+
+.apc-step__gutter {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+}
+
+.apc-step__marker {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+}
+
+.apc-step--done .apc-step__marker {
+  background: var(--pill-success-bg);
+  border-color: var(--pill-success-border);
+  color: var(--success-alt);
+}
+
+.apc-step--active .apc-step__marker {
+  background: var(--brand-tint-bg);
+  border-color: var(--brand-tint-border);
+}
+
+.apc-step__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.apc-step__rail {
+  flex: 1;
+  width: 1.5px;
+  min-height: 16px;
+  background: var(--border);
+}
+
+.apc-step--done .apc-step__rail {
+  background: var(--success-alt);
+}
+
+.apc-step__body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 16px;
+}
+
+.apc-step__label {
+  font-size: 14.5px;
+  font-weight: 510;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+.apc-step--done .apc-step__label {
+  color: var(--text-muted);
+}
+
+.apc-step--active .apc-step__label {
+  font-weight: 590;
+  color: var(--text-primary);
+}
+
+.apc-step__detail {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* ── Footer ─────────────────────────────────────────── */
+.apc__footer {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 8px;
+  padding-top: 22px;
+  text-align: center;
+}
+
+.apc__footer-note {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.apc--complete .apc__footer-note {
+  margin-bottom: 16px;
+}
+
+.apc__footer-meta {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+
+.apc__footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.apc__footer-links a {
+  font-size: 13px;
+  font-weight: 510;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.apc__footer-links a:hover {
+  color: var(--link);
+}
+
+.apc__footer-divider {
+  width: 1px;
+  height: 13px;
+  background: var(--border);
+}
+
+.apc__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent);
+  border: none;
+  color: var(--text-on-accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 510;
+  padding: 11px 20px;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+  transition: background 0.15s;
+}
+
+.apc__cta:hover {
+  background: var(--accent-hover);
+}
+
+/* ── Animations ─────────────────────────────────────── */
+.apc-spin {
+  animation: spin 1s linear infinite;
+}
+
+.apc-step__marker .apc-spin {
+  animation-duration: 0.9s;
+}
+
+@keyframes apcPulseRing {
+  0% { transform: scale(0.9); opacity: 0.55; }
+  70% { transform: scale(1.5); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes apcPopIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes apcBarGlow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apc-spin,
+  .apc__badge-pulse,
+  .apc__badge--done,
+  .apc__bar-fill {
+    animation: none;
+  }
+
+  .apc__bar-fill {
+    transition: none;
+  }
+}
+
+/* ── Mobile ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .apc__title {
+    font-size: 22px;
+  }
+
+  .apc__context {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .apc__footer-links {
+    gap: 14px;
+  }
+}
+
+/* ── Timeout / failed states (no bundle — unchanged) ── */
+.analysis-progress-card {
+  --apc-muted: var(--text-muted);
+  --apc-divider: var(--border-subtle);
+  --apc-outline-border: var(--border);
+  width: 100%;
+  max-width: 35rem;
+  text-align: center;
+}
+
+/* Dark mode runs one text/border step brighter here — the default muted/subtle
+   tokens read as disabled on a full-page loading state. */
+:root:not([data-theme="light"]) .analysis-progress-card {
+  --apc-muted: color-mix(in srgb, var(--text-muted) 70%, var(--text-secondary));
+  --apc-divider: var(--border);
+  --apc-outline-border: var(--border-light);
+}
+
+.analysis-progress-card h2 {
+  margin-bottom: 0.5rem;
+}
+
+.analysis-progress-card__desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.analysis-progress-card__status-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.analysis-progress-card__status-icon--danger {
+  background: var(--danger-dim);
+  color: var(--danger);
+}
+
+.analysis-progress-card__notice {
+  max-width: 26rem;
+  margin: 1.75rem auto 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--apc-divider);
+}
+
+.analysis-progress-card__notice-primary {
+  font-size: 0.8125rem;
+  font-weight: 510;
+  color: var(--text-secondary);
+}
+
+.analysis-progress-card__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+  width: min(100%, 28rem);
+  margin: 1.5rem auto 0;
+}
+
+.analysis-progress-card__actions .btn-outline {
+  border-color: var(--apc-outline-border);
+}
+
+@media (max-width: 480px) {
+  .analysis-progress-card__actions {
+    grid-template-columns: 1fr;
+  }
+}

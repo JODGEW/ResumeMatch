@@ -1,14 +1,31 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { BILLING_UI_ENABLED } from '../config/billing';
-import { ThemeToggle } from './ThemeToggle';
+import { LogoMark } from './LogoMark';
+import { ThemeToggle, ThemeIcon } from './ThemeToggle';
+import {
+  cycleThemePreference,
+  nextThemeLabel,
+  nextThemePreference,
+  useThemePreference,
+} from '../utils/theme';
 import { createPortalSession } from '../api/portal';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import './Layout.css';
+
+// The account menu takes over from the desktop nav's right-hand cluster at this
+// width, per the approved Claude Design bundle (New Analysis.dc.html nav).
+const MOBILE_NAV_QUERY = '(max-width: 1024px)';
 
 const DEMO_EMAIL = 'demo123@resumeapp.com';
 const PRICING_SEEN_KEY = 'resumematch_pricing_seen';
+
+// The cost dashboard shows per-analysis estimatedCost and token counts — internal unit
+// economics. It is owner-only. Note this is NOT demo123@resumeapp.com: that is the public
+// "Try Demo" account, so gating on it meant anyone who clicked Try Demo could open
+// /dashboard from the nav and read our costs.
+const COST_DASHBOARD_EMAIL = 'demo@resumeapp.com';
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -17,9 +34,9 @@ export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [portalRedirecting, setPortalRedirecting] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
-    (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'dark'
-  );
+  const themePref = useThemePreference();
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
 
   // Only users with an active Stripe subscription have something to manage in
   // the Customer Portal. Grandfathered users (no Stripe customer) and Sprint
@@ -64,17 +81,33 @@ export function Layout() {
     }
   }
 
-  // Keep label in sync when ThemeToggle changes the data-theme attribute
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const t = document.documentElement.getAttribute('data-theme');
-      if (t === 'light' || t === 'dark') setTheme(t);
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  // The sticky header's height varies (demo banner, wrapping). Publish the measured
+  // height as --app-header-h so page-level sticky chrome (e.g. the InterviewResults
+  // Assessment/Transcript switcher) can offset against the real header instead of a
+  // hardcoded 60px. Layout effect: set before first paint to avoid a one-frame jump.
+  useLayoutEffect(() => {
+    const layout = layoutRef.current;
+    const header = headerRef.current;
+    if (!layout || !header) return;
+    const publishHeight = () => {
+      layout.style.setProperty('--app-header-h', `${header.getBoundingClientRect().height}px`);
+    };
+    publishHeight();
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(header);
     return () => observer.disconnect();
   }, []);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  // The menu only exists below MOBILE_NAV_QUERY; leave it closed when a resize
+  // swaps the nav back to its desktop form.
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_NAV_QUERY);
+    const handler = () => setMenuOpen(false);
+    media.addEventListener('change', handler);
+    return () => media.removeEventListener('change', handler);
+  }, []);
 
   // ESC key support
   useEffect(() => {
@@ -105,37 +138,20 @@ export function Layout() {
     }
   }
 
-  const isDashboardVisible =
-    user?.email === DEMO_EMAIL || import.meta.env.VITE_DEV_BYPASS === 'true';
+  const isDashboardVisible = user?.email === COST_DASHBOARD_EMAIL;
 
   return (
-    <div className="layout">
-      <header className="header-sticky">
+    <div className="layout" ref={layoutRef}>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <header className="header-sticky" ref={headerRef}>
         <nav className="nav">
           <div className="nav__inner">
-            {/* Hamburger — mobile only */}
-            <button
-              className="nav__hamburger"
-              onClick={() => setMenuOpen(o => !o)}
-              aria-label="Open menu"
-              aria-expanded={menuOpen}
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="2" y1="5" x2="18" y2="5" />
-                <line x1="2" y1="10" x2="18" y2="10" />
-                <line x1="2" y1="15" x2="18" y2="15" />
-              </svg>
-            </button>
-
-            <div className="nav__brand">
+            <Link to="/upload" className="nav__brand" aria-label="ResumeMatch home">
               <div className="nav__logo">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                  <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
-                  <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-                </svg>
+                <LogoMark />
               </div>
               <span className="nav__title">ResumeMatch</span>
-            </div>
+            </Link>
 
             <div className="nav__links">
               <NavLink to="/upload" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
@@ -210,6 +226,20 @@ export function Layout() {
                 Sign out
               </button>
             </div>
+
+            {/* Replaces the cluster above below MOBILE_NAV_QUERY */}
+            <button
+              className="nav__hamburger"
+              onClick={() => setMenuOpen(o => !o)}
+              title="Menu"
+              aria-label="Menu"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
         </nav>
 
@@ -229,52 +259,56 @@ export function Layout() {
         )}
       </header>
 
-      {/* Mobile drawer backdrop */}
-      <div
-        className={`nav__backdrop ${menuOpen ? 'nav__backdrop--open' : ''}`}
-        onClick={closeMenu}
-        aria-hidden="true"
-      />
+      {/* Mobile account menu */}
+      {menuOpen && (
+        <>
+          <div className="nav__menu-backdrop" onClick={closeMenu} aria-hidden="true" />
+          <div className="nav__menu" role="menu" aria-label="Account">
+            <div className="nav__menu-label">Account</div>
 
-      {/* Mobile drawer */}
-      <div className={`nav__drawer ${menuOpen ? 'nav__drawer--open' : ''}`} role="dialog" aria-modal="true" aria-label="Menu">
-        <div className="nav__drawer-header">
-          <span className="nav__drawer-email">{user?.email}</span>
-        </div>
+            <button type="button" role="menuitem" className="nav__menu-item" onClick={cycleThemePreference}>
+              <span className="nav__menu-item-main">
+                <ThemeIcon preference={nextThemePreference(themePref)} size={16} />
+                {nextThemeLabel(themePref)}
+              </span>
+            </button>
 
-        <div className="nav__drawer-section">
-          <div className="nav__drawer-row">
-            <span className="nav__drawer-label">{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
-            <ThemeToggle />
+            <div className="nav__menu-divider" />
+
+            <div className="nav__menu-email">{user?.email}</div>
+
+            {canManageSubscription && (
+              <button
+                type="button"
+                role="menuitem"
+                className="nav__menu-item"
+                onClick={() => { closeMenu(); handleManageSubscription(); }}
+                disabled={portalRedirecting}
+              >
+                <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1.75" y="3" width="11.5" height="9" rx="1.5" />
+                  <path d="M1.75 6h11.5" />
+                  <path d="M4.25 9.5h3" />
+                </svg>
+                {portalRedirecting ? 'Opening…' : 'Manage subscription'}
+              </button>
+            )}
+
+            <button type="button" role="menuitem" className="nav__menu-item" onClick={handleLogout}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M6 2H3v12h3M10 11l3-3-3-3M13 8H6"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Sign out
+            </button>
           </div>
-        </div>
-
-        <div className="nav__drawer-divider" />
-
-        {BILLING_UI_ENABLED && (
-          <button
-            onClick={() => { closeMenu(); navigate('/pricing'); }}
-            className="btn btn-ghost nav__drawer-pricing"
-          >
-            Pricing
-            {!pricingSeen && <span className="nav__drawer-dot" aria-hidden="true" />}
-          </button>
-        )}
-
-        {canManageSubscription && (
-          <button
-            onClick={() => { closeMenu(); handleManageSubscription(); }}
-            className="btn btn-ghost nav__drawer-manage-sub"
-            disabled={portalRedirecting}
-          >
-            {portalRedirecting ? 'Opening…' : 'Manage subscription'}
-          </button>
-        )}
-
-        <button onClick={handleLogout} className="btn btn-ghost nav__drawer-signout">
-          Sign out
-        </button>
-      </div>
+        </>
+      )}
 
       {portalError && (
         <div className="nav__portal-error" role="alert">
@@ -282,7 +316,7 @@ export function Layout() {
         </div>
       )}
 
-      <main className="main">
+      <main className="main" id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
     </div>
