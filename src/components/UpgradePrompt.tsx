@@ -4,12 +4,15 @@ import './UpgradePrompt.css';
 
 interface UpgradePromptProps {
   message: string;
+  /** Bold headline above the message. Used by the callout variant. */
+  title?: string;
   cta?: string;
-  variant?: 'banner' | 'card';
+  variant?: 'banner' | 'callout';
 }
 
 export function UpgradePrompt({
   message,
+  title,
   cta = 'View plans',
   variant = 'banner',
 }: UpgradePromptProps) {
@@ -31,13 +34,28 @@ export function UpgradePrompt({
           />
         </svg>
       </div>
-      <p className="upgrade-prompt__message">{message}</p>
+      <div className="upgrade-prompt__copy">
+        {title && <p className="upgrade-prompt__title">{title}</p>}
+        <p className="upgrade-prompt__message">{message}</p>
+      </div>
       <button
         type="button"
         className="btn btn-primary upgrade-prompt__cta"
         onClick={() => navigate('/pricing')}
       >
         {cta}
+        {variant === 'callout' && (
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M3 8h9M8.5 4l4 4-4 4"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </svg>
+        )}
       </button>
     </div>
   );

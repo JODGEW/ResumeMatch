@@ -24,6 +24,17 @@
   background: color-mix(in srgb, var(--surface-card) 82%, var(--accent) 18%);
 }
 
+.upgrade-prompt__copy {
+  min-width: 0;
+}
+
+.upgrade-prompt__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 590;
+  color: var(--text-primary);
+}
+
 .upgrade-prompt__message {
   margin: 0;
   color: var(--text-secondary);
@@ -50,49 +61,54 @@
   padding: 0.5rem 0.875rem;
 }
 
-/* ── Card: vertical centered, used where a feature would be ─── */
-.upgrade-prompt--card {
-  display: flex;
-  flex-direction: column;
-  text-align: center;
-  gap: 0.75rem;
-  padding: 1.375rem 1.5rem;
+/* ── Callout: prominent panel at the foot of capped lists ── */
+.upgrade-prompt--callout {
+  gap: 0.8125rem;
+  padding: 1.125rem 1.375rem;
+  margin-top: 1.5rem;
+  background: var(--brand-tint-bg);
+  border-color: var(--brand-tint-border);
+  border-radius: 14px;
+  box-shadow: none;
 }
 
-.upgrade-prompt--card .upgrade-prompt__icon {
-  width: 32px;
-  height: 32px;
-  background: var(--surface-card);
-  border: 1px solid var(--accent-border);
-  border-radius: 50%;
+.upgrade-prompt--callout .upgrade-prompt__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--text-on-accent);
 }
 
-.upgrade-prompt--card .upgrade-prompt__message {
-  max-width: 480px;
-  font-size: 0.875rem;
-  line-height: 1.55;
-  color: var(--text-secondary);
+.upgrade-prompt--callout .upgrade-prompt__icon path {
+  fill: currentColor;
 }
 
-.upgrade-prompt--card .upgrade-prompt__cta {
-  padding: 0.5625rem 1.125rem;
+.upgrade-prompt--callout .upgrade-prompt__message {
+  margin-top: 1px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.upgrade-prompt--callout .upgrade-prompt__cta {
+  font-size: 0.84375rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: 9px;
 }
 
 /* ── Mobile ──────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .upgrade-prompt--banner {
+  .upgrade-prompt--banner,
+  .upgrade-prompt--callout {
     grid-template-columns: auto minmax(0, 1fr);
     text-align: left;
   }
 
-  .upgrade-prompt--banner .upgrade-prompt__cta {
+  .upgrade-prompt--banner .upgrade-prompt__cta,
+  .upgrade-prompt--callout .upgrade-prompt__cta {
     grid-column: 2;
     justify-self: start;
   }
 }
 
-@media (max-width: 480px) {
-  .upgrade-prompt--card {
-    padding: 1.25rem;
-  }
-}

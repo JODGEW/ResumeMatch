@@ -1445,76 +1445,102 @@
 }
 
 /* ── 3-tier pricing (BILLING_UI_ENABLED only) ───────── */
-/* Extends the landing-plan card family for the real Free / Pro / Career Sprint
-   cards. Rendered only when the billing UI flag is on; with the flag off the
-   beta pricing above is what ships, so nothing here may restyle those cards. */
-.landing-plan--featured {
-  position: relative;
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow-glow);
+/* Extends the landing-plan card family for the real Free / Pro Monthly /
+   Career Sprint cards. Rendered only when the billing UI flag is on; with the
+   flag off the beta pricing above is what ships, so nothing here may restyle
+   those cards — tier-only overrides stay scoped to .landing-plan--tier or the
+   tier-only price/founding classes. */
+.landing-plan--tier .landing-plan__title h3 {
+  font-size: 20px;
 }
 
-.landing-plan__ribbon {
-  position: absolute;
-  top: -0.75rem;
-  left: 1.5rem;
-  padding: 0.25rem 0.625rem;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.3;
-  border-radius: 999px;
-  box-shadow: var(--shadow-sm);
-}
-
-.landing-plan__head {
-  margin-bottom: 1.25rem;
-}
-
-.landing-plan__head h3 {
-  margin-bottom: 0.375rem;
-}
-
-.landing-plan__tagline {
-  margin-bottom: 0;
-  color: var(--text-muted);
+.landing-plan--sprint {
+  background: var(--pricing-free-bg);
+  border-color: var(--pricing-free-border);
 }
 
 .landing-plan__price {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .landing-plan__price-amount {
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 2.5rem;
+  font-weight: 510;
+  letter-spacing: -1.2px;
+  line-height: 1;
   color: var(--text-primary);
 }
 
 .landing-plan__price-note {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-}
-
-.landing-plan__price-sub {
-  margin: 0.375rem 0 0;
-  font-size: 0.8125rem;
+  font-size: 15px;
   color: var(--text-muted);
 }
 
 .landing-plan__price-strike {
-  margin-right: 0.4rem;
+  font-size: 17px;
+  font-weight: 510;
   color: var(--text-tertiary);
   text-decoration: line-through;
 }
 
-.landing-plan__footnote {
-  margin: 0.875rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
+/* Description sits tighter when the founding callout follows it. */
+.landing-plan--sprint .landing-plan__body {
+  margin-bottom: 14px;
+}
+
+.landing-plan__founding {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 26px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--brand-tint-text);
+}
+
+.landing-plan__founding svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Tier bullets run longer than the beta ones and can wrap — pin the check to
+   the first line instead of centering it across two. */
+.landing-plan__features--tiers li {
+  align-items: flex-start;
+}
+
+.landing-plan__features--tiers li svg {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* Free-tier checks read as baseline, not benefit — muted instead of green. */
+.landing-plan__features--basic .lp-stroke-success {
+  stroke: var(--text-tertiary);
+}
+
+/* Sprint's first row is the cumulative "Everything in Pro Monthly" anchor. */
+.landing-plan--sprint .landing-plan__features li:first-child {
+  font-weight: 590;
+  color: var(--text-primary);
+}
+
+.landing-pricing__footnotes {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--text-tertiary);
 }
 
 /* ── Final CTA glow ─────────────────────────────────── */

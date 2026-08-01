@@ -63,15 +63,15 @@ describe('Landing pricing — billing flag off (production default)', () => {
 describe('Landing pricing — billing flag on', () => {
   it('renders the three-tier pricing with the founding Sprint price intact', async () => {
     const html = await renderLanding('true');
-    expect(html).toContain('Start free, upgrade for the full loop');
+    expect(html).toContain('Start free. Upgrade when the search gets real.');
+    expect(html).toContain('Pro Monthly');
     expect(html).toContain('Career Sprint');
     expect(html).toContain('$14.99');
     expect(html).toContain('$19.99');
     expect(html).toContain('$24.99');
-    expect(html).toContain(
-      'Founding price: $19.99 for the 60-day Career Sprint, available through October 31, 2026.',
-    );
+    expect(html).toContain('Founding price, available through October 31, 2026.');
     expect(html).toContain('Best value');
+    expect(html).toContain('Start 60-day Sprint');
   });
 
   it('does not render the beta fallback content', async () => {

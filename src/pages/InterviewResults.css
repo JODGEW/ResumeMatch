@@ -366,6 +366,12 @@
   color: var(--text-muted);
 }
 
+/* Assessment panels space with 16px bottom margins; the paywall callout's
+   list-context top margin would double that gap. */
+.ir-assessment .upgrade-prompt--callout {
+  margin-top: 0;
+}
+
 .ir-clarity-banner {
   display: flex;
   align-items: flex-start;

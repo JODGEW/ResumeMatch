@@ -838,13 +838,27 @@ export function Results({ sample = false }: { sample?: boolean }) {
 
       {/* Suggestions paywall — backend filtered suggestions + suggestedText for
        *  Free users and set upgradeRequired:true. Shown in the same slot as the
-       *  Suggestions / Detailed Changes / Download blocks so the gap is obvious. */}
+       *  Suggestions / Detailed Changes / Download blocks so the gap is obvious.
+       *  "These gaps" points back at the Top Priority Keywords list directly
+       *  above it, so that copy only renders when the section did — otherwise
+       *  fall back to copy that stands on its own. "What your resume already
+       *  supports" deliberately echoes the Detailed Changes intro below so the
+       *  zero-edit outcome reads as a kept promise — keep the two in sync. */}
       {BILLING_UI_ENABLED && analysis.upgradeRequired === true && (
         <div className="results-section animate-in stagger-3">
-          <UpgradePrompt
-            variant="card"
-            message="AI resume rewrite suggestions are available with Pro. See exactly what to edit and export the rewritten resume as DOCX."
-          />
+          {(analysis.topMissing?.length ?? 0) > 0 ? (
+            <UpgradePrompt
+              variant="callout"
+              title="Turn these gaps into resume edits"
+              message="Pro shows what to add, rewrites what your resume already supports, and exports a DOCX."
+            />
+          ) : (
+            <UpgradePrompt
+              variant="callout"
+              title="AI resume rewrite suggestions are available with Pro"
+              message="See exactly what to edit and export the rewritten resume as DOCX."
+            />
+          )}
         </div>
       )}
 
@@ -854,6 +868,8 @@ export function Results({ sample = false }: { sample?: boolean }) {
       {analysis.originalText && analysis.suggestedText && (
         <div className="results-section animate-in stagger-4">
           <h2>Detailed Changes</h2>
+          {/* "Already supports" is echoed by the Free-tier paywall callout
+              above — reword the two together or the paywall overpromises. */}
           <p className="text-secondary results-section__intro">
             Wording edits your resume already supports
           </p>

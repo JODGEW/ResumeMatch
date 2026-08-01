@@ -491,6 +491,12 @@
   margin-bottom: 36px;
 }
 
+/* The paywall callout sits inside a .results-section, which already provides
+   the page's section rhythm — drop the component's list-context top margin. */
+.results-section > .upgrade-prompt--callout {
+  margin-top: 0;
+}
+
 .results-section--anchor {
   scroll-margin-top: 76px;
 }

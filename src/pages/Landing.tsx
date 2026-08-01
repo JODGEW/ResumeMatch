@@ -4,6 +4,11 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { LogoMark } from '../components/LogoMark';
 import { useAuth } from '../auth/AuthContext';
 import { BILLING_UI_ENABLED } from '../config/billing';
+import {
+  FREE_PLAN_FEATURES,
+  PRO_PLAN_FEATURES,
+  SPRINT_PLAN_FEATURES,
+} from '../config/planFeatures';
 import { HeroCards } from './landing/HeroCards';
 import { SampleAnalysisPanel } from './landing/SampleAnalysisPanel';
 import { SuggestionsCard, InterviewCard } from './landing/WorkflowCards';
@@ -76,58 +81,36 @@ const proPlanFeatures = ['Expanded limits', 'Future premium benefits', 'Pricing 
 const plans = [
   {
     name: 'Free',
-    tagline: 'For testing the waters.',
     price: '$0',
-    priceNote: 'forever',
-    priceSub: null,
+    priceNote: '/ forever',
     priceStrike: null,
+    description: 'Core matching for occasional applications.',
     foundingNote: null,
     badge: null,
     cta: 'Start free',
-    features: [
-      '2 analyses / day',
-      '1 interview / day',
-      'Top 3 keyword gaps',
-      'Application tracker',
-    ],
-    footnote: 'Good for getting a feel for the product.',
+    features: FREE_PLAN_FEATURES,
   },
   {
-    name: 'Pro',
-    tagline: 'For active job searches.',
+    name: 'Pro Monthly',
     price: '$14.99',
-    priceNote: 'per month, cancel anytime',
-    priceSub: null,
+    priceNote: '/ month',
     priceStrike: null,
+    description: 'Recurring Pro access for an ongoing search.',
     foundingNote: null,
     badge: null,
-    cta: 'Subscribe',
-    features: [
-      '10 analyses + 5 interviews / day',
-      'Full keyword gap analysis',
-      'DOCX export + rewrite',
-      'All interview modes',
-    ],
-    footnote: 'Best for ongoing, multi-month searches.',
+    cta: 'Start Pro Monthly',
+    features: PRO_PLAN_FEATURES,
   },
   {
     name: 'Career Sprint',
-    tagline: 'For focused 60-day pushes.',
     price: '$19.99',
-    priceNote: 'once',
-    priceSub: '60 days, no auto-renewal',
+    priceNote: '/ 60 days',
     priceStrike: '$24.99',
-    foundingNote:
-      'Founding price: $19.99 for the 60-day Career Sprint, available through October 31, 2026.',
+    description: 'One-time Pro access for an active job search.',
+    foundingNote: 'Founding price, available through October 31, 2026.',
     badge: 'Best value',
-    cta: 'Buy once',
-    features: [
-      'Everything in Pro',
-      'One payment, no subscription',
-      '60-day focused window',
-      'No cancellation needed',
-    ],
-    footnote: 'For focused job search sprints.',
+    cta: 'Start 60-day Sprint',
+    features: SPRINT_PLAN_FEATURES,
   },
 ];
 
@@ -336,46 +319,52 @@ export function Landing() {
           {BILLING_UI_ENABLED ? (
           <>
           <div className="landing-eyebrow">Pricing</div>
-          <h2 className="landing-h2 landing-h2--gap-sm">Start free, upgrade for the full loop</h2>
+          <h2 className="landing-h2 landing-h2--gap-sm">Start free. Upgrade when the search gets real.</h2>
           <p className="landing-lede landing-lede--intro">
-            Free lets you try the core workflow. Pro keeps it going month to month. Career Sprint is a
-            focused one-time push.
+            Beta users keep their grandfathered Pro access. Upgrade to lock in a paid plan when beta ends.
           </p>
           <div className="landing-pricing" role="list">
             {plans.map((plan) => {
               const featured = plan.badge !== null;
+              const basic = plan.name === 'Free';
               return (
                 <article
                   key={plan.name}
-                  className={`landing-plan${featured ? ' landing-plan--featured' : ''}`}
+                  className={`landing-plan landing-plan--tier${featured ? ' landing-plan--sprint' : ''}`}
                   role="listitem"
                 >
-                  {plan.badge ? (
-                    <span className="landing-plan__ribbon">{plan.badge}</span>
-                  ) : null}
-
-                  <div className="landing-plan__head">
+                  <div className="landing-plan__title">
                     <h3>{plan.name}</h3>
-                    <p className="landing-plan__tagline">{plan.tagline}</p>
+                    {plan.badge ? (
+                      <span className="landing-plan__badge">{plan.badge}</span>
+                    ) : null}
                   </div>
 
                   <div className="landing-plan__price">
+                    {plan.priceStrike ? (
+                      <s className="landing-plan__price-strike">{plan.priceStrike}</s>
+                    ) : null}
                     <span className="landing-plan__price-amount">{plan.price}</span>
                     <span className="landing-plan__price-note">{plan.priceNote}</span>
                   </div>
-                  {plan.priceSub ? (
-                    <p className="landing-plan__price-sub">
-                      {plan.priceStrike ? (
-                        <s className="landing-plan__price-strike">{plan.priceStrike}</s>
-                      ) : null}
-                      {plan.priceSub}
-                    </p>
-                  ) : null}
+
+                  <p className="landing-plan__body">{plan.description}</p>
+
                   {plan.foundingNote ? (
-                    <p className="landing-plan__price-sub">{plan.foundingNote}</p>
+                    <div className="landing-plan__founding">
+                      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                        <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                        <path d="M8 5v3l2 1.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                      </svg>
+                      <span>{plan.foundingNote}</span>
+                    </div>
                   ) : null}
 
-                  <ul className="landing-plan__features">
+                  <ul
+                    className={`landing-plan__features landing-plan__features--tiers${
+                      basic ? ' landing-plan__features--basic' : ''
+                    }`}
+                  >
                     {plan.features.map((feature) => (
                       <li key={feature}>
                         <ListCheckIcon />
@@ -390,11 +379,13 @@ export function Landing() {
                   >
                     {plan.cta}
                   </Link>
-
-                  <p className="landing-plan__footnote">{plan.footnote}</p>
                 </article>
               );
             })}
+          </div>
+          <div className="landing-pricing__footnotes">
+            <span>Cancel anytime — Pro Monthly renews until you stop it.</span>
+            <span>Career Sprint is a one-time charge, not a subscription.</span>
           </div>
           </>
           ) : (

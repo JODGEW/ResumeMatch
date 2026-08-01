@@ -13,6 +13,7 @@ import { clearAnalysisNew, getNewAnalysisIds, markAnalysisNew } from '../utils/n
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { UpgradePrompt } from '../components/UpgradePrompt';
 import { DEMO_ANALYSES } from '../types/demoAnalyses';
 import './History.css';
 
@@ -698,25 +699,11 @@ export function History() {
             )}
 
             {showHistoryCapNotice && (
-              <div className="history-cap-prompt animate-in">
-                <span className="history-cap-prompt__icon" aria-hidden="true">
-                  <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
-                    <path
-                      d="M9 2l1.8 4.4 4.7.4-3.6 3 1.1 4.6L9 12l-4 2.4 1.1-4.6-3.6-3 4.7-.4L9 2z"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <p>
-                  Free history shows your {entitlements!.limits.historyVisibleRows} most recent analyses.
-                  Upgrade for full history up to 500 analyses.
-                </p>
-                <Link to="/pricing" className="btn btn-secondary history-cap-prompt__cta">
-                  View plans
-                </Link>
-              </div>
+              <UpgradePrompt
+                variant="callout"
+                title={`Free history shows your ${entitlements!.limits.historyVisibleRows} most recent analyses`}
+                message="Upgrade for full history — up to 500 analyses."
+              />
             )}
           </>
         );

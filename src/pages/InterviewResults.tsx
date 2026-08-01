@@ -1078,8 +1078,9 @@ export function InterviewResults() {
 
             {BILLING_UI_ENABLED && isPaywalled && (
               <UpgradePrompt
-                variant="card"
-                message="Detailed dimension feedback and per-answer breakdowns are available with Pro. See your scores across every category, with strengths and improvements called out for each answer."
+                variant="callout"
+                title="Detailed dimension feedback and per-answer breakdowns are available with Pro"
+                message="See your scores across every category, with strengths and improvements called out for each answer."
               />
             )}
           </section>

@@ -7,6 +7,7 @@ import { BILLING_UI_ENABLED } from '../config/billing';
 import { useAuth } from '../auth/AuthContext';
 import { getScoreBand } from '../utils/scoreBands';
 import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SUMMARY } from '../types/sampleInterviewSession';
+import { UpgradePrompt } from '../components/UpgradePrompt';
 import './InterviewHistory.css';
 
 function formatDate(dateStr: string): string {
@@ -364,12 +365,11 @@ export function InterviewHistory() {
           ))}
         </div>
         {showSessionCapNotice && (
-          <p className="ih-cap-indicator animate-in">
-            Showing your {entitlements!.limits.historyVisibleRows} most recent interviews.{' '}
-            <Link to="/pricing" className="ih-cap-indicator__link">
-              Upgrade to see your full history.
-            </Link>
-          </p>
+          <UpgradePrompt
+            variant="callout"
+            title={`Showing your ${entitlements!.limits.historyVisibleRows} most recent interviews`}
+            message="Upgrade to see your full interview history and technical modes."
+          />
         )}
         </>
       )}

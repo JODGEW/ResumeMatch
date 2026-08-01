@@ -1,35 +1,35 @@
 import { useState } from 'react';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { createCheckoutSession, type CheckoutPlan } from '../api/checkout';
+import {
+  FREE_PLAN_FEATURES,
+  PRO_PLAN_FEATURES,
+  SPRINT_PLAN_FEATURES,
+} from '../config/planFeatures';
 import './Pricing.css';
 
 type Stage = 'idle' | 'creating_session' | 'redirecting';
 
-const FREE_FEATURES = [
-  '2 resume analyses per day',
-  '1 behavioral interview per day (5 questions)',
-  '5 most recent analyses in history',
-  'Match score and missing keywords',
-];
-
-const PRO_MONTHLY_FEATURES = [
-  '10 resume analyses per day',
-  '5 interviews per day (10 questions each)',
-  'Behavioral AND technical interview modes',
-  'Full history (up to 500 analyses)',
-  'AI resume rewrite suggestions',
-  'DOCX export with edit diff',
-];
-
-const SPRINT_FEATURES = [
-  '60-day Pro access',
-  '10 resume analyses per day',
-  '5 interviews per day (10 questions each)',
-  'Behavioral AND technical interview modes',
-  'Full history (up to 500 analyses)',
-  'AI resume rewrite suggestions',
-  'DOCX export with edit diff',
-];
+function FeatureCheck() {
+  return (
+    <svg
+      className="pricing-card__check"
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+    >
+      <polyline
+        points="3,8.5 6.5,12 13,4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function formatActiveUntil(activeUntil: string | null): string {
   // The resolver exposes the exact parsed `currentPeriodEnd` from the Users
@@ -141,28 +141,37 @@ export function Pricing() {
 
       <div className="pricing-grid">
         {/* ── Free ───────────────────────────────────── */}
-        <div className="card pricing-card animate-in stagger-1">
-          <div className="pricing-card__head">
+        <div className="card pricing-card pricing-card--free animate-in stagger-1">
+          <div className="pricing-card__titlerow">
             <h3 className="pricing-card__title">Free</h3>
-            <div className="pricing-card__price">$0 / forever</div>
-            <p className="pricing-card__subtitle">Core matching for occasional applications.</p>
             {isOnFree && (
               <span className="pricing-card__current-badge">Current plan</span>
             )}
           </div>
+          <div className="pricing-card__price">
+            <span className="pricing-card__amount">$0</span>
+            <span className="pricing-card__period">/ forever</span>
+          </div>
+          <p className="pricing-card__subtitle">Core matching for occasional applications.</p>
           <ul className="pricing-card__features">
-            {FREE_FEATURES.map((f) => (
-              <li key={f} className="pricing-card__feature">{f}</li>
+            {FREE_PLAN_FEATURES.map((f) => (
+              <li key={f} className="pricing-card__feature">
+                <FeatureCheck />
+                <span>{f}</span>
+              </li>
             ))}
           </ul>
+          <div className="pricing-card__slot">
+            {isOnFree && (
+              <div className="pricing-card__current-pill">Your current plan</div>
+            )}
+          </div>
         </div>
 
         {/* ── Pro Monthly ────────────────────────────── */}
         <div className="card pricing-card animate-in stagger-2">
-          <div className="pricing-card__head">
+          <div className="pricing-card__titlerow">
             <h3 className="pricing-card__title">Pro Monthly</h3>
-            <div className="pricing-card__price">$14.99 / month</div>
-            <p className="pricing-card__subtitle">Recurring Pro access for an ongoing search.</p>
             {isGrandfathered && (
               <span className="pricing-card__current-badge">Current plan (Beta)</span>
             )}
@@ -170,74 +179,102 @@ export function Pricing() {
               <span className="pricing-card__current-badge">Current plan</span>
             )}
           </div>
+          <div className="pricing-card__price">
+            <span className="pricing-card__amount">$14.99</span>
+            <span className="pricing-card__period">/ month</span>
+          </div>
+          <p className="pricing-card__subtitle">Recurring Pro access for an ongoing search.</p>
           <ul className="pricing-card__features">
-            {PRO_MONTHLY_FEATURES.map((f) => (
-              <li key={f} className="pricing-card__feature">{f}</li>
+            {PRO_PLAN_FEATURES.map((f) => (
+              <li key={f} className="pricing-card__feature">
+                <FeatureCheck />
+                <span>{f}</span>
+              </li>
             ))}
           </ul>
-          {!isOnProMonthly && (
-            <button
-              type="button"
-              className="btn btn-secondary pricing-card__cta"
-              disabled={isSubmitting}
-              onClick={() => handleCheckout('pro_monthly')}
-            >
-              {activePlan === 'pro_monthly' ? (
-                <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                  {stage === 'redirecting' ? 'Redirecting to checkout…' : 'Starting checkout…'}
-                </>
-              ) : (
-                'Upgrade to Pro Monthly'
-              )}
-            </button>
-          )}
+          <div className="pricing-card__slot">
+            {isOnProMonthly ? (
+              <div className="pricing-card__current-pill">Your current plan</div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-secondary pricing-card__cta"
+                disabled={isSubmitting}
+                onClick={() => handleCheckout('pro_monthly')}
+              >
+                {activePlan === 'pro_monthly' ? (
+                  <>
+                    <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                    {stage === 'redirecting' ? 'Redirecting to checkout…' : 'Starting checkout…'}
+                  </>
+                ) : (
+                  'Upgrade to Pro Monthly'
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Career Sprint ──────────────────────────── */}
         <div className="card pricing-card pricing-card--featured animate-in stagger-3">
-          <span className="pricing-card__badge">Best value</span>
-          <div className="pricing-card__head">
+          <div className="pricing-card__titlerow">
             <h3 className="pricing-card__title">Career Sprint</h3>
-            <div className="pricing-card__price">
-              <s className="pricing-card__price-strike">$24.99</s>
-              $19.99 / 60 days
-            </div>
-            <p className="pricing-card__subtitle">
-              Founding price: $19.99 for the 60-day Career Sprint, available
-              through October 31, 2026.
-            </p>
-            <p className="pricing-card__subtitle">One-time Pro access for an active job search.</p>
+            <span className="pricing-card__badge">Best value</span>
             {isOnSprint && (
               <span className="pricing-card__current-badge">
                 {sprintActiveUntil ? `Active until ${sprintActiveUntil}` : 'Active'}
               </span>
             )}
           </div>
+          <div className="pricing-card__price">
+            <s className="pricing-card__price-strike">$24.99</s>
+            <span className="pricing-card__amount">$19.99</span>
+            <span className="pricing-card__period">/ 60 days</span>
+          </div>
+          <p className="pricing-card__subtitle">One-time Pro access for an active job search.</p>
+          <div className="pricing-card__founding">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M8 5v3l2 1.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+            <span>Founding price, available through October 31, 2026.</span>
+          </div>
           <ul className="pricing-card__features">
-            {SPRINT_FEATURES.map((f) => (
-              <li key={f} className="pricing-card__feature">{f}</li>
+            {SPRINT_PLAN_FEATURES.map((f) => (
+              <li key={f} className="pricing-card__feature">
+                <FeatureCheck />
+                <span>{f}</span>
+              </li>
             ))}
           </ul>
-          {!isOnSprint && (
-            /* Founding price through 2026-10-31; switch back to 'pro_sprint' after. */
-            <button
-              type="button"
-              className="btn btn-primary pricing-card__cta"
-              disabled={isSubmitting}
-              onClick={() => handleCheckout('pro_founding_sprint')}
-            >
-              {activePlan === 'pro_founding_sprint' ? (
-                <>
-                  <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                  {stage === 'redirecting' ? 'Redirecting to checkout…' : 'Starting checkout…'}
-                </>
-              ) : (
-                'Start 60-Day Sprint'
-              )}
-            </button>
-          )}
+          <div className="pricing-card__slot">
+            {isOnSprint ? (
+              <div className="pricing-card__current-pill">Your current plan</div>
+            ) : (
+              /* Founding price through 2026-10-31; switch back to 'pro_sprint' after. */
+              <button
+                type="button"
+                className="btn btn-primary pricing-card__cta"
+                disabled={isSubmitting}
+                onClick={() => handleCheckout('pro_founding_sprint')}
+              >
+                {activePlan === 'pro_founding_sprint' ? (
+                  <>
+                    <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                    {stage === 'redirecting' ? 'Redirecting to checkout…' : 'Starting checkout…'}
+                  </>
+                ) : (
+                  'Start 60-day Sprint'
+                )}
+              </button>
+            )}
+          </div>
         </div>
+      </div>
+
+      <div className="pricing-footnotes animate-in">
+        <span>Cancel anytime — Pro Monthly renews until you stop it.</span>
+        <span>Career Sprint is a one-time charge, not a subscription.</span>
       </div>
     </div>
   );
