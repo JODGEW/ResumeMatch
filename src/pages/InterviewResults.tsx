@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getAnalysis } from '../api/analysis';
-import { endInterview, getSession, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
+import { endInterview, getSession, type AssessmentCategory, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { clearInterviewPointer } from '../utils/interviewPointer';
 import { useAuth } from '../auth/AuthContext';
@@ -163,9 +163,51 @@ function getMatchScoreTier(score: number): 'high' | 'good' | 'mid' | 'low' | 'po
   return 'poor';
 }
 
+/* Category weights arrive either as a 0-1 fraction (what the backend and the demo
+   fixture store) or as a 0-100 percentage. Anything that does arithmetic on a weight
+   has to normalize first — reading 0.25 as a quarter of a point of weight silently
+   collapses the costliest-category math to zero on every real session. */
+function normalizeCategoryWeight(weight: number): number {
+  return weight > 0 && weight <= 1 ? weight * 100 : weight;
+}
+
 function formatCategoryWeight(weight: number): string {
-  const normalized = weight > 0 && weight <= 1 ? weight * 100 : weight;
+  const normalized = normalizeCategoryWeight(weight);
   return `${Number.isInteger(normalized) ? normalized : Number(normalized.toFixed(1))}`;
+}
+
+/** The category dragging the overall score down hardest, and by how many points.
+    Carries the index so the matching tile is identified positionally — matching on
+    name would light up two tiles if an assessment ever repeated one. */
+function findCostliestCategory(
+  categories: AssessmentCategory[]
+): { index: number; name: string; lossPoints: number } | null {
+  // One category has nothing to be costliest *against* — the comparison only says
+  // something when there are alternatives it beat.
+  if (categories.length < 2) return null;
+
+  let worstIndex = -1;
+  let worstDrag = 0;
+  categories.forEach((category, index) => {
+    const drag = (100 - category.score) * normalizeCategoryWeight(category.weight);
+    // Ties go to the lower raw score, so the weaker of two equally costly
+    // categories is the one named.
+    const isWorse = worstIndex === -1
+      || drag > worstDrag
+      || (drag === worstDrag && category.score < categories[worstIndex].score);
+    if (isWorse) {
+      worstIndex = index;
+      worstDrag = drag;
+    }
+  });
+  if (worstIndex === -1) return null;
+
+  // A flawless session (or one whose weights all came back zero) has no drag worth
+  // pointing at, and "-0 pts" reads like a bug. Non-finite scores land here too.
+  const lossPoints = Math.round(worstDrag / 100);
+  return lossPoints > 0
+    ? { index: worstIndex, name: categories[worstIndex].name, lossPoints }
+    : null;
 }
 
 function getResumeLabel(session: SessionResponse): string {
@@ -488,6 +530,9 @@ export function InterviewResults() {
   const conversation = session.conversation ?? [];
   const transcriptGroups = groupTranscript(conversation);
   const hasCategoryScores = (assessment?.categories.length ?? 0) > 0;
+  const costliestCategory = hasCategoryScores
+    ? findCostliestCategory(assessment!.categories)
+    : null;
   const questionCount = conversation.filter(isInterviewQuestionTurn).length;
   const transcriptQuestionLabel = questionCount === 1 ? '1 question' : `${questionCount} questions`;
   const interviewType = formatInterviewType(session.interviewType);
@@ -855,7 +900,7 @@ export function InterviewResults() {
                     <span className="ir-overall__value">{assessment.overallScore}%</span>
                   </div>
                 )}
-                <div>
+                <div className="ir-overall__text">
                   <div
                     className="ir-overall__band"
                     style={hasCategoryScores ? { color: scoreColor(assessment.overallScore) } : undefined}
@@ -868,13 +913,29 @@ export function InterviewResults() {
                       : 'No category scores were generated for this session.'}
                   </div>
                 </div>
+                {costliestCategory && (
+                  <div className="ir-overall__focus">
+                    <div className="ir-overall__focus-label">Costing you the most</div>
+                    {/* nbsp so a long category name wraps before the figure rather
+                        than stranding "pts" on its own line. */}
+                    <div className="ir-overall__focus-name">
+                      {costliestCategory.name} &middot; &minus;{costliestCategory.lossPoints}&nbsp;pts
+                    </div>
+                    <p className="ir-overall__focus-hint">
+                      Its weight and gap drag the overall score down more than any other category.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
             {hasCategoryScores && (
               <div className="ir-cat-grid" aria-label="Dimension scores">
                 {assessment.categories.map((cat, i) => (
-                  <div key={i} className="ir-cat">
+                  <div
+                    key={i}
+                    className={`ir-cat${i === costliestCategory?.index ? ' ir-cat--focus' : ''}`}
+                  >
                     <div className="ir-cat__score" style={{ color: scoreColor(cat.score) }}>{cat.score}%</div>
                     <div className="ir-cat__name">{cat.name}</div>
                     <div className="ir-cat__weight">weight {formatCategoryWeight(cat.weight)}%</div>

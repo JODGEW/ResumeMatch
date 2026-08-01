@@ -22,12 +22,17 @@ const SUGGESTIONS = [
 
 // Mirrors InterviewResults: scoreColor() is >=80 high, >=60 good, else mid,
 // and each tile is labelled "weight N%".
+//
+// `focus` mirrors findCostliestCategory() — the biggest weighted gap to 100.
+// For these five that is STAR Framework Usage: (100-75)*25 = 625, ahead of Role
+// Relevance at 520 and Specificity at 500. Its loss is round(625/100) = 6 pts,
+// which is what the callout above the tiles states.
 const SCORE_TILES = [
-  { value: '78%', tone: 'good', label: 'Communication Structure', weight: 'weight 20%' },
-  { value: '75%', tone: 'good', label: 'STAR Framework Usage', weight: 'weight 25%' },
-  { value: '80%', tone: 'high', label: 'Specificity & Metrics', weight: 'weight 25%' },
-  { value: '74%', tone: 'good', label: 'Role Relevance', weight: 'weight 20%' },
-  { value: '82%', tone: 'high', label: 'Self-Awareness', weight: 'weight 10%' },
+  { value: '78%', tone: 'good', label: 'Communication Structure', weight: 'weight 20%', focus: false },
+  { value: '75%', tone: 'good', label: 'STAR Framework Usage', weight: 'weight 25%', focus: true },
+  { value: '80%', tone: 'high', label: 'Specificity & Metrics', weight: 'weight 25%', focus: false },
+  { value: '74%', tone: 'good', label: 'Role Relevance', weight: 'weight 20%', focus: false },
+  { value: '82%', tone: 'high', label: 'Self-Awareness', weight: 'weight 10%', focus: false },
 ] as const;
 
 export function SuggestionsCard() {
@@ -142,34 +147,43 @@ export function InterviewCard() {
           <span className="landing-session__ai-link">Show details</span>
         </div>
         <div className="landing-overall">
-          <div className="landing-overall__title">Overall Score</div>
-          <div className="landing-overall__row">
-            <svg width="56" height="56" viewBox="0 0 64 64">
-              <circle cx="32" cy="32" r="26" fill="none" className="lp-stroke-track" strokeWidth="5" />
-              <circle
-                cx="32"
-                cy="32"
-                r="26"
-                fill="none"
-                className="lp-stroke-score-good"
-                strokeWidth="5"
-                strokeLinecap="round"
-                strokeDasharray="125.8 37.6"
-                transform="rotate(-90 32 32)"
-              />
-              <text x="32" y="37" textAnchor="middle" className="landing-overall__ring-value">
-                77%
-              </text>
-            </svg>
-            <div>
-              <div className="landing-overall__grade">Good</div>
-              <div className="landing-overall__note">77% overall across 5 scoring categories</div>
+          <div className="landing-overall__main">
+            <div className="landing-overall__title">Overall Score</div>
+            <div className="landing-overall__row">
+              <svg width="56" height="56" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="26" fill="none" className="lp-stroke-track" strokeWidth="5" />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="26"
+                  fill="none"
+                  className="lp-stroke-score-good"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray="125.8 37.6"
+                  transform="rotate(-90 32 32)"
+                />
+                <text x="32" y="37" textAnchor="middle" className="landing-overall__ring-value">
+                  77%
+                </text>
+              </svg>
+              <div className="landing-overall__stack">
+                <div className="landing-overall__grade">Good</div>
+                <div className="landing-overall__note">77% overall across 5 scoring categories</div>
+              </div>
             </div>
+          </div>
+          <div className="landing-overall__focus">
+            <div className="landing-overall__focus-text">
+              <div className="landing-overall__focus-label">Costing you the most</div>
+              <div className="landing-overall__focus-name">STAR Framework Usage</div>
+            </div>
+            <div className="landing-overall__focus-loss">&minus;6 pts</div>
           </div>
         </div>
         <div className="landing-tiles">
           {SCORE_TILES.map((tile) => (
-            <div key={tile.label} className="landing-tile">
+            <div key={tile.label} className={`landing-tile${tile.focus ? ' landing-tile--focus' : ''}`}>
               <div className={`landing-tile__value landing-tile__value--${tile.tone}`}>{tile.value}</div>
               <div className="landing-tile__label">{tile.label}</div>
               <div className="landing-tile__weight">{tile.weight}</div>

@@ -428,6 +428,43 @@
   color: var(--text-primary);
 }
 
+.ir-overall__text {
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+
+/* ── Costliest category callout ─────────────────────── */
+.ir-overall__focus {
+  flex: 0 0 auto;
+  max-width: 290px;
+  background: var(--pill-danger-bg);
+  border: 1px solid var(--pill-danger-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.ir-overall__focus-label {
+  font-size: 11px;
+  font-weight: 510;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--pill-danger-text);
+  margin-bottom: 7px;
+}
+
+.ir-overall__focus-name {
+  font-size: 15px;
+  font-weight: 590;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.ir-overall__focus-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 .ir-overall__band {
   font-size: 26px;
   font-weight: 590;
@@ -455,6 +492,13 @@
   border-radius: 12px;
   padding: 16px 12px;
   text-align: center;
+}
+
+/* The category named by .ir-overall__focus, so the callout and the grid point at
+   the same thing without the reader having to match on name. */
+.ir-cat--focus {
+  background: var(--pill-danger-bg);
+  border-color: var(--pill-danger-border);
 }
 
 .ir-cat__score {
@@ -1014,6 +1058,13 @@
   .ir-summary,
   .ir-dimensions {
     padding: 20px;
+  }
+
+  /* Once it wraps below the ring there is no column to be narrow next to, and a
+     290px block against a full-width panel reads as a stray fragment. */
+  .ir-overall__focus {
+    flex-basis: 100%;
+    max-width: none;
   }
 
   .ir-transcript__inner {

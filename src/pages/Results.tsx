@@ -25,6 +25,10 @@ type LastInterview = {
   sessionId: string;
   createdAt?: string;
   completedAt?: string;
+  interviewType?: string;
+  // undefined = not looked up yet (a listSessions summary carries no assessment);
+  // null = looked up and the session has no score.
+  overallScore?: number | null;
 };
 
 type SignupPromptContent = {
@@ -37,27 +41,40 @@ function getLastInterviewTime(session: LastInterview) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function InterviewButton({ resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, navigate, isDemo, onDemoAction }: {
+// Same shape as the local helpers in InterviewHistory/InterviewResults.
+function formatInterviewType(type?: string): string {
+  if (!type) return '';
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function formatLastInterviewDate(session: LastInterview): string {
+  const raw = session.completedAt || session.createdAt;
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// The action-row entry shows the interview's score, which only getSession
+// returns — listSessions summaries have no assessment. The pointer path already
+// pays for a getSession; when the winning session came from listSessions
+// instead, fetch that one session once to fill the pill in.
+function useLastInterview({ resumeText, jobDescription, analysisId, enabled }: {
   resumeText: string;
   jobDescription: string;
-  fileName?: string;
   analysisId?: string;
-  jobTitle?: string;
-  matchScore?: number;
-  navigate: ReturnType<typeof useNavigate>;
-  isDemo: boolean;
-  onDemoAction: (content: SignupPromptContent) => void;
+  enabled: boolean;
 }) {
-  const [lastInterviewId, setLastInterviewId] = useState<string | null>(null);
+  const [lastInterview, setLastInterview] = useState<LastInterview | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadLastInterview() {
-      setLastInterviewId(null);
-      // Read-only (shared demo account or signed-out /sample): skip the authed
-      // session lookups (listSessions / getSession) entirely.
-      if (isDemo) return;
+      setLastInterview(null);
+      // Read-only (shared demo account or signed-out /sample) or nothing to key
+      // on: skip the authed session lookups (listSessions / getSession) entirely.
+      if (!enabled || !resumeText || !jobDescription) return;
       const candidates: LastInterview[] = [];
 
       const pointer = loadInterviewPointer(resumeText, jobDescription);
@@ -70,6 +87,8 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
               sessionId: session.sessionId,
               createdAt: session.createdAt,
               completedAt: session.completedAt,
+              interviewType: session.interviewType,
+              overallScore: session.assessment?.overallScore ?? null,
             });
           }
         } catch (err) {
@@ -90,6 +109,7 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
               sessionId: session.sessionId,
               createdAt: session.createdAt,
               completedAt: session.completedAt,
+              interviewType: session.interviewType,
             }));
         } catch (err) {
           console.error('Failed to load interview sessions:', err);
@@ -97,8 +117,24 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
       }
 
       const latest = candidates.sort((a, b) => getLastInterviewTime(b) - getLastInterviewTime(a))[0];
+      if (!latest) return;
+
+      if (latest.overallScore === undefined) {
+        try {
+          const session = await getSession(latest.sessionId);
+          if (cancelled) return;
+          latest.overallScore = session.assessment?.overallScore ?? null;
+          latest.interviewType = session.interviewType || latest.interviewType;
+        } catch (err) {
+          if (cancelled) return;
+          // The entry still links to a real session — render it without the pill.
+          console.error('Failed to load last interview score:', err);
+          latest.overallScore = null;
+        }
+      }
+
       if (!cancelled) {
-        setLastInterviewId(latest?.sessionId ?? null);
+        setLastInterview(latest);
       }
     }
 
@@ -107,39 +143,83 @@ function InterviewButton({ resumeText, jobDescription, fileName, analysisId, job
     return () => {
       cancelled = true;
     };
-  }, [resumeText, jobDescription, analysisId, isDemo]);
+  }, [resumeText, jobDescription, analysisId, enabled]);
+
+  return lastInterview;
+}
+
+function InterviewButton({ resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, navigate, isDemo, onDemoAction }: {
+  resumeText: string;
+  jobDescription: string;
+  fileName?: string;
+  analysisId?: string;
+  jobTitle?: string;
+  matchScore?: number;
+  navigate: ReturnType<typeof useNavigate>;
+  isDemo: boolean;
+  onDemoAction: (content: SignupPromptContent) => void;
+}) {
+  return (
+    <button
+      className="btn btn-primary"
+      title={isDemo ? 'Sign up for full access' : undefined}
+      onClick={() => {
+        if (isDemo) {
+          onDemoAction({
+            title: 'Start Your Mock Interview',
+            body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
+          });
+          return;
+        }
+        navigate('/interview', {
+          state: { resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, startFresh: true }
+        });
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M2 7c0 2.75 2.25 5 5 5s5-2.25 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M7 12v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+      Start Interview
+    </button>
+  );
+}
+
+// A completed interview is a result you can return to, so it reads as an entry
+// in the action row — divider, score pill, meta line, chevron — rather than a
+// link dangling under Start Interview.
+function LastInterviewEntry({ entry }: { entry: LastInterview }) {
+  const interviewType = formatInterviewType(entry.interviewType);
+  const date = formatLastInterviewDate(entry);
+  const meta = [interviewType, date].filter(Boolean).join(' · ');
+  const score = entry.overallScore != null ? Math.round(entry.overallScore) : null;
+  // Left to its text content the link announces as a bare "71%" ahead of the
+  // label, so name it explicitly instead.
+  const label = ['View last interview', score != null ? `${score}% score` : '', interviewType, date]
+    .filter(Boolean)
+    .join(', ');
 
   return (
-    <div className="results-interview-action">
-      <button
-        className="btn btn-primary"
-        title={isDemo ? 'Sign up for full access' : undefined}
-        onClick={() => {
-          if (isDemo) {
-            onDemoAction({
-              title: 'Start Your Mock Interview',
-              body: 'Create a free account to practice role-specific interview questions and get a detailed interview report.',
-            });
-            return;
-          }
-          navigate('/interview', {
-            state: { resumeText, jobDescription, fileName, analysisId, jobTitle, matchScore, startFresh: true }
-          });
-        }}
+    <>
+      <span className="results-tools__divider" aria-hidden="true" />
+      <Link
+        className={`results-last-interview${score == null ? ' results-last-interview--no-score' : ''}`}
+        to={`/interview/results/${entry.sessionId}`}
+        aria-label={label}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <rect x="3.5" y="1" width="7" height="9" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M2 7c0 2.75 2.25 5 5 5s5-2.25 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          <path d="M7 12v1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        {score != null && (
+          <span className="results-last-interview__score">{score}%</span>
+        )}
+        <span className="results-last-interview__text">
+          <span className="results-last-interview__label">View last interview</span>
+          {meta && <span className="results-last-interview__meta">{meta}</span>}
+        </span>
+        <svg className="results-last-interview__chevron" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        Start Interview
-      </button>
-      {lastInterviewId ? (
-        <Link className="results-last-interview-link" to={`/interview/results/${lastInterviewId}`}>
-          View last interview
-        </Link>
-      ) : null}
-    </div>
+      </Link>
+    </>
   );
 }
 
@@ -213,6 +293,12 @@ export function Results({ sample = false }: { sample?: boolean }) {
   // every write/action button routes to the signup prompt instead of the backend.
   const isReadOnly = isDemo || sample;
   const navigate = useNavigate();
+  const lastInterview = useLastInterview({
+    resumeText: analysis?.originalText || analysis?.suggestedText || '',
+    jobDescription: analysis?.jobDescription || '',
+    analysisId,
+    enabled: !isReadOnly,
+  });
 
   // Completion beat: after the user has watched the analysis run, hold a brief
   // all-steps-done card before revealing the report. Never plays when landing
@@ -506,6 +592,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
             >
               Add to Tracker
             </button>
+            {lastInterview && <LastInterviewEntry entry={lastInterview} />}
           </div>
         </div>
       </div>

@@ -33,9 +33,15 @@ export function SampleAnalysisPanel() {
             View Resume
           </span>
           <span className="landing-btn landing-btn--ghost landing-btn--sm">Add to Tracker</span>
-        </div>
-        <div className="landing-panel__lastlink">
-          <span>View last interview</span>
+          <span className="landing-panel__lastdivider" aria-hidden="true" />
+          <span className="landing-panel__last">
+            <span className="landing-panel__last-score">71%</span>
+            <span className="landing-panel__last-text">
+              <span className="landing-panel__last-label">View last interview</span>
+              <span className="landing-panel__last-meta">Behavioral · Jul 31</span>
+            </span>
+            <ChevronRightIcon />
+          </span>
         </div>
       </div>
 
