@@ -1,6 +1,7 @@
 // Sentinel raised by the Cognito Pre Sign-Up linking trigger
-// (local_lambda/preSignUpLink.py) after it links a first-time Google sign-in
-// to an existing email/password account and aborts the duplicate signup.
+// (backend repo lambdas/preSignUpLink/lambda_function.py) after it links a
+// first-time Google sign-in to an existing email/password account and aborts
+// the duplicate signup.
 // Cognito surfaces it in the OAuth error redirect as
 // "PreSignUp failed with error LINKED_RETRY." — retrying the redirect once
 // signs into the freshly linked account.

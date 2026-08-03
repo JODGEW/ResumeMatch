@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { parseJobTitle, resolveSessionIdentity } from './sessionIdentity';
 
 // The backend splits jobTitle on " @ " only, and on the last one. These are the
-// same cases pinned on the Python side by
-// local_lambda/test_interview_role_company.py — the two must not drift.
+// same cases pinned on the Python side by the backend repo's
+// tests/test_interview_role_company.py — the two must not drift.
 describe('resolveSessionIdentity — backend pair', () => {
   it('uses the backend role and company as given', () => {
     expect(resolveSessionIdentity({

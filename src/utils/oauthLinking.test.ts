@@ -6,7 +6,7 @@ import { isAccountLinkRetry, LINK_RETRY_SENTINEL } from './oauthLinking';
 const COGNITO_WRAPPED = 'PreSignUp failed with error LINKED_RETRY.';
 
 describe('isAccountLinkRetry', () => {
-  it('pins the sentinel shared with local_lambda/preSignUpLink.py', () => {
+  it('pins the sentinel shared with backend lambdas/preSignUpLink/lambda_function.py', () => {
     expect(LINK_RETRY_SENTINEL).toBe('LINKED_RETRY');
     expect(COGNITO_WRAPPED).toContain(LINK_RETRY_SENTINEL);
   });
