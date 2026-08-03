@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getSession, listSessions, type SessionSummary } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { resolveSessionIdentity } from '../utils/sessionIdentity';
 import { useAuth } from '../auth/AuthContext';
 import { getScoreBand } from '../utils/scoreBands';
 import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SUMMARY } from '../types/sampleInterviewSession';
@@ -24,23 +25,12 @@ function formatInterviewType(type: string): string {
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-function parseJobTitle(title?: string): { role: string; company: string } {
-  if (!title) return { role: '', company: '' };
-  const parts = title.split(/\s+(?:@|—|-)\s+/);
+function getSessionLabels(session: SessionSummary): { role: string; company: string } {
+  const { role, company } = resolveSessionIdentity(session);
   return {
-    role: parts[0]?.trim() ?? '',
-    company: parts.slice(1).join(' - ').trim(),
+    role: role || `${formatInterviewType(session.interviewType)} Practice Session (No job selected)`,
+    company,
   };
-}
-
-function getRoleLabel(session: SessionSummary): string {
-  const parsed = parseJobTitle(session.jobTitle);
-  return session.roleName || parsed.role || `${formatInterviewType(session.interviewType)} Practice Session (No job selected)`;
-}
-
-function getCompanyLabel(session: SessionSummary): string {
-  const parsed = parseJobTitle(session.jobTitle);
-  return session.companyName || parsed.company;
 }
 
 function getResumeLabel(session: SessionSummary): string {
@@ -282,7 +272,7 @@ export function InterviewHistory() {
                 {groupSessions.map((session) => {
                   const matchValue = parseMatchScore(session.matchScore);
                   const band = matchValue != null ? getScoreBand(matchValue) : null;
-                  const company = getCompanyLabel(session);
+                  const { role, company } = getSessionLabels(session);
                   const questionCount = questionCounts[session.sessionId] ?? session.questionCount;
 
                   return (
@@ -293,7 +283,7 @@ export function InterviewHistory() {
                     >
                       <div className="ih-card__top">
                         <div className="ih-card__identity">
-                          <div className="ih-card__role">{getRoleLabel(session)}</div>
+                          <div className="ih-card__role">{role}</div>
                           <div className="ih-card__source">
                             {company && (
                               <>

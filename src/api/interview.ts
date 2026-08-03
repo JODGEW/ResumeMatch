@@ -49,6 +49,12 @@ export interface StartInterviewRequest {
   analysisId?: string;
   fileName?: string;
   jobTitle?: string;
+  // The Lambda splits jobTitle ("Role @ Company") into roleName/companyName on
+  // the way into DynamoDB. These two override that split when the caller
+  // already has the structured values; no caller sends them today, because the
+  // only source is an analysis whose jobTitle is the combined string.
+  roleName?: string;
+  companyName?: string;
   matchScore?: number;
 }
 
@@ -58,6 +64,11 @@ export interface StartInterviewResponse {
   questionNumber: number;
   totalQuestions: number;
   timeLimit: number;
+  // What the session was stored with — echoed back so a reused session (same
+  // clientRequestId, or an already-active session for this resume+JD) reports
+  // the same pair Interview Detail will. null when nothing was derivable.
+  roleName?: string | null;
+  companyName?: string | null;
   keyterms?: string[];
   // Subset of `keyterms` that are Pass 0 employer names. They ride the
   // Deepgram keyterm prompt (proper nouns, highest-value bias targets) but
