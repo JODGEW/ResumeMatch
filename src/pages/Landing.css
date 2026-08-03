@@ -1348,6 +1348,46 @@
   margin-top: 2px;
 }
 
+/* Narrow-card fallbacks, mirroring InterviewResults' own mobile rules: the tile
+   grid steps 5 → 3 → 2 columns, and the costliest-category callout goes
+   full-width once it has wrapped below the score.
+
+   Keyed to the card, not the viewport, because .landing-grid--pair makes the
+   card width non-monotonic in viewport width: a 900px viewport puts two ~414px
+   cards side by side, narrower than the single ~700px card at 750px. Viewport
+   breakpoints would have to be written as two disjoint ranges and would rot the
+   moment the pair grid's own breakpoint moves. */
+.landing-work-card__embed {
+  container-type: inline-size;
+}
+
+/* A five-across row needs ~73px per tile: the longest label word,
+   "Communication", measures ~63px at 8.5px plus 8px padding and 2px border.
+   Five of those plus four 6px gaps is ~389px, so below 400px of card content
+   the word spills past the tile border — at a 390px viewport the tile is 53.6px
+   wide and the label overhangs it by ~9px on each side. */
+@container (max-width: 400px) {
+  .landing-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Once wrapped below the ring, margin-left:auto leaves the callout stranded
+     against the right edge with dead space beside it — same reasoning as
+     .ir-overall__focus at max-width:768px. */
+  .landing-overall__focus {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+}
+
+/* Same arithmetic for three across: 3 × 73px + two gaps ≈ 231px. Reached on
+   360px-and-under phones. */
+@container (max-width: 240px) {
+  .landing-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ── Pricing ────────────────────────────────────────── */
 .landing-pricing {
   display: grid;
