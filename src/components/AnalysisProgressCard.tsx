@@ -183,24 +183,40 @@ export function AnalysisProgressCard({
     );
   }
 
+  // Reached when usePolling gives up (POLL_TIMEOUT_MS, currently 2 minutes) with
+  // the row still non-terminal. Deliberately claims nothing about whether work is
+  // still happening: a worker that dies without writing a terminal state leaves
+  // the row in 'processing' forever, and nothing reclaims it, so "it's still
+  // running in the background" — what this card used to say — is a promise the
+  // system cannot keep. Say what we know (we stopped looking, it hadn't
+  // finished) and give the one action that always works.
   if (mode === 'timeout') {
     return (
       <section className="analysis-progress-card" role="status">
-        <h2>Still working on it</h2>
+        <span className="analysis-progress-card__status-icon analysis-progress-card__status-icon--warn" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 4.75V8.25l2 1.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <h2>This is taking longer than it should</h2>
         <p className="analysis-progress-card__desc">
-          The analysis is taking longer than expected, but it's still running in the background.
+          We checked for two minutes and it hasn't finished. We can't tell from here whether it's
+          still running or has stopped.
         </p>
         <div className="analysis-progress-card__notice">
           <p className="analysis-progress-card__notice-primary">
-            You can safely leave this page — when it finishes, your result will appear in <strong>History</strong>.
+            If it does finish, the report shows up in{' '}
+            <Link to="/history" state={{ pendingAnalysisId: analysisId }}>History</Link>. If nothing
+            appears there in the next few minutes, it isn't coming — run the analysis again.
           </p>
         </div>
         <div className="analysis-progress-card__actions">
-          <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary">
-            Go to History
+          <Link to="/upload" className="btn btn-primary">
+            Start a new analysis
           </Link>
           <button type="button" className="btn btn-outline" onClick={() => window.location.reload()}>
-            Refresh
+            Check again
           </button>
         </div>
       </section>
