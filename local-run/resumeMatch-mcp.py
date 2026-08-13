@@ -353,8 +353,18 @@ async def _request(
     # Upstream size, before this server projects it down. Paired with
     # _log_projection() at the tool boundary, this gives the context-reduction
     # ratio without needing a separate curl against the same endpoint.
-    _log(f"upstream {method} {path} -> {len(r.content)} bytes")
-    return r.json()
+    #
+    # The row count is logged alongside the byte count because the two sides of
+    # that ratio do not necessarily cover the same rows: this line counts the
+    # whole response, while the projection line counts only what the tool's
+    # limit let through. Without both counts a reader cannot tell a real 24x
+    # projection from a 10-of-40 slice, and the numbers are not self-describing
+    # after the fact.
+    body = r.json()
+    rows = len(body) if isinstance(body, list) else None
+    row_note = f", {rows} rows" if rows is not None else ""
+    _log(f"upstream {method} {path} -> {len(r.content)} bytes{row_note}")
+    return body
 
 
 def _log(msg: str) -> None:
@@ -368,13 +378,22 @@ def _log(msg: str) -> None:
     print(f"[resumematch-mcp] {msg}", file=sys.stderr, flush=True)
 
 
-def _log_projection(tool: str, upstream_hint: str, payload: Any) -> Any:
-    """Report what the projection cost the caller in bytes."""
+def _log_projection(
+    tool: str, upstream_hint: str, payload: Any, *, rows: int | None = None
+) -> Any:
+    """Report what the projection cost the caller in bytes.
+
+    Pass rows for row-shaped payloads so this line names its own denominator.
+    The upstream line reports the row count of the whole response; if these two
+    counts differ, the byte ratio between them is a projection-plus-truncation
+    figure, not a projection figure. Omit rows where the payload is not rows.
+    """
     if isinstance(payload, BaseModel):
         size = len(payload.model_dump_json())
     else:
         size = len(json.dumps(payload))
-    _log(f"{tool} returned {size} bytes ({upstream_hint})")
+    row_note = f", {rows} rows" if rows is not None else ""
+    _log(f"{tool} returned {size} bytes{row_note} ({upstream_hint})")
     return payload
 
 
@@ -516,6 +535,7 @@ async def list_analyses(
         "list_analyses",
         f"{len(items)} rows upstream, {len(out)} returned",
         ListAnalysesResult(analyses=out, returned=len(out)),
+        rows=len(out),
     )
 
 

@@ -1,0 +1,15 @@
+date: 2026-08-13
+tool: list_analyses (limit=50)
+corpus: demo account, 35 analyses
+
+upstream bytes:  289041
+upstream rows:   35
+projected bytes: 9952
+projected rows:  35
+
+reduction factor (upstream bytes / projected bytes): 29.0x
+bytes per row, upstream:  8258
+bytes per row, projected: 284
+
+row counts equal: yes (35 upstream vs 35 projected)
+This is a single observation against the account corpus as it stood on 2026-08-13, not a constant and not an average. Method: the server's own stderr instrumentation (_request and _log_projection); re-run to reproduce against a different corpus.
