@@ -10,6 +10,7 @@ import { getScoreBand } from '../utils/scoreBands';
 import { clearAnalysisNew, getNewAnalysisIds, markAnalysisNew } from '../utils/newAnalyses';
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
+import { RecurringGaps } from '../components/RecurringGaps';
 import { DEMO_ANALYSES } from '../types/demoAnalyses';
 import './History.css';
 
@@ -362,6 +363,10 @@ export function History() {
           </Link>
         </div>
       )}
+
+      {/* Aggregates over the FULL list, not visibleAnalyses — the search box
+          narrows the list below, not the cross-JD picture. */}
+      {!loading && !error && <RecurringGaps analyses={analyses} />}
 
       {!loading && !error && analyses.length > 0 && (
         <div className="history-controls animate-in">
