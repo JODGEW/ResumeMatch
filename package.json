@@ -8,6 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "qa:build": "node qa/browser/qaCommand.mjs build",
+    "qa:test": "node qa/browser/qaCommand.mjs test",
+    "qa:test:repeat": "node qa/browser/qaCommand.mjs test --repeat-each=10",
+    "qa:typecheck": "tsc -p tsconfig.qa.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -28,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
+    "@playwright/test": "1.57.0",
     "@types/diff": "^8.0.0",
     "@types/file-saver": "^2.0.7",
     "@types/react": "^18.3.12",

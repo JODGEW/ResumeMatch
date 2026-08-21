@@ -10,6 +10,10 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.qa-artifacts/
+.qa-dist/
+playwright-report/
+test-results/
 *.local
 local-run/.env
 # Machine-local MCP launcher config (absolute paths to this machine's python +
