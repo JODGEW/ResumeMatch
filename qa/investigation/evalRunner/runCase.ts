@@ -72,6 +72,8 @@ export interface EvalCaseResult {
   goldFirstProbe: string | null
   goldProbeHit: boolean | null
   worktreeRemoved: boolean
+  /** File name of the captured harness transcript, when one was launched. */
+  transcript?: string
   /** Token totals across every logged request, whichever provider served them. */
   providerTokens?: { requests: number; cacheHitTokens: number; cacheMissTokens: number; completionTokens: number }
   /** Per-request accounting copied from the finding; empty for a case that spent nothing. */
@@ -155,6 +157,7 @@ async function runInvestigation(
   worktree: string,
   runId: string,
   requestLog: string,
+  transcriptPath: string,
   scenarioId: string,
   options: EvalRunnerOptions,
 ): Promise<{ errors: string[] }> {
@@ -186,8 +189,11 @@ async function runInvestigation(
         ...process.env.DEEPSEEK_API_KEY === undefined ? {} : { DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY },
       },
       encoding: 'utf8',
-      maxBuffer: 32 * 1024 * 1024,
+      maxBuffer: 64 * 1024 * 1024,
     })
+    // Kept because a run that submits no finding is only diagnosable from the
+    // turn it actually took; the transcript is the evidence for that.
+    await writeFile(transcriptPath, `${outcome.stdout ?? ''}\n--- stderr ---\n${outcome.stderr ?? ''}\n`, 'utf8')
     if (outcome.status !== 0) errors.push(`investigation exited ${String(outcome.status)}: ${outcome.stderr?.slice(0, 500) ?? ''}`)
     return { errors }
   } finally {
@@ -251,7 +257,9 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
 
     if (result.triage === 'investigate') {
       result.harnessLaunched = true
-      errors.push(...(await runInvestigation(worktree.directory, result.runId, requestLog, evalCase.scenarioId, options)).errors)
+      const transcriptPath = path.join(options.outputDirectory, `${caseId}.transcript.jsonl`)
+      result.transcript = path.basename(transcriptPath)
+      errors.push(...(await runInvestigation(worktree.directory, result.runId, requestLog, transcriptPath, evalCase.scenarioId, options)).errors)
       const finding = await findFinding(worktree.directory)
       if (finding === null) errors.push('no finding was submitted')
       else {
