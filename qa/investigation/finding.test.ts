@@ -25,7 +25,7 @@ function facts(overrides: Partial<DeterministicFacts> = {}): DeterministicFacts 
     reproductionOracleResult: { oracleStatus: 'failed', failedOracle: 'P1-04_FAILURE_TITLE', failures: [] },
     safetyViolations: [], model: { provider: 'fake', modelId: 'fake-1' },
     usage: { toolCalls: 1, cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 0, costUsd: 0, requests: [] },
-    policyBlocked: false, budgetExhausted: false,
+    policyBlocked: false, budgetExhausted: false, rejectedCalls: [],
     ...overrides,
   }
 }
@@ -40,13 +40,25 @@ describe('classify', () => {
     expect(classify(facts({ reproductionOracleResult: { oracleStatus: 'passed', failedOracle: null, failures: [] } }))).toBe('not_reproduced')
   })
 
-  it('treats budget exhaustion as inconclusive even with a matching oracle', () => {
-    expect(classify(facts({ budgetExhausted: true }))).toBe('inconclusive')
+  it('does not downgrade a completed reproduction for a spent budget', () => {
+    // The spend reaches the verdict through its consequence — a reproduction cut
+    // short has no completed oracle — not as a penalty of its own.
+    expect(classify(facts({ budgetExhausted: true }))).toBe('confirmed')
+    expect(classify(facts({ budgetExhausted: true, reproductionOracleResult: null }))).toBe('inconclusive')
   })
 
   it('lets an unauthorized action outrank every other signal', () => {
     expect(classify(facts({ policyBlocked: true, budgetExhausted: true }))).toBe('policy_blocked')
     expect(classify(facts({ policyBlocked: true }))).toBe('policy_blocked')
+  })
+
+  it('records refused calls without letting them change the verdict', () => {
+    const rejected = [
+      { tool: 'read_safety_violations', reason: 'Budget for probes is exhausted (limit 6)' },
+      { tool: 'count_requests', reason: 'Budget for probes is exhausted (limit 6)' },
+      { tool: 'read_network_events', reason: 'Budget for probes is exhausted (limit 6)' },
+    ]
+    expect(classify(facts({ rejectedCalls: rejected }))).toBe('confirmed')
   })
 
   it('is inconclusive without a completed reproduction oracle', () => {
@@ -64,7 +76,7 @@ describe('validateNarrative', () => {
   it('blocks any attempt to supply a deterministic authority field', () => {
     for (const field of [
       'classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model',
-      'evaluationIdentity', 'resumematchCommit', 'harnessCommit', 'adapterCommit',
+      'evaluationIdentity', 'resumematchCommit', 'harnessCommit', 'adapterCommit', 'rejectedCalls',
     ]) {
       expect(() => validateNarrative(narrative({ [field]: 'confirmed' }))).toThrow(/may not supply the deterministic field/)
       try { validateNarrative(narrative({ [field]: 'confirmed' })) } catch (error) { expect(error).toMatchObject({ code: 'POLICY_BLOCKED' }) }
@@ -95,8 +107,8 @@ describe('buildFinding', () => {
     expect(Object.keys(finding).sort()).toEqual([
       'adapterCommit', 'classification', 'evidenceRefs', 'expectedBehavior', 'failedOracle', 'findingId',
       'harnessCommit', 'hypotheses', 'model', 'observedBehavior', 'probesSelected', 'reasoningSummary',
-      'reproductionOracleResult', 'reproductionSequence', 'resumematchCommit', 'safetyViolations', 'scenarioId',
-      'schemaVersion', 'sourceCommit', 'sourceRunId', 'usage',
+      'rejectedCalls', 'reproductionOracleResult', 'reproductionSequence', 'resumematchCommit', 'safetyViolations',
+      'scenarioId', 'schemaVersion', 'sourceCommit', 'sourceRunId', 'usage',
     ])
     expect({
       resumematchCommit: finding.resumematchCommit, harnessCommit: finding.harnessCommit, adapterCommit: finding.adapterCommit,

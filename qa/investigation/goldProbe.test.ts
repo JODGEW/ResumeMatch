@@ -21,6 +21,23 @@ describe('firstProbe', () => {
 describe('scoreFirstProbes', () => {
   const gold = goldFirstProbes(EVAL_CASES)
 
+  it('separates the strict first-probe metric from the opening-three metric', () => {
+    // The D1 smoke test's actual ordering: manifest, assertion, then the gold probe.
+    const score = scoreFirstProbes([
+      { caseId: 'D1', finding: finding(['read_failure_manifest', 'read_failed_assertion', 'read_network_events', 'read_console_events']) },
+    ], gold)
+    expect({ hits: score.hits, within: score.hitsWithinWindow }).toEqual({ hits: 0, within: 1 })
+    expect({ first: score.goldFirstProbe, window: score.goldWithinFirst3 }).toEqual({ first: 0, window: 1 })
+    expect(score.entries[0].openingProbes).toHaveLength(3)
+  })
+
+  it('counts a gold probe that arrives after the opening three as a miss on both metrics', () => {
+    const score = scoreFirstProbes([
+      { caseId: 'D1', finding: finding(['read_page_errors', 'read_console_events', 'read_safety_violations', 'read_network_events']) },
+    ], gold)
+    expect({ first: score.goldFirstProbe, window: score.goldWithinFirst3 }).toEqual({ first: 0, window: 0 })
+  })
+
   it('scores only the cases that declare a gold probe', () => {
     const score = scoreFirstProbes([
       { caseId: 'D1', finding: finding(['read_network_events']) },
@@ -28,7 +45,8 @@ describe('scoreFirstProbes', () => {
     ], gold)
     expect(score.scored).toBe(1)
     expect(score.hits).toBe(1)
-    expect(score.hitRate).toBe(1)
+    expect(score.goldFirstProbe).toBe(1)
+    expect(score.goldWithinFirst3).toBe(1)
     expect(score.entries.find(entry => entry.caseId === 'B2')).toMatchObject({ scored: false, hit: false })
   })
 
@@ -39,11 +57,14 @@ describe('scoreFirstProbes', () => {
       { caseId: 'D3', finding: finding(['count_requests']) },
       { caseId: 'D4', finding: finding(['read_scenario_transition_log']) },
     ], gold)
-    expect({ scored: score.scored, hits: score.hits, hitRate: score.hitRate }).toEqual({ scored: 4, hits: 2, hitRate: 0.5 })
+    expect({ scored: score.scored, hits: score.hits, goldFirstProbe: score.goldFirstProbe })
+      .toEqual({ scored: 4, hits: 2, goldFirstProbe: 0.5 })
   })
 
   it('reports no rate when nothing was scorable', () => {
-    expect(scoreFirstProbes([{ caseId: 'C1', finding: finding(['read_page_errors']) }], gold).hitRate).toBeNull()
+    const score = scoreFirstProbes([{ caseId: 'C1', finding: finding(['read_page_errors']) }], gold)
+    expect(score.goldFirstProbe).toBeNull()
+    expect(score.goldWithinFirst3).toBeNull()
   })
 
   it('cannot score a held-out case, because none declares a gold probe', () => {

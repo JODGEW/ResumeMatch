@@ -9,7 +9,7 @@ import type { TokenRates } from '../cost'
 import { EVAL_CASES } from '../evalCases'
 import type { EvalCase } from '../evalCases'
 import type { Finding } from '../finding'
-import { firstProbe } from '../goldProbe'
+import { firstProbe, GOLD_PROBE_WINDOW } from '../goldProbe'
 import { applyMutationById } from './mutation'
 import type { MutationRegistry } from './mutation'
 import { createEvaluationWorktree, removeEvaluationWorktree } from './worktree'
@@ -71,6 +71,10 @@ export interface EvalCaseResult {
   firstProbe: string | null
   goldFirstProbe: string | null
   goldProbeHit: boolean | null
+  /** Whether the gold probe appeared among the opening probes. */
+  goldProbeWithinFirst3: boolean | null
+  /** Calls the investigation refused, so an over-eager plan is visible in the summary. */
+  rejectedCalls: number
   worktreeRemoved: boolean
   /** File name of the captured harness transcript, when one was launched. */
   transcript?: string
@@ -223,6 +227,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     classification: null, expectedClassification: evalCase.expectedClassification, classificationMatched: false,
     costUsd: 0, findingCostUsd: 0, wallClockMs: 0,
     firstProbe: null, goldFirstProbe: evalCase.goldFirstProbe ?? null, goldProbeHit: null,
+    goldProbeWithinFirst3: null, rejectedCalls: 0,
     worktreeRemoved: false, errors,
   }
 
@@ -266,6 +271,10 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
         result.classification = finding.classification
         result.firstProbe = firstProbe(finding)
         result.goldProbeHit = result.goldFirstProbe === null ? null : result.firstProbe === result.goldFirstProbe
+        result.goldProbeWithinFirst3 = result.goldFirstProbe === null
+          ? null
+          : finding.probesSelected.slice(0, GOLD_PROBE_WINDOW).includes(result.goldFirstProbe)
+        result.rejectedCalls = finding.rejectedCalls.length
         result.findingCostUsd = finding.usage.costUsd
         result.usage = {
           cacheHitTokens: finding.usage.cacheHitTokens,
@@ -303,11 +312,13 @@ export function sweepCostUsd(results: readonly EvalCaseResult[]): number {
 
 /** Render the per-case results as a fixed-width summary table. */
 export function summaryTable(results: readonly EvalCaseResult[]): string {
-  const header = ['case', 'kind', 'triage', 'ok', 'requests', 'classification', 'ok', 'first probe', 'gold', 'cost', 'wall', 'clean']
+  const header = ['case', 'kind', 'triage', 'ok', 'requests', 'rejected', 'classification', 'ok', 'first probe', 'gold', 'gold3', 'cost', 'wall', 'clean']
   const rows = results.map(item => [
     item.caseId, item.kind, item.triage ?? '-', item.triageMatched ? 'y' : 'n', String(item.modelRequests),
+    String(item.rejectedCalls),
     item.classification ?? '-', item.classification === null && item.expectedClassification === null ? 'y' : item.classificationMatched ? 'y' : 'n',
     item.firstProbe ?? '-', item.goldProbeHit === null ? '-' : item.goldProbeHit ? 'y' : 'n',
+    item.goldProbeWithinFirst3 === null ? '-' : item.goldProbeWithinFirst3 ? 'y' : 'n',
     `$${item.costUsd.toFixed(4)}`, `${(item.wallClockMs / 1000).toFixed(0)}s`,
     item.worktreeRemoved ? 'y' : 'n',
   ])

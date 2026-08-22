@@ -9,7 +9,10 @@ import {
   countRequests, failedAssertion, filterEvents, readConsoleEvents, readManifest, readNetworkEvents,
   readPageErrors, readSafetyViolations, readTransitionLog, type RequestGrouping,
 } from './evidenceReader'
-import { buildFinding, validateNarrative, type CheckoutIdentity, type DeterministicFacts, type Finding, type ReproductionOracleResult } from './finding'
+import {
+  buildFinding, validateNarrative,
+  type CheckoutIdentity, type DeterministicFacts, type Finding, type RejectedCall, type ReproductionOracleResult,
+} from './finding'
 import { evidenceReference, type InvestigationDirectory } from './paths'
 import type { EvidenceManifest, NetworkEvent, SafetyViolation } from '../browser/types'
 
@@ -96,6 +99,8 @@ export class InvestigationSession {
   private readonly probes: string[] = []
   private readonly steps: ReproductionStep[] = []
   private submitAttempts = 0
+  private budgetLatched = false
+  private readonly rejectedCalls: RejectedCall[] = []
   private reproductionOracleResult: ReproductionOracleResult | null = null
   private toolCalls = 0
   private finding: Finding | null = null
@@ -131,7 +136,7 @@ export class InvestigationSession {
     return {
       state: this.state,
       policyBlocked: this.policyBlockedLatch,
-      budgetExhausted: this.ledger.isExhausted() || (this.options.cost?.isExhausted() ?? false),
+      budgetExhausted: this.budgetLatched || (this.options.cost?.isExhausted() ?? false),
       remaining: {
         ...this.ledger.remaining(),
         submitFindingAttempts: SUBMIT_FINDING_ATTEMPT_LIMIT - this.submitAttempts,
@@ -164,7 +169,7 @@ export class InvestigationSession {
       // The terminal tool is exempt: locking it out behind the shared ceiling
       // loses the whole investigation's output, which is the one thing that must
       // survive. Its own attempt limit is enforced in `submitFinding`.
-      if (tool !== 'submit_finding') this.ledger.spend('toolCalls')
+      if (tool !== 'submit_finding') this.spend('toolCalls', tool)
       return await this.dispatch(tool, input)
     } catch (error) {
       if (error instanceof InvestigationError && error.code === 'POLICY_BLOCKED') this.policyBlockedLatch = true
@@ -187,12 +192,35 @@ export class InvestigationSession {
     }
   }
 
+  /**
+   * Spend one unit of a budget, recording a refusal.
+   *
+   * Only a spent probe budget is survivable: probes are read-only and cost the
+   * investigation nothing but its own attention, so exceeding them refuses the
+   * call without latching. Every other ceiling truncates real work, so it
+   * latches and the finding cannot claim a completed reproduction.
+   * @param kind - the budget to spend.
+   * @param tool - the tool the caller asked for, recorded on refusal.
+   * @throws `BUDGET_EXHAUSTED` when the ceiling is reached.
+   */
+  private spend(kind: Parameters<BudgetLedger['spend']>[0], tool: string): void {
+    try {
+      this.ledger.spend(kind)
+    } catch (error) {
+      if (error instanceof InvestigationError && error.code === 'BUDGET_EXHAUSTED') {
+        this.rejectedCalls.push({ tool, reason: error.message })
+        if (kind !== 'probes') this.budgetLatched = true
+      }
+      throw error
+    }
+  }
+
   private async readTool(tool: string, input: unknown): Promise<unknown> {
     if (this.state !== 'read' && this.state !== 'reproducing') {
       throw new InvestigationError('INVALID_STATE', `${tool} is not available after the reproduction oracle has run`)
     }
     const args = requireObject(input, tool)
-    this.ledger.spend('probes')
+    this.spend('probes', tool)
     this.probes.push(tool)
     const directory = this.options.runDirectory
     switch (tool) {
@@ -251,7 +279,7 @@ export class InvestigationSession {
     if (args.sourceRunId !== undefined && args.sourceRunId !== this.options.manifest.runId) {
       throw policyBlocked('A reproduction may only target the run under investigation')
     }
-    this.ledger.spend('reproductions')
+    this.spend('reproductions', 'start_fresh_reproduction')
     await this.options.driver.start()
     this.started = true
     this.state = 'reproducing'
@@ -267,7 +295,7 @@ export class InvestigationSession {
     const args = requireObject(input, 'execute_allowed_action')
     requireKnownKeys(args, ['action'], 'execute_allowed_action')
     const action = validateAction(this.options.manifest.scenarioId, args.action)
-    this.ledger.spend('actions')
+    this.spend('actions', 'execute_allowed_action')
     const concretePath = action.kind === 'open_route' ? resolveRoute(this.options.manifest.scenarioId, action.route) : null
     try {
       const outcome = await this.options.driver.executeAction(action, concretePath)
@@ -285,7 +313,7 @@ export class InvestigationSession {
     const args = requireObject(input, 'inspect_element_state')
     requireKnownKeys(args, ['target'], 'inspect_element_state')
     const target = validateInspectionTarget(args.target)
-    this.ledger.spend('inspections')
+    this.spend('inspections', 'inspect_element_state')
     return this.options.driver.inspect(target)
   }
 
@@ -294,7 +322,7 @@ export class InvestigationSession {
     const args = requireObject(input, 'capture_region_screenshot')
     requireKnownKeys(args, ['label'], 'capture_region_screenshot')
     const label = this.safeLabel(args.label, 'capture_region_screenshot')
-    this.ledger.spend('screenshots')
+    this.spend('screenshots', 'capture_region_screenshot')
     const file = await this.options.driver.captureRegionScreenshot(label)
     return { artifactRef: this.reference(file) }
   }
@@ -304,7 +332,7 @@ export class InvestigationSession {
     const args = requireObject(input, 'capture_accessibility_snapshot')
     requireKnownKeys(args, ['label'], 'capture_accessibility_snapshot')
     const label = this.safeLabel(args.label, 'capture_accessibility_snapshot')
-    this.ledger.spend('accessibilitySnapshots')
+    this.spend('accessibilitySnapshots', 'capture_accessibility_snapshot')
     const snapshot = await this.options.driver.captureAccessibilitySnapshot(label)
     return { artifactRef: this.reference(snapshot.file), excerpt: snapshot.excerpt }
   }
@@ -318,7 +346,7 @@ export class InvestigationSession {
     requireKnownKeys(args, ['ms'], 'advance_controlled_clock')
     const ms = Number(args.ms)
     if (!Number.isInteger(ms) || ms < 1 || ms > 180_000) throw new InvestigationError('INVALID_ARGUMENTS', 'ms must be an integer between 1 and 180000')
-    this.ledger.spend('clockAdvances')
+    this.spend('clockAdvances', 'advance_controlled_clock')
     await this.options.driver.advanceClock(ms)
     return { advancedMs: ms }
   }
@@ -326,7 +354,7 @@ export class InvestigationSession {
   private async runOracle(input: unknown): Promise<ReproductionOracleResult> {
     this.requireReproducing('run_oracle')
     requireKnownKeys(requireObject(input, 'run_oracle'), [], 'run_oracle')
-    this.ledger.spend('oracleRuns')
+    this.spend('oracleRuns', 'run_oracle')
     const result = await this.options.driver.runOracle()
     this.reproductionOracleResult = result
     this.state = 'judged'
@@ -370,7 +398,8 @@ export class InvestigationSession {
       model: this.options.model,
       usage: this.usageSummary(),
       policyBlocked: this.policyBlockedLatch,
-      budgetExhausted: this.ledger.isExhausted() || (this.options.cost?.isExhausted() ?? false),
+      budgetExhausted: this.budgetLatched || (this.options.cost?.isExhausted() ?? false),
+      rejectedCalls: [...this.rejectedCalls],
     }
     const finding = buildFinding(facts, narrative)
     const destination = path.join(this.options.directories.directory, 'finding.json')

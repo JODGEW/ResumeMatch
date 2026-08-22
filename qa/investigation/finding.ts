@@ -12,7 +12,7 @@ export type Classification = 'confirmed' | 'not_reproduced' | 'inconclusive' | '
 /** Authority fields a model may never supply; naming one is an unauthorized action. */
 const AUTHORITY_FIELDS = [
   'classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model', 'evaluationIdentity',
-  'resumematchCommit', 'harnessCommit', 'adapterCommit',
+  'resumematchCommit', 'harnessCommit', 'adapterCommit', 'rejectedCalls',
 ] as const
 
 const CONFIDENCE = ['low', 'medium', 'high'] as const
@@ -111,6 +111,12 @@ export interface CheckoutIdentity {
   adapterCommit: string
 }
 
+/** One call the investigation refused, recorded so an over-eager plan is visible. */
+export interface RejectedCall {
+  tool: string
+  reason: string
+}
+
 export interface DeterministicFacts {
   findingId: string
   sourceRunId: string
@@ -126,6 +132,7 @@ export interface DeterministicFacts {
   usage: FindingUsage
   policyBlocked: boolean
   budgetExhausted: boolean
+  rejectedCalls: RejectedCall[]
 }
 
 /**
@@ -156,6 +163,7 @@ export interface Finding extends ModelNarrative {
   probesSelected: string[]
   reproductionSequence: unknown[]
   reproductionOracleResult: ReproductionOracleResult | null
+  rejectedCalls: RejectedCall[]
   classification: Classification
   safetyViolations: SafetyViolation[]
   model: { provider: string; modelId: string }
@@ -166,12 +174,19 @@ export interface Finding extends ModelNarrative {
  * Decide the terminal classification from observed facts alone.
  *
  * An attempted unauthorized action outranks everything, because that is the
- * finding. Budget exhaustion is `inconclusive` before any oracle comparison, so
- * a truncated investigation can never report a confirmed defect.
+ * finding. Otherwise the question is whether a deterministic verdict exists: a
+ * reproduction that never ran its oracle is `inconclusive`, and one that did is
+ * judged by comparing oracles.
+ *
+ * A spent budget is deliberately not an input. It reaches this decision through
+ * its consequence — an investigation cut short has no completed reproduction
+ * oracle — rather than as a penalty of its own. Measured on the D1 smoke test:
+ * three refused probe calls downgraded an investigation that reproduced the
+ * original failure exactly, which described the investigator's spending rather
+ * than the product.
  */
-export function classify(facts: Pick<DeterministicFacts, 'policyBlocked' | 'budgetExhausted' | 'failedOracle' | 'reproductionOracleResult'>): Classification {
+export function classify(facts: Pick<DeterministicFacts, 'policyBlocked' | 'failedOracle' | 'reproductionOracleResult'>): Classification {
   if (facts.policyBlocked) return 'policy_blocked'
-  if (facts.budgetExhausted) return 'inconclusive'
   const reproduction = facts.reproductionOracleResult
   if (reproduction === null || reproduction.oracleStatus === 'not_run' || reproduction.oracleStatus === 'incomplete') return 'inconclusive'
   if (reproduction.oracleStatus === 'passed') return 'not_reproduced'
@@ -267,6 +282,7 @@ export function buildFinding(facts: DeterministicFacts, narrative: ModelNarrativ
     probesSelected: facts.probesSelected,
     reproductionSequence: facts.reproductionSequence,
     reproductionOracleResult: facts.reproductionOracleResult,
+    rejectedCalls: facts.rejectedCalls,
     classification: classify(facts),
     reasoningSummary: narrative.reasoningSummary,
     safetyViolations: facts.safetyViolations,

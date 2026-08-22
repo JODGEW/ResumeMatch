@@ -58,13 +58,13 @@ There is no shell, filesystem, navigation, HTTP, evaluation, or selector tool, a
 
 The investigator's prompt is a file, `resumematch-qa-tools/prompts/investigator.md`, registered as its own prompt section rather than inlined in the composition, so a prompt edit is reviewable on its own. It states the role, that the agent holds no pass/fail authority, that budgets and lifecycle state arrive in each tool result's `status`, and that `submit_finding` is the only kept output. It does not restate the tool descriptions, which the registrations already carry.
 
-First-probe scoring lives in `qa/investigation/goldProbe.ts`: it reads the head of a finding's recorded probe order and compares it to the public corpus's gold probe. Only cases declaring a gold probe are scored, so clean cases and held-out cases neither inflate nor depress the rate.
+First-probe scoring lives in `qa/investigation/goldProbe.ts` and reports two rates against the public corpus's gold probe. `goldFirstProbe` asks whether the very first read was the gold one. `goldWithinFirst3` asks whether it appeared among the opening three, and was added on 2026-08-22 after the D1 smoke test: the model read the manifest first and the gold probe third, an ordering the strict metric scores identically to never reaching for it at all. Only cases declaring a gold probe are scored, so clean cases and held-out cases neither inflate nor depress either rate.
 
 ## Budgets and latches
 
 Hypotheses 3, probes 6, reproductions 1, actions 8, inspections 6, screenshots 2, accessibility snapshots 2, clock advances 2, oracle runs 1, tool calls 20, wall clock 8 minutes. Enforcement is in code, not in prompt text.
 
-Two latches survive into the finding. An attempted unauthorized action latches `policy_blocked` and leaves only `submit_finding` reachable. A spent budget latches `inconclusive`; the agent may still submit.
+An attempted unauthorized action latches `policy_blocked` and leaves only `submit_finding` reachable. A spent budget is not a penalty of its own: it reaches the verdict through its consequence, since an investigation cut short has no completed reproduction oracle. Exceeding the read-only probe ceiling refuses that call and nothing more — probes cost the investigation only its own attention — while every other ceiling truncates real work and latches. Every refusal is recorded in the finding's `rejectedCalls`.
 
 ## Fresh reproduction
 
@@ -78,13 +78,13 @@ Decided by rule, from observed facts:
 
 ```
 policy_blocked   an unauthorized action was attempted
-inconclusive     a budget was exhausted, or no completed reproduction oracle
+inconclusive     a spent budget left the reproduction or its oracle unfinished
 not_reproduced   the reproduction oracle passed
 confirmed        the reproduction failed the same oracle as the source run
 inconclusive     the reproduction failed a different oracle
 ```
 
-A finding that names `classification`, `reproductionOracleResult`, `safetyViolations`, `sourceCommit`, `usage`, or `model` is refused as an unauthorized action; the narrative is discarded and the finding is recorded as `policy_blocked`.
+A finding that names `classification`, `reproductionOracleResult`, `rejectedCalls`, `safetyViolations`, `sourceCommit`, `usage`, or `model` is refused as an unauthorized action; the narrative is discarded and the finding is recorded as `policy_blocked`.
 
 ## Evaluation
 
@@ -152,16 +152,37 @@ An `adapter:` path resolves inside the adapter checkout, located by
 adapter rows are reported as unverified and the four repository rows are still
 enforced.
 
-### Freeze v2 (2026-08-22)
+### Freeze v3 (2026-08-22)
 
-Superseding v1 after the first live runs. `investigator.md`, `qa-tools.ts`,
+Superseding v2 after the D1 smoke test produced a valid finding. Only
+`finding.ts` moved: the classification no longer treats a spent budget as a
+penalty, and the finding records every refused call. Nothing else in the frozen
+set changed.
+
+`freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `a8434b2ce46dac0d58659e0b7ef6e9a983965cbf4221311ae4a1f1cc453f744c` |
+| `adapter:src/qa-tools.ts` | `b6215d08e1c1fb160cd8f39726c3b46f37b9dff8fdf3ecdc3d1cb771de778379` |
+| `adapter:cordis.yml` | `defc03624b3f0c4efe7920fcdd160e8ba02bb1f414b8548d43135d9b02a341ec` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `qa/investigation/actions.ts` | `34df41395b6f61ef3ffc1d3d0491d3bb4250c76f96908031293605a08c2b877f` |
+| `qa/investigation/budget.ts` | `e5307cfa5504eb0dac1eeac92ebd6878892a3fadc5008ebb46521ea8ec53dff5` |
+| `qa/investigation/finding.ts` | `d6627bf8db7cd0623d5d053a6d4235211fba96decdc5ce7beffe64feed9dcb95` |
+| `qa/investigation/evalCases.ts` | `e973094715410f0ae5bd00fb4c91e268c56611a0d6c792507488f8c7faa6f5f5` |
+
+### Freeze v2 (2026-08-22, superseded)
+
+Kept as the record the first D1 smoke test was taken under. Superseded v1 after
+the first live runs. `investigator.md`, `qa-tools.ts`,
 `cordis.yml`, `actions.ts`, and `finding.ts` moved to give a model enough to
 repair a refused call: worked examples in the two tool descriptions it fumbled,
 the finding's shape in the prompt, cache-hit pricing, and a malformed action
 treated as retryable rather than as an unauthorized one. `budget.ts`,
 `evalCases.ts`, and `run-config.yml` did not move.
 
-`freeze.test.ts` verifies this table.
+It is history, not a gate.
 
 | File | sha256 |
 | --- | --- |

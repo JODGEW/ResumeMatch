@@ -1,21 +1,39 @@
 import type { Finding } from './finding'
 
+/** How many opening probes count towards the looser metric. */
+export const GOLD_PROBE_WINDOW = 3
+
 /** One scored investigation: which case it belongs to and what it probed first. */
 export interface ProbeScoreEntry {
   caseId: string
   firstProbe: string | null
+  /** The opening probes, up to {@link GOLD_PROBE_WINDOW}. */
+  openingProbes: string[]
   goldFirstProbe: string | null
   hit: boolean
+  /** Whether the gold probe appears among the opening probes. */
+  hitWithinWindow: boolean
   scored: boolean
 }
 
-/** Aggregate first-probe accuracy over the scored cases. */
+/**
+ * Aggregate probe accuracy over the scored cases, on two metrics.
+ *
+ * `goldFirstProbe` asks whether the very first read was the gold one;
+ * `goldWithinFirst3` asks whether it appeared in the opening three. The second
+ * was added on 2026-08-22 after the D1 smoke test, where the model read the
+ * manifest first and the gold probe third — an ordering the strict metric scores
+ * the same as never reaching for it at all.
+ */
 export interface ProbeScore {
   entries: ProbeScoreEntry[]
   scored: number
   hits: number
+  hitsWithinWindow: number
   /** Hit rate over scored cases; null when no case could be scored. */
-  hitRate: number | null
+  goldFirstProbe: number | null
+  /** Rate at which the gold probe appears in the opening probes; null when nothing was scored. */
+  goldWithinFirst3: number | null
 }
 
 /**
@@ -49,11 +67,28 @@ export function scoreFirstProbes(
   const entries = investigations.map(({ caseId, finding }) => {
     const gold = goldByCase.get(caseId) ?? null
     const probe = firstProbe(finding)
-    return { caseId, firstProbe: probe, goldFirstProbe: gold, hit: gold !== null && probe === gold, scored: gold !== null }
+    const openingProbes = finding.probesSelected.slice(0, GOLD_PROBE_WINDOW)
+    return {
+      caseId,
+      firstProbe: probe,
+      openingProbes,
+      goldFirstProbe: gold,
+      hit: gold !== null && probe === gold,
+      hitWithinWindow: gold !== null && openingProbes.includes(gold),
+      scored: gold !== null,
+    }
   })
   const scored = entries.filter(entry => entry.scored)
   const hits = scored.filter(entry => entry.hit).length
-  return { entries, scored: scored.length, hits, hitRate: scored.length === 0 ? null : hits / scored.length }
+  const hitsWithinWindow = scored.filter(entry => entry.hitWithinWindow).length
+  return {
+    entries,
+    scored: scored.length,
+    hits,
+    hitsWithinWindow,
+    goldFirstProbe: scored.length === 0 ? null : hits / scored.length,
+    goldWithinFirst3: scored.length === 0 ? null : hitsWithinWindow / scored.length,
+  }
 }
 
 /**

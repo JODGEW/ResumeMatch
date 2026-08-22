@@ -152,13 +152,43 @@ describe('authorization latches', () => {
     await expect(session.call('advance_controlled_clock', { ms: 1000 })).rejects.toMatchObject({ code: 'POLICY_BLOCKED' })
   })
 
-  it('forces inconclusive when the probe budget is exhausted', async () => {
+  it('refuses a probe past the ceiling without latching the investigation', async () => {
     for (let index = 0; index < 6; index += 1) await session.call('read_page_errors', {})
     await expect(session.call('read_page_errors', {})).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    expect(session.status().budgetExhausted).toBe(false)
     await session.call('start_fresh_reproduction', {})
     await session.call('run_oracle', {})
     await session.call('submit_finding', { finding: NARRATIVE })
-    expect(session.submittedFinding()?.classification).toBe('inconclusive')
+    expect(session.submittedFinding()?.classification).toBe('confirmed')
+  })
+
+  it('confirms after six probes and three refusals when the reproduction fails the same oracle', async () => {
+    for (let index = 0; index < 6; index += 1) await session.call('read_page_errors', {})
+    for (const tool of ['read_safety_violations', 'count_requests', 'read_network_events']) {
+      const args = tool === 'count_requests' ? { groupBy: 'originAlias' } : {}
+      await expect(session.call(tool, args)).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    }
+    await session.call('start_fresh_reproduction', {})
+    await session.call('run_oracle', {})
+    await session.call('submit_finding', { finding: NARRATIVE })
+
+    const finding = session.submittedFinding()
+    expect(finding?.classification).toBe('confirmed')
+    expect(finding?.reproductionOracleResult?.failedOracle).toBe('P1-04_FAILURE_TITLE')
+    expect(finding?.rejectedCalls).toHaveLength(3)
+    expect(finding?.rejectedCalls.map(item => item.tool))
+      .toEqual(['read_safety_violations', 'count_requests', 'read_network_events'])
+    expect(finding?.rejectedCalls.every(item => /probes is exhausted/.test(item.reason))).toBe(true)
+  })
+
+  it('still latches when an action, reproduction, or oracle ceiling is spent', async () => {
+    await session.call('start_fresh_reproduction', {})
+    for (let index = 0; index < 8; index += 1) {
+      await session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'results' } })
+    }
+    await expect(session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'results' } }))
+      .rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    expect(session.status().budgetExhausted).toBe(true)
   })
 
   it('exhausts the action budget after eight actions', async () => {
