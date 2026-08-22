@@ -11,7 +11,7 @@ import { validateEvidenceBundle, type ArtifactValidationResult } from './artifac
 import { StatefulContractRouter } from './contractRouter'
 import { EvidenceCollector } from './evidence'
 import { generatedBuildResourcePaths, NetworkPolicy, QA_API_ORIGIN, QA_APP_ORIGIN, QA_S3_ORIGIN } from './networkPolicy'
-import { OracleFailure, requireCondition, requireVisible, verifyBackendFailedReport, verifyPollingTimeout, verifySamplePage, verifyUsableCompletedReport } from './oracles'
+import { OracleFailure, requireCondition, requireUrl, requireVisible, verifyBackendFailedReport, verifyPollingTimeout, verifySamplePage, verifyUsableCompletedReport } from './oracles'
 import { createScenario, type ScenarioInstance } from './scenarios'
 import type { EvidenceManifest, FaultInjection, RunFailure, RunOptions, RunResult, ScenarioId } from './types'
 import { installUploadObservation } from './uploadObservation'
@@ -109,7 +109,7 @@ async function executeScenario(
     await requireVisible(page.getByText(SYNTHETIC_FILE_NAME, { exact: true }), 'P1-02_SELECTED_FILE')
     await evidence.checkpoint(page, 'upload-ready')
     await page.getByRole('button', { name: /Analyze Resume/ }).click()
-    await page.waitForURL('**/results/qa-new-1')
+    await requireUrl(page, '**/results/qa-new-1', 'P1-02_RESULTS_NAVIGATION')
     await requireVisible(page.getByRole('status'), 'P1-02_PROCESSING_STATE')
     await evidence.checkpoint(page, 'processing')
     await requireVisible(page.getByRole('heading', { name: 'QA Synthetic Software Engineer' }), 'P1-02_COMPLETED_REPORT')
@@ -122,7 +122,7 @@ async function executeScenario(
     await page.getByRole('textbox', { name: 'Job Description' }).fill(SYNTHETIC_JOB_DESCRIPTION)
     await evidence.checkpoint(page, 'existing-resume-ready')
     await page.getByRole('button', { name: /Analyze Resume/ }).click()
-    await page.waitForURL('**/results/qa-reuse-1')
+    await requireUrl(page, '**/results/qa-reuse-1', 'P1-03_RESULTS_NAVIGATION')
     await requireVisible(page.getByRole('status'), 'P1-03_PROCESSING_STATE')
     await evidence.checkpoint(page, 'reuse-processing')
     await requireVisible(page.getByRole('heading', { name: 'QA Synthetic Software Engineer' }), 'P1-03_COMPLETED_REPORT')
@@ -196,7 +196,7 @@ export async function runReleaseCheck(scenarioId: ScenarioId, options: RunOption
   let rejectedBundleRemoved = false
 
   try {
-    scenario = createScenario(scenarioId)
+    scenario = createScenario(scenarioId, { transientFaults: options.transientFaults ?? [] })
     paths = await createSafeRunDirectory(approvedRootInput, runsRootInput, runId)
     runtimePaths = await createSafeRunDirectory(approvedRootInput, runtimeRunsRoot, runId)
     const runtimeRoot = runtimePaths.runDirectory

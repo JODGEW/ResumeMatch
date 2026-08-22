@@ -12,11 +12,21 @@ export type FaultInjection =
   | 'validation_report'
   | 'cleanup'
 
+/**
+ * Evaluation-only transient contract faults. Each fires at most once per
+ * scenario instance and models a benign, non-reproducing failure: the request
+ * is contract-legal, so it records no contract violation. Default is none, and
+ * no Phase 1 scenario enables one.
+ */
+export type TransientFault = 'upload_503_once' | 'analysis_interrupted_once' | 's3_response_500_once'
+
 export interface RunOptions {
   artifactsRoot?: string
   headless?: boolean
   /** QA-only deterministic fault injection used by harness tests. */
   faultInjection?: FaultInjection | FaultInjection[]
+  /** Evaluation-only transient contract faults; empty in every release check. */
+  transientFaults?: TransientFault[]
 }
 
 export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'OTHER'

@@ -25,6 +25,8 @@ import {
   SYNTHETIC_JOB_DESCRIPTION,
   SYNTHETIC_PDF_SHA256,
   SYNTHETIC_PDF_SIZE,
+  TRANSIENT_S3_FAILURE_STATUS,
+  TRANSIENT_UPLOAD_FAILURE_BODY,
 } from '../fixtures/data'
 
 export type ArtifactViolationCode =
@@ -287,7 +289,8 @@ function validNetworkEvent(value: unknown): value is NetworkEvent {
     if (event.routeTemplate === '/synthetic-upload' && event.method !== 'POST') return false
     if (event.mockDecision === 'blocked') return event.status === null
     return event.routeTemplate === '/synthetic-upload' && event.method === 'POST' && event.resourceType === 'fetch'
-      && event.mockDecision === 'fulfilled-contract' && event.status === 204 && exactQueryKeys(event.queryKeys, [])
+      && event.mockDecision === 'fulfilled-contract'
+      && (event.status === 204 || event.status === TRANSIENT_S3_FAILURE_STATUS) && exactQueryKeys(event.queryKeys, [])
       && exactRequestFields(event.requestFields, [[
         expectedField('key', 'qa-synthetic/qa-new-1/qa-synthetic-resume.pdf'),
         expectedField('x-amz-meta-qa', 'qa-synthetic'),
@@ -348,6 +351,9 @@ function canonicalApiResponseHashes(pathname: string): Set<string> {
       analysisId: 'qa-new-1', s3Key: 'qa-synthetic/qa-new-1/qa-synthetic-resume.pdf',
     })),
     sha256(canonicalJson({ analysisId: 'qa-reuse-1', reused: true, presignedUrl: null, presignedFields: null })),
+    // Evaluation-only transient failure body: one more fixed synthetic string,
+    // so the allowlist stays closed whether or not a fault was injected.
+    sha256(canonicalJson(TRANSIENT_UPLOAD_FAILURE_BODY)),
   ])
   if (/^\/analysis\/qa-(?:new|reuse|failed|timeout)-1$/.test(pathname)) {
     const hashes = new Set<string>()

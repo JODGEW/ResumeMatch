@@ -15,6 +15,9 @@ const browserCache = os.platform() === 'darwin' ? path.join(originalHome, 'Libra
 const viteCli = path.join(repositoryRoot, 'node_modules', 'vite', 'bin', 'vite.js')
 const playwrightCli = path.join(repositoryRoot, 'node_modules', '@playwright', 'test', 'cli.js')
 const viteConfig = path.join(repositoryRoot, 'qa', 'browser', 'vite.qa.config.ts')
+const investigateConfig = path.join(repositoryRoot, 'qa', 'investigation', 'vite.investigate.config.ts')
+const investigateEntry = path.join(repositoryRoot, '.qa-artifacts', 'investigation-runtime', 'serverMain.mjs')
+const previewUrl = 'http://127.0.0.1:4173/'
 
 function sanitizedEnvironment(invocationRoot, token) {
   return {
@@ -40,10 +43,53 @@ function createSafeRuntimeDirectory(root, token, allowExisting) {
   return invocation
 }
 
-function runSync(args, environment) {
-  const result = spawnSync(process.execPath, args, { cwd: repositoryRoot, env: environment, stdio: 'inherit' })
+function runSync(args, environment, stdio = 'inherit') {
+  const result = spawnSync(process.execPath, args, { cwd: repositoryRoot, env: environment, stdio })
   if (result.error) throw result.error
   return result.status ?? 1
+}
+
+/** Wait for the QA preview server, whose stdout is suppressed to keep the investigate protocol clean. */
+async function waitForPreview(deadlineMs) {
+  const deadline = Date.now() + deadlineMs
+  for (;;) {
+    try {
+      const response = await fetch(previewUrl)
+      if (response.ok) return
+    } catch {
+      // Connection refused until the preview server binds; retried below.
+    }
+    if (Date.now() > deadline) throw new Error('QA preview server did not start')
+    await new Promise(resolve => setTimeout(resolve, 200))
+  }
+}
+
+/**
+ * Serve the QA build and host one investigation over stdin/stdout.
+ *
+ * Phase 1 never launches this: an investigation is a separate invocation over an
+ * accepted evidence bundle, so no model runtime is reachable from a release run.
+ */
+async function runInvestigation(commandArgs, environment) {
+  const buildStatus = runSync([viteCli, 'build', '--config', viteConfig], environment, ['ignore', 'ignore', 'inherit'])
+  if (buildStatus !== 0) return buildStatus
+  const bundleStatus = runSync([viteCli, 'build', '--config', investigateConfig], environment, ['ignore', 'ignore', 'inherit'])
+  if (bundleStatus !== 0) return bundleStatus
+  const preview = spawn(process.execPath, [viteCli, 'preview', '--config', viteConfig, '--host', '127.0.0.1', '--port', '4173', '--strictPort'], {
+    cwd: repositoryRoot, env: environment, stdio: ['ignore', 'ignore', 'inherit'],
+  })
+  try {
+    await waitForPreview(30_000)
+    return await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [investigateEntry, ...commandArgs], {
+        cwd: repositoryRoot, env: environment, stdio: ['inherit', 'inherit', 'inherit'],
+      })
+      child.once('error', reject)
+      child.once('exit', code => resolve(code ?? 1))
+    })
+  } finally {
+    preview.kill('SIGTERM')
+  }
 }
 
 function runAttached(args, environment) {
@@ -58,8 +104,8 @@ function runAttached(args, environment) {
 
 async function main() {
   const [command, ...commandArgs] = process.argv.slice(2)
-  if (!['build', 'serve', 'test'].includes(command)) {
-    process.stderr.write('Usage: node qa/browser/qaCommand.mjs <build|serve|test>\n')
+  if (!['build', 'serve', 'test', 'investigate'].includes(command)) {
+    process.stderr.write('Usage: node qa/browser/qaCommand.mjs <build|serve|test|investigate>\n')
     return 2
   }
   let lock
@@ -71,7 +117,8 @@ async function main() {
     mkdirSync(path.join(invocationRoot, 'home'), { recursive: true, mode: 0o700 })
     mkdirSync(path.join(invocationRoot, 'tmp'), { recursive: true, mode: 0o700 })
     const environment = sanitizedEnvironment(invocationRoot, lock.token)
-    if (command === 'build') status = runSync([viteCli, 'build', '--config', viteConfig], environment)
+    if (command === 'investigate') status = await runInvestigation(commandArgs, environment)
+    else if (command === 'build') status = runSync([viteCli, 'build', '--config', viteConfig], environment)
     else if (command === 'serve') status = await runAttached([viteCli, 'preview', '--config', viteConfig, '--host', '127.0.0.1', '--port', '4173', '--strictPort'], environment)
     else {
       const buildStatus = runSync([viteCli, 'build', '--config', viteConfig], environment)

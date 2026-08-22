@@ -75,6 +75,10 @@ npm run qa:test:repeat
 
 Repository checks remain `npm test`, `npm run lint`, `npx tsc -b`, and `npm run build`. Generated QA builds, runtime data, browsers' artifacts, reports, traces, videos, and screenshots are ignored.
 
+## Phase 2
+
+The bounded failure investigator that starts from an accepted Phase 1 failure is documented in [qa-phase2.md](qa-phase2.md). It cannot change any result on this page.
+
 ## What Phase 1 does not prove
 
 Phase 1 proves deterministic behavior of the real built frontend against its synthetic contract boundary, plus the limited Playwright routing guarantees above. It does not prove backend implementation, cloud permissions, real upload processing, authentication/payment/model quality, third-party availability, production health, visual privacy through OCR, or any unsupported browser/OS egress class.

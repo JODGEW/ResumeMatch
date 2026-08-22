@@ -1,4 +1,4 @@
-import type { ScenarioId, TransitionEvent, UploadObservation } from './types'
+import type { ScenarioId, TransientFault, TransitionEvent, UploadObservation } from './types'
 import {
   completedAnalysis,
   SYNTHETIC_BACKEND_ERROR,
@@ -35,15 +35,27 @@ export interface ScenarioInstance {
   uploadObservation: UploadObservation | null
   recordTransition(event: string): void
   recordContractViolation(violation: string): void
+  /**
+   * Fire one evaluation-only transient fault at most once.
+   * @param fault - the configured fault to consume.
+   * @returns whether this call owns the single firing.
+   */
+  consumeTransientFault(fault: TransientFault): boolean
 }
 
-export function createScenario(scenarioId: ScenarioId): ScenarioInstance {
+/** Scenario construction options. Evaluation-only; release checks pass none. */
+export interface ScenarioOptions {
+  transientFaults?: TransientFault[]
+}
+
+export function createScenario(scenarioId: ScenarioId, options: ScenarioOptions = {}): ScenarioInstance {
   if (!['P1-01', 'P1-02', 'P1-03', 'P1-04', 'P1-05', 'P1-06'].includes(scenarioId)) {
     throw new Error(`Scenario ${scenarioId} is not implemented yet`)
   }
 
   const startedAt = Date.now()
   const transitions: TransitionEvent[] = []
+  const pendingTransientFaults = new Set<TransientFault>(options.transientFaults ?? [])
   const analysisId = scenarioId === 'P1-02'
     ? 'qa-new-1'
     : scenarioId === 'P1-03'
@@ -103,6 +115,11 @@ export function createScenario(scenarioId: ScenarioId): ScenarioInstance {
     recordContractViolation(violation) {
       this.contractViolations.push(violation)
       this.recordTransition(`contract-violation:${violation}`)
+    },
+    consumeTransientFault(fault) {
+      if (!pendingTransientFaults.delete(fault)) return false
+      this.recordTransition(`transient-fault:${fault}`)
+      return true
     },
   }
 }

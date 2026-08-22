@@ -10,7 +10,14 @@ import type { ArtifactReferences, EvidenceManifest, NetworkEvent, NetworkSummary
 
 interface ConsoleEvidence { type: string; text: string }
 
-function redactText(value: string): string {
+/**
+ * Remove credential, token, and non-synthetic-identity patterns from text that
+ * reaches an artifact. Exported so Phase 2 reproduction evidence passes through
+ * the same redaction as Phase 1 console and page-error capture.
+ * @param value - raw observed text.
+ * @returns the redacted text.
+ */
+export function redactText(value: string): string {
   return value
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
     .replace(/\bAKIA[A-Z0-9]{16}\b/g, '[REDACTED_AWS_ACCESS_KEY]')

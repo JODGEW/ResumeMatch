@@ -23,6 +23,28 @@ export async function requireVisible(locator: Locator, oracleId: string): Promis
   }
 }
 
+/**
+ * Wait for the application to reach a route, as a deterministic observation.
+ *
+ * A page that never navigates is a product failure, not a harness failure, so
+ * this converts the timeout into an {@link OracleFailure} exactly as
+ * {@link requireVisible} does. Without it the wait inherits the context's
+ * unlimited navigation timeout and stalls the run instead of failing it.
+ * @param page - the scenario page.
+ * @param pattern - the URL glob the application must reach.
+ * @param oracleId - the oracle identity recorded on failure.
+ */
+export async function requireUrl(page: Page, pattern: string, oracleId: string): Promise<void> {
+  try {
+    await page.waitForURL(pattern, { timeout: 8_000 })
+  } catch (error) {
+    if (error instanceof errors.TimeoutError) {
+      throw new OracleFailure(oracleId, `Application did not reach the expected route: ${oracleId}`)
+    }
+    throw error
+  }
+}
+
 export function requireCondition(condition: boolean, oracleId: string, message: string): void {
   if (!condition) throw new OracleFailure(oracleId, message)
 }
