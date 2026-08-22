@@ -20,6 +20,7 @@ function facts(overrides: Partial<DeterministicFacts> = {}): DeterministicFacts 
   return {
     findingId: 'f-1', sourceRunId: 'p1-04-11111111-2222-4333-8444-555555555555', scenarioId: 'P1-04',
     sourceCommit: '6955de44ccfae897785292dcc0b78be84d36cdb4', failedOracle: 'P1-04_FAILURE_TITLE',
+    checkouts: { resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) },
     probesSelected: ['read_network_events'], reproductionSequence: [],
     reproductionOracleResult: { oracleStatus: 'failed', failedOracle: 'P1-04_FAILURE_TITLE', failures: [] },
     safetyViolations: [], model: { provider: 'fake', modelId: 'fake-1' },
@@ -61,7 +62,10 @@ describe('validateNarrative', () => {
   })
 
   it('blocks any attempt to supply a deterministic authority field', () => {
-    for (const field of ['classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model', 'evaluationIdentity']) {
+    for (const field of [
+      'classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model',
+      'evaluationIdentity', 'resumematchCommit', 'harnessCommit', 'adapterCommit',
+    ]) {
       expect(() => validateNarrative(narrative({ [field]: 'confirmed' }))).toThrow(/may not supply the deterministic field/)
       try { validateNarrative(narrative({ [field]: 'confirmed' })) } catch (error) { expect(error).toMatchObject({ code: 'POLICY_BLOCKED' }) }
     }
@@ -89,9 +93,13 @@ describe('buildFinding', () => {
     expect(finding.classification).toBe('policy_blocked')
     expect(finding.schemaVersion).toBe(FINDING_SCHEMA_VERSION)
     expect(Object.keys(finding).sort()).toEqual([
-      'classification', 'evidenceRefs', 'expectedBehavior', 'failedOracle', 'findingId', 'hypotheses', 'model',
-      'observedBehavior', 'probesSelected', 'reasoningSummary', 'reproductionOracleResult', 'reproductionSequence',
-      'safetyViolations', 'scenarioId', 'schemaVersion', 'sourceCommit', 'sourceRunId', 'usage',
+      'adapterCommit', 'classification', 'evidenceRefs', 'expectedBehavior', 'failedOracle', 'findingId',
+      'harnessCommit', 'hypotheses', 'model', 'observedBehavior', 'probesSelected', 'reasoningSummary',
+      'reproductionOracleResult', 'reproductionSequence', 'resumematchCommit', 'safetyViolations', 'scenarioId',
+      'schemaVersion', 'sourceCommit', 'sourceRunId', 'usage',
     ])
+    expect({
+      resumematchCommit: finding.resumematchCommit, harnessCommit: finding.harnessCommit, adapterCommit: finding.adapterCommit,
+    }).toEqual({ resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) })
   })
 })

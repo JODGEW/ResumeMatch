@@ -8,7 +8,7 @@ import {
   countRequests, failedAssertion, filterEvents, readConsoleEvents, readManifest, readNetworkEvents,
   readPageErrors, readSafetyViolations, readTransitionLog, type RequestGrouping,
 } from './evidenceReader'
-import { buildFinding, validateNarrative, type DeterministicFacts, type Finding, type ReproductionOracleResult } from './finding'
+import { buildFinding, validateNarrative, type CheckoutIdentity, type DeterministicFacts, type Finding, type ReproductionOracleResult } from './finding'
 import { evidenceReference, type InvestigationDirectory } from './paths'
 import type { EvidenceManifest, NetworkEvent, SafetyViolation } from '../browser/types'
 
@@ -37,6 +37,7 @@ export interface SessionOptions {
   directories: InvestigationDirectory
   driver: ReproductionDriver
   model: { provider: string; modelId: string }
+  checkouts: CheckoutIdentity
   now?: () => number
 }
 
@@ -316,6 +317,7 @@ export class InvestigationSession {
       sourceRunId: this.options.manifest.runId,
       scenarioId: this.options.manifest.scenarioId,
       sourceCommit: this.options.manifest.sourceIdentity.headCommit,
+      checkouts: this.options.checkouts,
       failedOracle: this.options.manifest.failedOracle,
       probesSelected: [...this.probes],
       reproductionSequence: [...this.steps],

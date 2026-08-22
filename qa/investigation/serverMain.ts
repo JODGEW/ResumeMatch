@@ -26,6 +26,20 @@ function argumentValue(flag: string): string | undefined {
   return index === -1 ? undefined : process.argv[index + 1]
 }
 
+/**
+ * Read one checkout identity from the command line.
+ *
+ * The adapter is the only caller that can see the harness and adapter
+ * checkouts, so it supplies all three; anything that is not a full commit is
+ * recorded as unknown rather than trusted.
+ * @param flag - the argument naming the checkout.
+ * @returns a full lowercase commit, or `unknown`.
+ */
+function checkoutCommit(flag: string): string {
+  const value = argumentValue(flag)
+  return value !== undefined && /^[0-9a-f]{40}$/.test(value) ? value : 'unknown'
+}
+
 function write(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`)
 }
@@ -79,6 +93,11 @@ async function main(): Promise<number> {
   const session = new InvestigationSession({
     investigationId, findingId, runDirectory, manifest, directories, driver,
     model: { provider: argumentValue('--model-provider') ?? 'unknown', modelId: argumentValue('--model-id') ?? 'unknown' },
+    checkouts: {
+      resumematchCommit: checkoutCommit('--resumematch-commit'),
+      harnessCommit: checkoutCommit('--harness-commit'),
+      adapterCommit: checkoutCommit('--adapter-commit'),
+    },
   })
 
   write({

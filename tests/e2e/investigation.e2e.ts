@@ -28,6 +28,7 @@ async function investigate(manifest: EvidenceManifest, runDirectory: string): Pr
   const session = new InvestigationSession({
     investigationId: path.basename(directories.directory), findingId: `f-${randomUUID()}`,
     runDirectory, manifest, directories, driver, model: { provider: 'fake-provider', modelId: 'fake-deterministic' },
+    checkouts: { resumematchCommit: 'e'.repeat(40), harnessCommit: 'f'.repeat(40), adapterCommit: 'a'.repeat(40) },
   })
   try {
     await session.call('read_failed_assertion', {})

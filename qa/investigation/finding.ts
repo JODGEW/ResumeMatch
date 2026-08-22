@@ -10,6 +10,7 @@ export type Classification = 'confirmed' | 'not_reproduced' | 'inconclusive' | '
 /** Authority fields a model may never supply; naming one is an unauthorized action. */
 const AUTHORITY_FIELDS = [
   'classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model', 'evaluationIdentity',
+  'resumematchCommit', 'harnessCommit', 'adapterCommit',
 ] as const
 
 const CONFIDENCE = ['low', 'medium', 'high'] as const
@@ -40,11 +41,25 @@ export interface ReproductionOracleResult {
   failures: RunFailure[]
 }
 
+/**
+ * Git identity of the three checkouts an investigation ran against.
+ *
+ * Distinct from `sourceCommit`, which is the commit the failing run was
+ * produced from: these are the checkouts that produced the investigation.
+ * `unknown` when a checkout has no reachable git identity.
+ */
+export interface CheckoutIdentity {
+  resumematchCommit: string
+  harnessCommit: string
+  adapterCommit: string
+}
+
 export interface DeterministicFacts {
   findingId: string
   sourceRunId: string
   scenarioId: ScenarioId
   sourceCommit: string | null
+  checkouts: CheckoutIdentity
   failedOracle: string | null
   probesSelected: string[]
   reproductionSequence: unknown[]
@@ -62,6 +77,9 @@ export interface Finding extends ModelNarrative {
   sourceRunId: string
   scenarioId: ScenarioId
   sourceCommit: string | null
+  resumematchCommit: string
+  harnessCommit: string
+  adapterCommit: string
   failedOracle: string | null
   probesSelected: string[]
   reproductionSequence: unknown[]
@@ -160,6 +178,9 @@ export function buildFinding(facts: DeterministicFacts, narrative: ModelNarrativ
     sourceRunId: facts.sourceRunId,
     scenarioId: facts.scenarioId,
     sourceCommit: facts.sourceCommit,
+    resumematchCommit: facts.checkouts.resumematchCommit,
+    harnessCommit: facts.checkouts.harnessCommit,
+    adapterCommit: facts.checkouts.adapterCommit,
     failedOracle: facts.failedOracle,
     expectedBehavior: narrative.expectedBehavior,
     observedBehavior: narrative.observedBehavior,

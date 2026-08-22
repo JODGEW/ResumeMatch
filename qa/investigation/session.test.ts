@@ -82,6 +82,7 @@ beforeEach(async () => {
   session = new InvestigationSession({
     investigationId, findingId, runDirectory, manifest: manifest(), directories, driver,
     model: { provider: 'fake', modelId: 'fake-1' },
+    checkouts: { resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) },
   })
 })
 
