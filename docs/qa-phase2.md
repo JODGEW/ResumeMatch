@@ -94,6 +94,52 @@ That makes thirteen cases, not the original twelve. B2 was implemented and execu
 
 The runner is not built yet, and no case has run against a real model.
 
+## Freeze
+
+The files below decide what the model sees and what it is allowed to do: the
+prompt, the tool descriptions, the action grammar, the budgets, the finding
+schema, the public corpus with its gold set, and the composition. They are
+frozen before any live evaluation so that a result can be attributed to a
+specific investigator rather than to a moving one.
+
+`qa/investigation/freeze.test.ts` recomputes these hashes on every `npm test`. A
+frozen file cannot change without this record changing in the same commit, which
+is the point: the change becomes visible in review instead of drifting silently.
+An `adapter:` path resolves inside the adapter checkout, located by
+`RESUMEMATCH_QA_ADAPTER_PATH` or its default; when that checkout is absent the
+adapter rows are reported as unverified and the four repository rows are still
+enforced.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `3552005ef4a135ddd05b4607a6dd624231f5fe7e241ad21d10a196c7fe9ab09a` |
+| `adapter:src/qa-tools.ts` | `aa58b8a66ae82cbd9ff725951d578765dbc5580f881930b9e798d336dd74ad0b` |
+| `adapter:cordis.yml` | `fec97d76c5511d4329944689b592a4ee17122511ec180be66c9804d022433609` |
+| `qa/investigation/actions.ts` | `ae6ad73af507c923734b9f14f3c4be5cdac107ed3e87ad8c1f949bd21bebe74d` |
+| `qa/investigation/budget.ts` | `e5307cfa5504eb0dac1eeac92ebd6878892a3fadc5008ebb46521ea8ec53dff5` |
+| `qa/investigation/finding.ts` | `d65a735aeddfb46002ce537beaf3d1407e41075cfb1dca48db139a3beeb97a2f` |
+| `qa/investigation/evalCases.ts` | `e973094715410f0ae5bd00fb4c91e268c56611a0d6c792507488f8c7faa6f5f5` |
+
+### Frozen at
+
+| Checkout | Commit |
+| --- | --- |
+| ResumeMatch | `b0bc3e597a18abdc13b139f8501fa399362444a6` |
+| DeepSeek Harness | `47f943859bef60e4160492346772ded9b24f765a` |
+| `resumematch-qa-tools` adapter | `19486127a403dba6f78c086d8b6685ff21cbd07d` |
+
+The ResumeMatch commit is the one the hashes were taken at; the commit that adds
+this section changes only this document and its test, neither of which is frozen.
+
+### Toolchain
+
+| Component | Version |
+| --- | --- |
+| Node (ResumeMatch build, Playwright, Vite) | 18.20.4 |
+| Node (DeepSeek Harness) | 22.23.1 |
+| Playwright | 1.57.0 |
+| Vite | 5.4.21 |
+
 ## Evaluation identity
 
 A run that belongs to the evaluation corpus carries `evaluationIdentity` in its manifest; a release check carries `null`. It records the case id, the mutation applied, the transient faults configured, a source digest, a build digest, and a worktree label. The label is deliberately not a path: an absolute temp path would carry the operator's home directory into evidence.
