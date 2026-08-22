@@ -11,12 +11,18 @@ const ADAPTER_PATH = process.env.RESUMEMATCH_QA_ADAPTER_PATH
 
 const FREEZE_DOCUMENT = path.join(process.cwd(), 'docs', 'qa-phase2.md')
 const ROW = /^\| `([^`]+)` \| `([0-9a-f]{64})` \|$/gm
+/** Only the current version gates; earlier tables are kept as history. */
+const CURRENT_VERSION = '### Freeze v2'
 
 interface FrozenFile { reference: string; sha256: string }
 
 async function frozenFiles(): Promise<FrozenFile[]> {
   const document = await readFile(FREEZE_DOCUMENT, 'utf8')
-  return [...document.matchAll(ROW)].map(match => ({ reference: match[1], sha256: match[2] }))
+  const start = document.indexOf(CURRENT_VERSION)
+  if (start === -1) throw new Error(`${CURRENT_VERSION} is missing from the freeze record`)
+  const next = document.indexOf('### Freeze v', start + CURRENT_VERSION.length)
+  const section = document.slice(start, next === -1 ? undefined : next)
+  return [...section.matchAll(ROW)].map(match => ({ reference: match[1], sha256: match[2] }))
 }
 
 function resolve(reference: string): string {
@@ -38,7 +44,7 @@ async function digest(file: string): Promise<string | null> {
 describe('freeze record', () => {
   it('lists every frozen file exactly once', async () => {
     const files = await frozenFiles()
-    expect(files.length).toBeGreaterThanOrEqual(8)
+    expect(files).toHaveLength(8)
     expect(new Set(files.map(file => file.reference)).size).toBe(files.length)
   })
 

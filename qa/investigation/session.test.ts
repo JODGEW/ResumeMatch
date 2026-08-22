@@ -6,6 +6,7 @@ import path from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { CostLedger } from './cost'
+import { validateNarrative } from './finding'
 import { InvestigationSession, type ReproductionDriver } from './session'
 import { createInvestigationDirectory, newInvestigationId } from './paths'
 import type { AllowedAction } from './actions'
@@ -267,5 +268,54 @@ describe('cost gate', () => {
     await session.call('submit_finding', { finding: NARRATIVE })
     expect(session.submittedFinding()?.usage).toMatchObject({ costUsd: 0, requests: [] })
     expect(session.submittedFinding()?.classification).toBe('confirmed')
+  })
+})
+
+describe('submit_finding attempt budget', () => {
+  const BAD = { ...NARRATIVE, hypotheses: ['not an object'] }
+
+  it('is not charged against the shared tool-call ceiling', async () => {
+    // Spend the whole ceiling on ordinary calls, then submit anyway.
+    await session.call('start_fresh_reproduction', {})
+    for (let index = 0; index < 8; index += 1) {
+      await session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'results' } })
+    }
+    for (let index = 0; index < 6; index += 1) await session.call('read_page_errors', {}).catch(() => undefined)
+    await session.call('run_oracle', {})
+    await expect(session.call('inspect_element_state', { target: { role: 'status' } })).rejects.toMatchObject({ code: 'INVALID_STATE' })
+    await session.call('submit_finding', { finding: NARRATIVE })
+    expect(session.submittedFinding()?.classification).toBe('confirmed')
+  })
+
+  it('returns the schema and a valid example with every malformed narrative', async () => {
+    await session.call('start_fresh_reproduction', {})
+    await session.call('run_oracle', {})
+    try {
+      await session.call('submit_finding', { finding: BAD })
+      throw new Error('expected a refusal')
+    } catch (error) {
+      const failure = error as { code?: string; help?: { schema: unknown; example: unknown } }
+      expect(failure.code).toBe('INVALID_ARGUMENTS')
+      expect(failure.help?.schema).toMatchObject({ type: 'object', required: expect.arrayContaining(['hypotheses']) })
+      expect(() => validateNarrative(failure.help?.example)).not.toThrow()
+    }
+  })
+
+  it('blocks and latches on the fifth attempt', async () => {
+    await session.call('start_fresh_reproduction', {})
+    await session.call('run_oracle', {})
+    for (let index = 0; index < 4; index += 1) {
+      await expect(session.call('submit_finding', { finding: BAD })).rejects.toMatchObject({ code: 'INVALID_ARGUMENTS' })
+    }
+    await expect(session.call('submit_finding', { finding: NARRATIVE })).rejects.toMatchObject({ code: 'POLICY_BLOCKED' })
+    expect(session.status().policyBlocked).toBe(true)
+  })
+
+  it('reports the remaining attempts in status', async () => {
+    expect(session.status().remaining.submitFindingAttempts).toBe(4)
+    await session.call('start_fresh_reproduction', {})
+    await session.call('run_oracle', {})
+    await expect(session.call('submit_finding', { finding: BAD })).rejects.toMatchObject({ code: 'INVALID_ARGUMENTS' })
+    expect(session.status().remaining.submitFindingAttempts).toBe(3)
   })
 })

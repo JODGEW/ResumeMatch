@@ -1,4 +1,5 @@
-import { policyBlocked } from './errors'
+import { invalidArguments, policyBlocked } from './errors'
+import type { ArgumentHelp } from './errors'
 import type { ScenarioId } from '../browser/types'
 
 /** Routes named semantically; the concrete path comes from the scenario, never from the caller. */
@@ -64,44 +65,93 @@ export function scenarioActionPolicy(scenarioId: ScenarioId): ScenarioActionPoli
   return SCENARIO_POLICY[scenarioId]
 }
 
+/** The closed action grammar, published with every malformed-action rejection. */
+export const ACTION_JSON_SCHEMA = {
+  type: 'object',
+  required: ['kind'],
+  oneOf: [
+    { properties: { kind: { const: 'open_route' }, route: { enum: ['sample', 'upload', 'results'] } }, required: ['kind', 'route'], additionalProperties: false },
+    { properties: { kind: { const: 'fill_synthetic_text' }, field: { const: 'job_description' } }, required: ['kind', 'field'], additionalProperties: false },
+    { properties: { kind: { const: 'attach_synthetic_file' }, file: { const: 'qa_synthetic_resume' } }, required: ['kind', 'file'], additionalProperties: false },
+    { properties: { kind: { const: 'click_by_role' }, role: { enum: ['button', 'link'] }, name: { enum: APPROVED_CLICK_NAMES } }, required: ['kind', 'role', 'name'], additionalProperties: false },
+    { properties: { kind: { const: 'wait_for_state' }, state: { enum: ['upload_ready', 'processing', 'completed_report', 'failed_report', 'timeout_report'] } }, required: ['kind', 'state'], additionalProperties: false },
+  ],
+} as const
+
+/**
+ * Schema and a scenario-appropriate example for a malformed action.
+ *
+ * The example names a route this scenario actually defines, so repairing
+ * against it cannot produce a second refusal for a different reason.
+ * @param scenarioId - the scenario under investigation.
+ * @returns the repair material returned with the rejection.
+ */
+export function actionHelp(scenarioId: ScenarioId): ArgumentHelp {
+  const policy = SCENARIO_POLICY[scenarioId]
+  return {
+    schema: ACTION_JSON_SCHEMA,
+    example: { action: { kind: 'open_route', route: policy.routes[0] } },
+  }
+}
+
 /**
  * Validate one untrusted action against the closed grammar and this scenario's policy.
- * @throws `POLICY_BLOCKED` for anything the scenario does not authorize.
+ *
+ * A malformed action is `INVALID_ARGUMENTS` and retryable; only a well-formed
+ * action the scenario does not authorize is `POLICY_BLOCKED`. Conflating the two
+ * ends an investigation for a typo.
+ * @param scenarioId - the scenario under investigation.
+ * @param input - the untrusted action.
+ * @returns the validated action.
+ * @throws `INVALID_ARGUMENTS` for a shape error, `POLICY_BLOCKED` for an unauthorized one.
  */
 export function validateAction(scenarioId: ScenarioId, input: unknown): AllowedAction {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw policyBlocked('An action must be an object')
+  const help = actionHelp(scenarioId)
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidArguments('An action must be an object', help)
   const candidate = input as Record<string, unknown>
   const policy = SCENARIO_POLICY[scenarioId]
+  const exactKeys = (count: number, names: string): void => {
+    if (Object.keys(candidate).length !== count) throw invalidArguments(`${String(candidate.kind)} accepts only ${names}`, help)
+  }
   switch (candidate.kind) {
     case 'open_route': {
       const route = candidate.route
+      exactKeys(2, 'kind and route')
+      if (!['sample', 'upload', 'results'].includes(String(route))) throw invalidArguments(`route must be sample, upload, or results, not ${String(route)}`, help)
       if (!policy.routes.includes(route as SemanticRoute)) throw policyBlocked(`Scenario ${scenarioId} does not define the route ${String(route)}`)
-      if (Object.keys(candidate).length !== 2) throw policyBlocked('open_route accepts only kind and route')
       return { kind: 'open_route', route: route as SemanticRoute }
     }
     case 'fill_synthetic_text': {
-      if (!policy.fill || candidate.field !== 'job_description') throw policyBlocked(`Scenario ${scenarioId} does not authorize filling ${String(candidate.field)}`)
-      if (Object.keys(candidate).length !== 2) throw policyBlocked('fill_synthetic_text accepts only kind and field')
+      exactKeys(2, 'kind and field')
+      if (candidate.field !== 'job_description') throw invalidArguments(`field must be job_description, not ${String(candidate.field)}`, help)
+      if (!policy.fill) throw policyBlocked(`Scenario ${scenarioId} does not authorize filling job_description`)
       return { kind: 'fill_synthetic_text', field: 'job_description' }
     }
     case 'attach_synthetic_file': {
-      if (!policy.attach || candidate.file !== 'qa_synthetic_resume') throw policyBlocked(`Scenario ${scenarioId} does not authorize attaching ${String(candidate.file)}`)
-      if (Object.keys(candidate).length !== 2) throw policyBlocked('attach_synthetic_file accepts only kind and file')
+      exactKeys(2, 'kind and file')
+      if (candidate.file !== 'qa_synthetic_resume') throw invalidArguments(`file must be qa_synthetic_resume, not ${String(candidate.file)}`, help)
+      if (!policy.attach) throw policyBlocked(`Scenario ${scenarioId} does not authorize attaching qa_synthetic_resume`)
       return { kind: 'attach_synthetic_file', file: 'qa_synthetic_resume' }
     }
     case 'click_by_role': {
-      if (candidate.role !== 'button' && candidate.role !== 'link') throw policyBlocked('click_by_role accepts only the button and link roles')
+      exactKeys(3, 'kind, role, and name')
+      if (candidate.role !== 'button' && candidate.role !== 'link') throw invalidArguments('role must be button or link', help)
       if (!APPROVED_CLICK_NAMES.includes(candidate.name as ApprovedClickName)) throw policyBlocked(`Accessible name ${String(candidate.name)} is not on the approved click list`)
-      if (Object.keys(candidate).length !== 3) throw policyBlocked('click_by_role accepts only kind, role, and name')
       return { kind: 'click_by_role', role: candidate.role, name: candidate.name as ApprovedClickName }
     }
     case 'wait_for_state': {
+      exactKeys(2, 'kind and state')
+      if (!['upload_ready', 'processing', 'completed_report', 'failed_report', 'timeout_report'].includes(String(candidate.state))) {
+        throw invalidArguments(`state must be one of the five semantic states, not ${String(candidate.state)}`, help)
+      }
       if (!policy.states.includes(candidate.state as SemanticState)) throw policyBlocked(`Scenario ${scenarioId} does not define the state ${String(candidate.state)}`)
-      if (Object.keys(candidate).length !== 2) throw policyBlocked('wait_for_state accepts only kind and state')
       return { kind: 'wait_for_state', state: candidate.state as SemanticState }
     }
     default:
-      throw policyBlocked(`Unsupported action kind: ${String(candidate.kind)}`)
+      throw invalidArguments(
+        `action.kind must be one of open_route, fill_synthetic_text, attach_synthetic_file, click_by_role, wait_for_state; received ${String(candidate.kind)}`,
+        help,
+      )
   }
 }
 

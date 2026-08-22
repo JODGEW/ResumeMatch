@@ -42,6 +42,7 @@ async function main(): Promise<number> {
     rates: {
       inputPerMillion: Number(argumentValue('--input-rate', '0.44')),
       outputPerMillion: Number(argumentValue('--output-rate', '1.32')),
+      cacheHitPerMillion: Number(argumentValue('--cache-hit-rate', '0.014')),
     },
   }
   await mkdir(options.outputDirectory, { recursive: true, mode: 0o700 })

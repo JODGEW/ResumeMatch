@@ -58,6 +58,17 @@ const READ_TOOLS = new Set([
 
 const MAX_CONSOLE_EVENTS = 200
 
+/**
+ * How many times a finding may be submitted.
+ *
+ * `submit_finding` is deliberately outside the tool-call ceiling: a model that
+ * fumbles the narrative schema would otherwise spend its last call on a failed
+ * attempt and end the investigation with nothing recorded. Four attempts is
+ * enough to repair against the schema each refusal returns; a fifth is treated
+ * as a caller that will not converge.
+ */
+export const SUBMIT_FINDING_ATTEMPT_LIMIT = 4
+
 function requireObject(input: unknown, tool: string): Record<string, unknown> {
   if (input === undefined || input === null) return {}
   if (typeof input !== 'object' || Array.isArray(input)) throw new InvestigationError('INVALID_ARGUMENTS', `${tool} arguments must be an object`)
@@ -84,6 +95,7 @@ export class InvestigationSession {
   private readonly ledger: BudgetLedger
   private readonly probes: string[] = []
   private readonly steps: ReproductionStep[] = []
+  private submitAttempts = 0
   private reproductionOracleResult: ReproductionOracleResult | null = null
   private toolCalls = 0
   private finding: Finding | null = null
@@ -120,7 +132,10 @@ export class InvestigationSession {
       state: this.state,
       policyBlocked: this.policyBlockedLatch,
       budgetExhausted: this.ledger.isExhausted() || (this.options.cost?.isExhausted() ?? false),
-      remaining: this.ledger.remaining(),
+      remaining: {
+        ...this.ledger.remaining(),
+        submitFindingAttempts: SUBMIT_FINDING_ATTEMPT_LIMIT - this.submitAttempts,
+      },
       scenarioId: this.options.manifest.scenarioId,
       actionPolicy: scenarioActionPolicy(this.options.manifest.scenarioId),
     }
@@ -146,7 +161,10 @@ export class InvestigationSession {
       throw new InvestigationError('BUDGET_EXHAUSTED', 'The investigation cost ceiling is exhausted; only submit_finding remains')
     }
     try {
-      this.ledger.spend('toolCalls')
+      // The terminal tool is exempt: locking it out behind the shared ceiling
+      // loses the whole investigation's output, which is the one thing that must
+      // survive. Its own attempt limit is enforced in `submitFinding`.
+      if (tool !== 'submit_finding') this.ledger.spend('toolCalls')
       return await this.dispatch(tool, input)
     } catch (error) {
       if (error instanceof InvestigationError && error.code === 'POLICY_BLOCKED') this.policyBlockedLatch = true
@@ -316,6 +334,10 @@ export class InvestigationSession {
   }
 
   private async submitFinding(input: unknown): Promise<{ accepted: true; findingId: string; classification: string }> {
+    this.submitAttempts += 1
+    if (this.submitAttempts > SUBMIT_FINDING_ATTEMPT_LIMIT) {
+      throw policyBlocked(`submit_finding was attempted more than ${SUBMIT_FINDING_ATTEMPT_LIMIT} times without a valid narrative`)
+    }
     const args = requireObject(input, 'submit_finding')
     requireKnownKeys(args, ['finding'], 'submit_finding')
     let narrative

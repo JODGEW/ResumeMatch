@@ -1,4 +1,5 @@
-import { InvestigationError, policyBlocked } from './errors'
+import { InvestigationError, invalidArguments, policyBlocked } from './errors'
+import type { ArgumentHelp } from './errors'
 import type { UsageRecord } from './cost'
 import type { RunFailure, SafetyViolation, ScenarioId } from '../browser/types'
 
@@ -15,6 +16,61 @@ const AUTHORITY_FIELDS = [
 ] as const
 
 const CONFIDENCE = ['low', 'medium', 'high'] as const
+
+/**
+ * The narrative schema, published with every rejection.
+ *
+ * It is derived from the same constants {@link validateNarrative} enforces, so a
+ * caller repairing against it is repairing against the real check.
+ */
+export const NARRATIVE_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['expectedBehavior', 'observedBehavior', 'hypotheses', 'evidenceRefs', 'reasoningSummary'],
+  properties: {
+    expectedBehavior: { type: 'string', minLength: 1, maxLength: 2_000 },
+    observedBehavior: { type: 'string', minLength: 1, maxLength: 2_000 },
+    reasoningSummary: { type: 'string', minLength: 1, maxLength: 2_000 },
+    evidenceRefs: {
+      type: 'array', maxItems: 12,
+      items: {
+        type: 'string',
+        description: 'An artifactRef exactly as a tool returned it, or runs/<runId>/<file> for accepted evidence.',
+        pattern: '^(runs/p1-0[1-6]-<uuid>|investigations/inv-<uuid>)/<path>(#<pointer>)?$',
+      },
+    },
+    hypotheses: {
+      type: 'array', minItems: 1, maxItems: 3,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['statement', 'evidenceRefs', 'confidence'],
+        properties: {
+          statement: { type: 'string', minLength: 1, maxLength: 2_000 },
+          evidenceRefs: { type: 'array', maxItems: 12, items: { type: 'string' } },
+          confidence: { enum: ['low', 'medium', 'high'] },
+        },
+      },
+    },
+  },
+} as const
+
+/** One minimal narrative that passes {@link validateNarrative}. */
+export const MINIMAL_NARRATIVE_EXAMPLE = {
+  expectedBehavior: 'The sample page renders its report without calling the analysis API.',
+  observedBehavior: 'The page issued one analysis request, so the no-REST oracle failed.',
+  hypotheses: [
+    { statement: 'The sample path polls the analysis endpoint.', evidenceRefs: [], confidence: 'high' },
+  ],
+  evidenceRefs: [],
+  reasoningSummary: 'The reproduction failed the same oracle as the original run.',
+} as const
+
+/** Schema and example returned with every narrative rejection. */
+export const NARRATIVE_HELP: ArgumentHelp = {
+  schema: NARRATIVE_JSON_SCHEMA,
+  example: MINIMAL_NARRATIVE_EXAMPLE,
+}
 const MAX_HYPOTHESES = 3
 const MAX_TEXT = 2_000
 const MAX_EVIDENCE_REFS = 12
@@ -125,18 +181,21 @@ export function classify(facts: Pick<DeterministicFacts, 'policyBlocked' | 'budg
 
 function requireText(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim().length === 0 || value.length > MAX_TEXT) {
-    throw new InvestigationError('INVALID_ARGUMENTS', `${field} must be a non-empty string of at most ${MAX_TEXT} characters`)
+    throw invalidArguments(`${field} must be a non-empty string of at most ${MAX_TEXT} characters`, NARRATIVE_HELP)
   }
   return value
 }
 
 function requireEvidenceRefs(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length > MAX_EVIDENCE_REFS) {
-    throw new InvestigationError('INVALID_ARGUMENTS', `${field} must be an array of at most ${MAX_EVIDENCE_REFS} references`)
+    throw invalidArguments(`${field} must be an array of at most ${MAX_EVIDENCE_REFS} references`, NARRATIVE_HELP)
   }
   for (const item of value) {
     if (typeof item !== 'string' || !EVIDENCE_REF_PATTERN.test(item)) {
-      throw new InvestigationError('INVALID_ARGUMENTS', `${field} contains a reference outside the accepted evidence roots`)
+      throw invalidArguments(
+        `${field} contains a reference outside the accepted evidence roots; use an artifactRef exactly as a tool returned it, or an empty array`,
+        NARRATIVE_HELP,
+      )
     }
   }
   return value as string[]
@@ -149,7 +208,7 @@ function requireEvidenceRefs(value: unknown, field: string): string[] {
  */
 export function validateNarrative(input: unknown): ModelNarrative {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new InvestigationError('INVALID_ARGUMENTS', 'Finding narrative must be an object')
+    throw invalidArguments('Finding narrative must be an object', NARRATIVE_HELP)
   }
   const candidate = input as Record<string, unknown>
   for (const field of AUTHORITY_FIELDS) {
@@ -157,19 +216,22 @@ export function validateNarrative(input: unknown): ModelNarrative {
   }
   const allowed = ['expectedBehavior', 'observedBehavior', 'hypotheses', 'evidenceRefs', 'reasoningSummary']
   const unknown = Object.keys(candidate).filter(key => !allowed.includes(key))
-  if (unknown.length > 0) throw new InvestigationError('INVALID_ARGUMENTS', `Unsupported finding fields: ${unknown.join(', ')}`)
+  if (unknown.length > 0) throw invalidArguments(`Unsupported finding fields: ${unknown.join(', ')}`, NARRATIVE_HELP)
   if (!Array.isArray(candidate.hypotheses) || candidate.hypotheses.length === 0 || candidate.hypotheses.length > MAX_HYPOTHESES) {
-    throw new InvestigationError('INVALID_ARGUMENTS', `hypotheses must hold between 1 and ${MAX_HYPOTHESES} entries`)
+    throw invalidArguments(`hypotheses must hold between 1 and ${MAX_HYPOTHESES} entries`, NARRATIVE_HELP)
   }
   const hypotheses = candidate.hypotheses.map((entry, index) => {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-      throw new InvestigationError('INVALID_ARGUMENTS', `hypotheses[${index}] must be an object`)
+      throw invalidArguments(
+        `hypotheses[${index}] must be an object with statement, evidenceRefs, and confidence`,
+        NARRATIVE_HELP,
+      )
     }
     const item = entry as Record<string, unknown>
     const extra = Object.keys(item).filter(key => !['statement', 'evidenceRefs', 'confidence'].includes(key))
-    if (extra.length > 0) throw new InvestigationError('INVALID_ARGUMENTS', `hypotheses[${index}] has unsupported fields: ${extra.join(', ')}`)
+    if (extra.length > 0) throw invalidArguments(`hypotheses[${index}] has unsupported fields: ${extra.join(', ')}`, NARRATIVE_HELP)
     if (!CONFIDENCE.includes(item.confidence as Hypothesis['confidence'])) {
-      throw new InvestigationError('INVALID_ARGUMENTS', `hypotheses[${index}].confidence must be low, medium, or high`)
+      throw invalidArguments(`hypotheses[${index}].confidence must be low, medium, or high`, NARRATIVE_HELP)
     }
     return {
       statement: requireText(item.statement, `hypotheses[${index}].statement`),

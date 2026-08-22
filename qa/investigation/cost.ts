@@ -4,6 +4,13 @@ import { InvestigationError } from './errors'
 export interface TokenRates {
   inputPerMillion: number
   outputPerMillion: number
+  /**
+   * Rate for prompt tokens the provider served from its cache.
+   *
+   * Omitting it charges cache hits at the full input rate, which overstates the
+   * bill rather than understating it.
+   */
+  cacheHitPerMillion?: number
 }
 
 /**
@@ -30,7 +37,7 @@ export interface UsageRecord {
 }
 
 /** Ceiling for one investigation. */
-export const INVESTIGATION_COST_LIMIT_USD = 0.5
+export const INVESTIGATION_COST_LIMIT_USD = 0.25
 
 /** Ceiling for one evaluation sweep across all its investigations. */
 export const EVALUATION_COST_LIMIT_USD = 5
@@ -125,9 +132,10 @@ export function providerLogCostUsd(lines: readonly ProviderUsageLine[], rates: T
 /**
  * Cost of one request at the configured rates.
  *
- * Every prompt token is charged at the input rate, cache hits included: the
- * configured rates carry no separate cache price, and charging a hit as if it
- * were a miss can only overstate the bill.
+ * Cache hits are charged at their own rate when one is configured, and at the
+ * full input rate otherwise; the counts are disjoint, so a hit is never billed
+ * twice. Measured on the first live runs, hits are around 95% of prompt tokens,
+ * which is why the separate rate matters.
  * @param usage - the disjoint token counts.
  * @param rates - USD per million tokens.
  * @returns cost in USD.
@@ -136,8 +144,12 @@ export function requestCostUsd(
   usage: Pick<UsageRecord, 'cacheHitTokens' | 'cacheMissTokens' | 'completionTokens'>,
   rates: TokenRates,
 ): number {
-  const promptTokens = usage.cacheHitTokens + usage.cacheMissTokens
-  return (promptTokens * rates.inputPerMillion + usage.completionTokens * rates.outputPerMillion) / 1_000_000
+  const cacheHitRate = rates.cacheHitPerMillion ?? rates.inputPerMillion
+  return (
+    usage.cacheHitTokens * cacheHitRate
+    + usage.cacheMissTokens * rates.inputPerMillion
+    + usage.completionTokens * rates.outputPerMillion
+  ) / 1_000_000
 }
 
 /**

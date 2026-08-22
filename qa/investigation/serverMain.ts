@@ -39,6 +39,11 @@ function costLedger(): CostLedger | undefined {
   if (!Number.isFinite(inputPerMillion) || !Number.isFinite(outputPerMillion) || inputPerMillion < 0 || outputPerMillion < 0) {
     throw new Error('investigate requires both --input-rate and --output-rate as non-negative USD per million tokens')
   }
+  const cacheHit = argumentValue('--cache-hit-rate')
+  const cacheHitPerMillion = cacheHit === undefined ? undefined : Number(cacheHit)
+  if (cacheHitPerMillion !== undefined && (!Number.isFinite(cacheHitPerMillion) || cacheHitPerMillion < 0)) {
+    throw new Error('--cache-hit-rate must be a non-negative USD per million tokens')
+  }
   const limit = argumentValue('--cost-limit')
   const windows = argumentValue('--peak-windows')
   let peakWindows: PeakWindow[] | undefined
@@ -52,7 +57,7 @@ function costLedger(): CostLedger | undefined {
     })
   }
   return new CostLedger(
-    { inputPerMillion, outputPerMillion },
+    { inputPerMillion, outputPerMillion, ...cacheHitPerMillion === undefined ? {} : { cacheHitPerMillion } },
     limit === undefined ? INVESTIGATION_COST_LIMIT_USD : Number(limit),
     peakWindows,
   )
@@ -186,9 +191,16 @@ async function main(): Promise<number> {
       write({ id: request.id, ok: true, result, status: session.status() })
     } catch (error) {
       const code = error instanceof InvestigationError ? error.code : 'REPRODUCTION_FAILED'
+      const help = error instanceof InvestigationError ? error.help : undefined
       write({
         id: request.id, ok: false,
-        error: { code, message: error instanceof Error ? error.message : String(error) },
+        error: {
+          code,
+          message: error instanceof Error ? error.message : String(error),
+          // Repair material travels with the refusal: a caller that cannot see
+          // the schema it failed spends its remaining attempts guessing.
+          ...help === undefined ? {} : { schema: help.schema, example: help.example },
+        },
         status: session.status(),
       })
     }

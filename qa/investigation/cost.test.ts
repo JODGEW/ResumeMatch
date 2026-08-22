@@ -5,14 +5,20 @@ import {
   parseProviderLog, pricingWindow, providerLogCostUsd, providerLogTotals, requestCostUsd, sweepHasBudget,
 } from './cost'
 
-/** The peak rates the evaluation is authorized against. */
-const RATES = { inputPerMillion: 0.44, outputPerMillion: 1.32 }
+/** The peak rates the evaluation is authorized against, cache hits included. */
+const RATES = { inputPerMillion: 0.44, outputPerMillion: 1.32, cacheHitPerMillion: 0.014 }
 
 describe('request cost', () => {
-  it('charges every prompt token at the input rate, cache hits included', () => {
-    expect(requestCostUsd({ cacheHitTokens: 1_000_000, cacheMissTokens: 0, completionTokens: 0 }, RATES)).toBeCloseTo(0.44, 10)
-    expect(requestCostUsd({ cacheHitTokens: 500_000, cacheMissTokens: 500_000, completionTokens: 0 }, RATES)).toBeCloseTo(0.44, 10)
+  it('charges cache hits at their own rate and misses at the input rate', () => {
+    expect(requestCostUsd({ cacheHitTokens: 1_000_000, cacheMissTokens: 0, completionTokens: 0 }, RATES)).toBeCloseTo(0.014, 10)
+    expect(requestCostUsd({ cacheHitTokens: 0, cacheMissTokens: 1_000_000, completionTokens: 0 }, RATES)).toBeCloseTo(0.44, 10)
+    expect(requestCostUsd({ cacheHitTokens: 500_000, cacheMissTokens: 500_000, completionTokens: 0 }, RATES)).toBeCloseTo(0.227, 10)
     expect(requestCostUsd({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 1_000_000 }, RATES)).toBeCloseTo(1.32, 10)
+  })
+
+  it('falls back to the input rate when no cache rate is configured, overstating rather than understating', () => {
+    const withoutCacheRate = { inputPerMillion: 0.44, outputPerMillion: 1.32 }
+    expect(requestCostUsd({ cacheHitTokens: 1_000_000, cacheMissTokens: 0, completionTokens: 0 }, withoutCacheRate)).toBeCloseTo(0.44, 10)
   })
 
   it('is zero for a request that reported nothing', () => {
@@ -57,7 +63,7 @@ describe('provider request log', () => {
   it('sums every logged request, including the closing turn a finding cannot hold', () => {
     const lines = parseProviderLog(`${LOG}\n`)
     expect(providerLogTotals(lines)).toEqual({ requests: 2, cacheHitTokens: 10, cacheMissTokens: 190, completionTokens: 100 })
-    expect(providerLogCostUsd(lines, RATES)).toBeCloseTo((200 * 0.44 + 100 * 1.32) / 1_000_000, 12)
+    expect(providerLogCostUsd(lines, RATES)).toBeCloseTo((10 * 0.014 + 190 * 0.44 + 100 * 1.32) / 1_000_000, 12)
   })
 
   it('drops a malformed or partially flushed line rather than failing the sweep', () => {
@@ -88,13 +94,13 @@ describe('investigation cost ceiling', () => {
   })
 
   it('defaults to the authorized ceilings', () => {
-    expect(INVESTIGATION_COST_LIMIT_USD).toBe(0.5)
+    expect(INVESTIGATION_COST_LIMIT_USD).toBe(0.25)
     expect(EVALUATION_COST_LIMIT_USD).toBe(5)
     const ledger = new CostLedger(RATES)
-    // Just under half a dollar of output at the peak rate stays inside the ceiling.
-    ledger.record({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 370_000 }, new Date('2026-08-20T12:00:00Z'))
+    // Just under a quarter of a dollar of output at the peak rate stays inside.
+    ledger.record({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 185_000 }, new Date('2026-08-20T12:00:00Z'))
     expect(ledger.isExhausted()).toBe(false)
-    expect(() => ledger.record({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 40_000 }, new Date('2026-08-20T12:00:01Z'))).toThrow()
+    expect(() => ledger.record({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 20_000 }, new Date('2026-08-20T12:00:01Z'))).toThrow()
   })
 })
 

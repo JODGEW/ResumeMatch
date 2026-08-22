@@ -152,6 +152,33 @@ An `adapter:` path resolves inside the adapter checkout, located by
 adapter rows are reported as unverified and the four repository rows are still
 enforced.
 
+### Freeze v2 (2026-08-22)
+
+Superseding v1 after the first live runs. `investigator.md`, `qa-tools.ts`,
+`cordis.yml`, `actions.ts`, and `finding.ts` moved to give a model enough to
+repair a refused call: worked examples in the two tool descriptions it fumbled,
+the finding's shape in the prompt, cache-hit pricing, and a malformed action
+treated as retryable rather than as an unauthorized one. `budget.ts`,
+`evalCases.ts`, and `run-config.yml` did not move.
+
+`freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `a8434b2ce46dac0d58659e0b7ef6e9a983965cbf4221311ae4a1f1cc453f744c` |
+| `adapter:src/qa-tools.ts` | `b6215d08e1c1fb160cd8f39726c3b46f37b9dff8fdf3ecdc3d1cb771de778379` |
+| `adapter:cordis.yml` | `defc03624b3f0c4efe7920fcdd160e8ba02bb1f414b8548d43135d9b02a341ec` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `qa/investigation/actions.ts` | `34df41395b6f61ef3ffc1d3d0491d3bb4250c76f96908031293605a08c2b877f` |
+| `qa/investigation/budget.ts` | `e5307cfa5504eb0dac1eeac92ebd6878892a3fadc5008ebb46521ea8ec53dff5` |
+| `qa/investigation/finding.ts` | `998052f8b62678521b546183b7dbb281a0c4d0538c851f4c240b88ec5739c1f2` |
+| `qa/investigation/evalCases.ts` | `e973094715410f0ae5bd00fb4c91e268c56611a0d6c792507488f8c7faa6f5f5` |
+
+### Freeze v1 (2026-08-22, superseded)
+
+Kept as the record the first two live runs were taken under. It is history, not
+a gate; `freeze.test.ts` does not verify it.
+
 | File | sha256 |
 | --- | --- |
 | `adapter:prompts/investigator.md` | `3552005ef4a135ddd05b4607a6dd624231f5fe7e241ad21d10a196c7fe9ab09a` |
@@ -169,7 +196,7 @@ enforced.
 | --- | --- |
 | ResumeMatch | `a05115ba4c9e8252a95a1c39b82b2c632337dfb5` |
 | DeepSeek Harness | `47f943859bef60e4160492346772ded9b24f765a` |
-| `resumematch-qa-tools` adapter | `c98c40bb56e67aee6ff16941ea3865c60eb39776` |
+| `resumematch-qa-tools` adapter | `5b157edf2945d8463eb03d6c7f80ab22fa4403e3` |
 
 The ResumeMatch commit is the one the hashes were taken at; the commit that adds
 this section changes only this document and its test, neither of which is frozen.
@@ -197,14 +224,14 @@ model come from `RESUMEMATCH_QA_PROVIDER` and `RESUMEMATCH_QA_MODEL`.
 | Reasoning effort | `max` | harness headless example |
 | Sampling parameters | adapter defaults; none set | `run-config.yml` sets none |
 | Input rate | $0.44 / 1M tokens, peak | `cordis.yml` |
+| Cache-hit rate | $0.014 / 1M tokens, peak | `cordis.yml` |
 | Output rate | $1.32 / 1M tokens, peak | `cordis.yml` |
 | Peak bands (UTC minutes) | `60-240` and `360-600`; everything else off-peak | `cordis.yml` |
-| Investigation ceiling | $0.50 | `cordis.yml` |
+| Investigation ceiling | $0.25 | `cordis.yml` |
 | Sweep ceiling | $5.00 | `qa/investigation/cost.ts` |
 
-Every prompt token is charged at the input rate, cache hits included: the
-configured rates carry no separate cache price, and charging a hit as a miss can
-only overstate the bill. The finding records the disjoint counts, so a more
+Cache hits are charged at their own rate; a run without one configured falls
+back to the input rate, which overstates rather than understates. The finding records the disjoint counts, so a more
 precise bill can be recomputed from it later. The pricing band is a label only;
 billing stays at the peak rates whichever band a request lands in.
 

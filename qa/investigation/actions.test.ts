@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { allowsControlledClock, resolveRoute, validateAction, validateInspectionTarget } from './actions'
+import { actionHelp, allowsControlledClock, resolveRoute, validateAction, validateInspectionTarget } from './actions'
 
 describe('validateAction', () => {
   it('accepts the gold reproduction sequence for a new upload', () => {
@@ -26,7 +26,49 @@ describe('validateAction', () => {
       { kind: 'evaluate', script: 'fetch("/api")' },
       { kind: 'click_by_css', selector: 'button.primary' },
     ]) {
-      expect(() => validateAction('P1-02', action)).toThrow(/POLICY|not on the approved|does not define|only kind|Unsupported/)
+      expect(() => validateAction('P1-02', action)).toThrow()
+    }
+  })
+
+  it('treats a malformed action as retryable and an unauthorized one as blocking', () => {
+    // Shape errors: the caller can repair them, so they must not end the run.
+    for (const malformed of [
+      { route: 'upload' },
+      { kind: 'teleport', route: 'upload' },
+      { kind: 'open_route', route: 'https://example.com' },
+      { kind: 'open_route', route: 'upload', selector: '.x' },
+      { kind: 'click_by_role', role: 'combobox', name: 'Analyze Resume' },
+    ]) {
+      try {
+        validateAction('P1-02', malformed)
+        throw new Error(`expected a refusal for ${JSON.stringify(malformed)}`)
+      } catch (error) {
+        expect({ input: malformed, code: (error as { code?: string }).code }).toEqual({ input: malformed, code: 'INVALID_ARGUMENTS' })
+      }
+    }
+    // Authorization errors: well formed, but not what this scenario allows.
+    for (const unauthorized of [
+      { kind: 'open_route', route: 'sample' },
+      { kind: 'wait_for_state', state: 'timeout_report' },
+      { kind: 'click_by_role', role: 'button', name: 'Delete account' },
+    ]) {
+      try {
+        validateAction('P1-02', unauthorized)
+        throw new Error(`expected a refusal for ${JSON.stringify(unauthorized)}`)
+      } catch (error) {
+        expect({ input: unauthorized, code: (error as { code?: string }).code }).toEqual({ input: unauthorized, code: 'POLICY_BLOCKED' })
+      }
+    }
+  })
+
+  it('returns the grammar and a scenario-appropriate example with a malformed action', () => {
+    try {
+      validateAction('P1-04', { kind: 'teleport' })
+      throw new Error('expected a refusal')
+    } catch (error) {
+      const help = (error as { help?: { schema: unknown; example: unknown } }).help
+      expect(help?.schema).toMatchObject({ type: 'object', required: ['kind'] })
+      expect(help?.example).toEqual({ action: { kind: 'open_route', route: 'results' } })
     }
   })
 
