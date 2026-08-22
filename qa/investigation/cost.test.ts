@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CostLedger, EVALUATION_COST_LIMIT_USD, INVESTIGATION_COST_LIMIT_USD,
-  pricingWindow, requestCostUsd, sweepHasBudget,
+  parseProviderLog, pricingWindow, providerLogCostUsd, providerLogTotals, requestCostUsd, sweepHasBudget,
 } from './cost'
 
 /** The peak rates the evaluation is authorized against. */
@@ -21,18 +21,49 @@ describe('request cost', () => {
 })
 
 describe('pricing window', () => {
+  /** The configured peak bands: 01:00-04:00 and 06:00-10:00 UTC. */
+  const PEAK = [{ startMinutes: 60, endMinutes: 240 }, { startMinutes: 360, endMinutes: 600 }]
+
   it('labels every request peak when no window is configured', () => {
     expect(pricingWindow(new Date('2026-08-20T18:00:00Z'))).toBe('peak')
     expect(pricingWindow(new Date('2026-08-20T06:00:00Z'))).toBe('peak')
+    expect(pricingWindow(new Date('2026-08-20T18:00:00Z'), [])).toBe('peak')
   })
 
-  it('labels a window that wraps past midnight', () => {
-    const window = { startMinutes: 16 * 60 + 30, endMinutes: 30 }
-    expect(pricingWindow(new Date('2026-08-20T16:29:00Z'), window)).toBe('peak')
-    expect(pricingWindow(new Date('2026-08-20T16:30:00Z'), window)).toBe('off-peak')
-    expect(pricingWindow(new Date('2026-08-20T23:59:00Z'), window)).toBe('off-peak')
-    expect(pricingWindow(new Date('2026-08-20T00:29:00Z'), window)).toBe('off-peak')
-    expect(pricingWindow(new Date('2026-08-20T00:30:00Z'), window)).toBe('peak')
+  it('labels the two configured bands peak and everything else off-peak', () => {
+    for (const inside of ['01:00', '03:59', '06:00', '09:59']) {
+      expect({ inside, label: pricingWindow(new Date(`2026-08-20T${inside}:00Z`), PEAK) }).toEqual({ inside, label: 'peak' })
+    }
+    for (const outside of ['00:59', '04:00', '05:59', '10:00', '23:30']) {
+      expect({ outside, label: pricingWindow(new Date(`2026-08-20T${outside}:00Z`), PEAK) }).toEqual({ outside, label: 'off-peak' })
+    }
+  })
+
+  it('labels a band that wraps past midnight', () => {
+    const wrapping = [{ startMinutes: 16 * 60 + 30, endMinutes: 30 }]
+    expect(pricingWindow(new Date('2026-08-20T16:29:00Z'), wrapping)).toBe('off-peak')
+    expect(pricingWindow(new Date('2026-08-20T16:30:00Z'), wrapping)).toBe('peak')
+    expect(pricingWindow(new Date('2026-08-20T00:29:00Z'), wrapping)).toBe('peak')
+    expect(pricingWindow(new Date('2026-08-20T00:30:00Z'), wrapping)).toBe('off-peak')
+  })
+})
+
+describe('provider request log', () => {
+  const LOG = [
+    '{"cacheHitTokens":10,"cacheMissTokens":90,"completionTokens":40,"requestedAt":"2026-08-20T02:00:00.000Z"}',
+    '{"cacheHitTokens":0,"cacheMissTokens":100,"completionTokens":60,"requestedAt":"2026-08-20T12:00:00.000Z"}',
+  ].join('\n')
+
+  it('sums every logged request, including the closing turn a finding cannot hold', () => {
+    const lines = parseProviderLog(`${LOG}\n`)
+    expect(providerLogTotals(lines)).toEqual({ requests: 2, cacheHitTokens: 10, cacheMissTokens: 190, completionTokens: 100 })
+    expect(providerLogCostUsd(lines, RATES)).toBeCloseTo((200 * 0.44 + 100 * 1.32) / 1_000_000, 12)
+  })
+
+  it('drops a malformed or partially flushed line rather than failing the sweep', () => {
+    expect(parseProviderLog(`${LOG}\n{"cacheHitTokens":1,"cacheMiss`)).toHaveLength(2)
+    expect(parseProviderLog('{"step":1}\n')).toHaveLength(0)
+    expect(parseProviderLog('')).toHaveLength(0)
   })
 })
 

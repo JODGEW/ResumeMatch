@@ -7,13 +7,13 @@ export interface TokenRates {
 }
 
 /**
- * Optional off-peak window in minutes past UTC midnight.
+ * A peak window in minutes past UTC midnight.
  *
- * Absent means every request is recorded as `peak`. Billing always uses the
- * peak rates either way; the window only labels what was observed, so a wrong
- * or missing window can never understate a cost.
+ * Configuring none labels every request `peak`. Billing always uses the peak
+ * rates either way; the windows only label what was observed, so a wrong or
+ * missing window can never understate a cost.
  */
-export interface OffPeakWindow {
+export interface PeakWindow {
   startMinutes: number
   endMinutes: number
 }
@@ -35,23 +35,91 @@ export const INVESTIGATION_COST_LIMIT_USD = 0.5
 /** Ceiling for one evaluation sweep across all its investigations. */
 export const EVALUATION_COST_LIMIT_USD = 5
 
+function insideWindow(minutes: number, window: PeakWindow): boolean {
+  return window.startMinutes <= window.endMinutes
+    ? minutes >= window.startMinutes && minutes < window.endMinutes
+    : minutes >= window.startMinutes || minutes < window.endMinutes
+}
+
 /**
  * Label a request's pricing window.
  *
- * A window that wraps past midnight is expressed with `startMinutes` greater
- * than `endMinutes`, which is the normal shape for an evening-to-morning
- * discount period.
+ * Peak is the configured set and off-peak is everything else, so an empty
+ * configuration labels everything peak — the conservative default. A window
+ * that wraps past midnight is expressed with `startMinutes` greater than
+ * `endMinutes`.
  * @param requestedAt - UTC timestamp of the request.
- * @param window - the configured off-peak window, if any.
+ * @param peakWindows - the configured peak windows, if any.
  * @returns the label recorded with the request.
  */
-export function pricingWindow(requestedAt: Date, window?: OffPeakWindow): UsageRecord['pricingWindow'] {
-  if (window === undefined) return 'peak'
+export function pricingWindow(requestedAt: Date, peakWindows?: readonly PeakWindow[]): UsageRecord['pricingWindow'] {
+  if (peakWindows === undefined || peakWindows.length === 0) return 'peak'
   const minutes = requestedAt.getUTCHours() * 60 + requestedAt.getUTCMinutes()
-  const inside = window.startMinutes <= window.endMinutes
-    ? minutes >= window.startMinutes && minutes < window.endMinutes
-    : minutes >= window.startMinutes || minutes < window.endMinutes
-  return inside ? 'off-peak' : 'peak'
+  return peakWindows.some(window => insideWindow(minutes, window)) ? 'peak' : 'off-peak'
+}
+
+/** One model request as the adapter logged it, independent of which provider served it. */
+export interface ProviderUsageLine {
+  cacheHitTokens: number
+  cacheMissTokens: number
+  completionTokens: number
+  requestedAt: string
+}
+
+/**
+ * Parse the adapter's request log.
+ *
+ * Malformed lines are dropped rather than failing the sweep: the log is an
+ * accounting record written by a live process, and a truncated final line must
+ * not lose the sweep its budget arithmetic.
+ * @param text - the log file's contents.
+ * @returns every well-formed entry, in order.
+ */
+export function parseProviderLog(text: string): ProviderUsageLine[] {
+  const lines: ProviderUsageLine[] = []
+  for (const raw of text.split('\n')) {
+    if (raw.trim().length === 0) continue
+    try {
+      const parsed = JSON.parse(raw) as Partial<ProviderUsageLine>
+      if (typeof parsed.cacheHitTokens !== 'number' || typeof parsed.cacheMissTokens !== 'number'
+        || typeof parsed.completionTokens !== 'number' || typeof parsed.requestedAt !== 'string') continue
+      lines.push(parsed as ProviderUsageLine)
+    } catch {
+      // A partially flushed final line contributes nothing rather than throwing.
+      continue
+    }
+  }
+  return lines
+}
+
+/** Token totals across every logged request. */
+export function providerLogTotals(lines: readonly ProviderUsageLine[]): {
+  requests: number
+  cacheHitTokens: number
+  cacheMissTokens: number
+  completionTokens: number
+} {
+  return {
+    requests: lines.length,
+    cacheHitTokens: lines.reduce((total, line) => total + line.cacheHitTokens, 0),
+    cacheMissTokens: lines.reduce((total, line) => total + line.cacheMissTokens, 0),
+    completionTokens: lines.reduce((total, line) => total + line.completionTokens, 0),
+  }
+}
+
+/**
+ * Cost of every logged request at the peak rates.
+ *
+ * The sweep ceiling is enforced against this rather than against a finding's
+ * `costUsd`, because a finding is written at `submit_finding` and therefore
+ * cannot contain the closing turn that follows it.
+ * @param lines - parsed log entries.
+ * @param rates - peak USD per million tokens.
+ * @returns cost in USD.
+ */
+export function providerLogCostUsd(lines: readonly ProviderUsageLine[], rates: TokenRates): number {
+  const totals = providerLogTotals(lines)
+  return requestCostUsd(totals, rates)
 }
 
 /**
@@ -86,7 +154,7 @@ export class CostLedger {
   constructor(
     private readonly rates: TokenRates,
     private readonly limitUsd: number = INVESTIGATION_COST_LIMIT_USD,
-    private readonly offPeak?: OffPeakWindow,
+    private readonly peakWindows?: readonly PeakWindow[],
   ) {}
 
   /**
@@ -105,7 +173,7 @@ export class CostLedger {
       cacheMissTokens: usage.cacheMissTokens,
       completionTokens: usage.completionTokens,
       requestedAt: requestedAt.toISOString(),
-      pricingWindow: pricingWindow(requestedAt, this.offPeak),
+      pricingWindow: pricingWindow(requestedAt, this.peakWindows),
       costUsd: requestCostUsd(usage, this.rates),
     }
     this.entries.push(entry)

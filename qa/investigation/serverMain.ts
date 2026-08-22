@@ -5,7 +5,7 @@ import process from 'node:process'
 
 import { INVESTIGATION_BUDGET } from './budget'
 import { CostLedger, INVESTIGATION_COST_LIMIT_USD } from './cost'
-import type { OffPeakWindow } from './cost'
+import type { PeakWindow } from './cost'
 import { InvestigationError } from './errors'
 import { readManifest } from './evidenceReader'
 import { approvedArtifactRoot, createInvestigationDirectory, newInvestigationId, resolveAcceptedRunDirectory } from './paths'
@@ -40,17 +40,21 @@ function costLedger(): CostLedger | undefined {
     throw new Error('investigate requires both --input-rate and --output-rate as non-negative USD per million tokens')
   }
   const limit = argumentValue('--cost-limit')
-  const window = argumentValue('--off-peak-window')
-  let offPeak: OffPeakWindow | undefined
-  if (window !== undefined) {
-    const [start, end] = window.split('-').map(Number)
-    if (!Number.isInteger(start) || !Number.isInteger(end)) throw new Error('--off-peak-window must be <startMinutes>-<endMinutes> past UTC midnight')
-    offPeak = { startMinutes: start, endMinutes: end }
+  const windows = argumentValue('--peak-windows')
+  let peakWindows: PeakWindow[] | undefined
+  if (windows !== undefined) {
+    peakWindows = windows.split(',').map(entry => {
+      const [start, end] = entry.split('-').map(Number)
+      if (!Number.isInteger(start) || !Number.isInteger(end)) {
+        throw new Error('--peak-windows must be comma-separated <startMinutes>-<endMinutes> past UTC midnight')
+      }
+      return { startMinutes: start, endMinutes: end }
+    })
   }
   return new CostLedger(
     { inputPerMillion, outputPerMillion },
     limit === undefined ? INVESTIGATION_COST_LIMIT_USD : Number(limit),
-    offPeak,
+    peakWindows,
   )
 }
 

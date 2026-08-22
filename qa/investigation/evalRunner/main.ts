@@ -34,6 +34,12 @@ async function main(): Promise<number> {
     harnessPath: argumentValue('--harness-path'),
     adapterPath: argumentValue('--adapter-path'),
     outputDirectory: argumentValue('--output', path.join(repositoryPath, '.qa-artifacts', 'evaluations')),
+    // The sweep ceiling is enforced at the peak rates the evaluation is
+    // authorized against; a lower rate here could only understate the spend.
+    rates: {
+      inputPerMillion: Number(argumentValue('--input-rate', '0.44')),
+      outputPerMillion: Number(argumentValue('--output-rate', '1.32')),
+    },
   }
   await mkdir(options.outputDirectory, { recursive: true, mode: 0o700 })
 

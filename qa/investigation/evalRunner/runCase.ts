@@ -4,7 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
-import { sweepHasBudget } from '../cost'
+import { parseProviderLog, providerLogCostUsd, providerLogTotals, sweepHasBudget } from '../cost'
+import type { TokenRates } from '../cost'
 import { EVAL_CASES } from '../evalCases'
 import type { EvalCase } from '../evalCases'
 import type { Finding } from '../finding'
@@ -33,6 +34,8 @@ export interface EvalRunnerOptions {
   spentUsd?: number
   /** Sweep ceiling; the case is refused rather than started once it is reached. */
   sweepLimitUsd?: number
+  /** Peak rates the sweep ceiling is enforced at. */
+  rates: TokenRates
 }
 
 /** One case outcome, deterministic apart from the narrative inside the finding. */
@@ -53,13 +56,18 @@ export interface EvalCaseResult {
   modelRequests: number
   classification: string | null
   expectedClassification: string | null
+  /** Cost of every logged request at the peak rates; the sweep ceiling reads this. */
   costUsd: number
+  /** Cost the finding recorded, which excludes the closing turn that follows submission. */
+  findingCostUsd: number
   wallClockMs: number
   classificationMatched: boolean
   firstProbe: string | null
   goldFirstProbe: string | null
   goldProbeHit: boolean | null
   worktreeRemoved: boolean
+  /** Token totals across every logged request, whichever provider served them. */
+  providerTokens?: { requests: number; cacheHitTokens: number; cacheMissTokens: number; completionTokens: number }
   /** Per-request accounting copied from the finding; empty for a case that spent nothing. */
   usage?: {
     cacheHitTokens: number
@@ -199,7 +207,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     expectationMet: null, failedOracle: null, artifactValidation: null, releaseGrade: null, triage: null,
     expectedTriage: evalCase.expectedTriage, triageMatched: false, harnessLaunched: false, modelRequests: 0,
     classification: null, expectedClassification: evalCase.expectedClassification, classificationMatched: false,
-    costUsd: 0, wallClockMs: 0,
+    costUsd: 0, findingCostUsd: 0, wallClockMs: 0,
     firstProbe: null, goldFirstProbe: evalCase.goldFirstProbe ?? null, goldProbeHit: null,
     worktreeRemoved: false, errors,
   }
@@ -242,7 +250,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
         result.classification = finding.classification
         result.firstProbe = firstProbe(finding)
         result.goldProbeHit = result.goldFirstProbe === null ? null : result.firstProbe === result.goldFirstProbe
-        result.costUsd = finding.usage.costUsd
+        result.findingCostUsd = finding.usage.costUsd
         result.usage = {
           cacheHitTokens: finding.usage.cacheHitTokens,
           cacheMissTokens: finding.usage.cacheMissTokens,
@@ -255,7 +263,13 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     return result
   } finally {
     result.wallClockMs = Date.now() - startedAt
-    result.modelRequests = (await readFile(requestLog, 'utf8')).split('\n').filter(line => line.trim().length > 0).length
+    // Read from the adapter's log rather than the finding: the finding is written
+    // at submission and cannot contain the closing turn that follows it.
+    const logged = parseProviderLog(await readFile(requestLog, 'utf8'))
+    const totals = providerLogTotals(logged)
+    result.modelRequests = totals.requests
+    result.providerTokens = totals
+    result.costUsd = providerLogCostUsd(logged, options.rates)
     try {
       await removeEvaluationWorktree(options.repositoryPath, worktree)
       result.worktreeRemoved = true

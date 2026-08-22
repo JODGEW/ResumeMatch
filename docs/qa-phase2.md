@@ -155,8 +155,8 @@ enforced.
 | File | sha256 |
 | --- | --- |
 | `adapter:prompts/investigator.md` | `3552005ef4a135ddd05b4607a6dd624231f5fe7e241ad21d10a196c7fe9ab09a` |
-| `adapter:src/qa-tools.ts` | `267c618cc95950b7a00e011be1706400fc1d636043ce90d2b621022bb8812b3b` |
-| `adapter:cordis.yml` | `88931be79c6febf035243b53215ff3c898fc7543368427f4eea8435a4bbbad3c` |
+| `adapter:src/qa-tools.ts` | `61c30728d2deef46bf6fa7c7c63e2d21be66730702f5337de9822d1343fa7187` |
+| `adapter:cordis.yml` | `ae0634c0a8f44b76478f983f10d65bcb6d397b90aa6e2483d2b9e976141d3d74` |
 | `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
 | `qa/investigation/actions.ts` | `ae6ad73af507c923734b9f14f3c4be5cdac107ed3e87ad8c1f949bd21bebe74d` |
 | `qa/investigation/budget.ts` | `e5307cfa5504eb0dac1eeac92ebd6878892a3fadc5008ebb46521ea8ec53dff5` |
@@ -169,7 +169,7 @@ enforced.
 | --- | --- |
 | ResumeMatch | `a05115ba4c9e8252a95a1c39b82b2c632337dfb5` |
 | DeepSeek Harness | `47f943859bef60e4160492346772ded9b24f765a` |
-| `resumematch-qa-tools` adapter | `ec1421c8b40e37a2a1a48b73b152a10c43f6445b` |
+| `resumematch-qa-tools` adapter | `c98c40bb56e67aee6ff16941ea3865c60eb39776` |
 
 The ResumeMatch commit is the one the hashes were taken at; the commit that adds
 this section changes only this document and its test, neither of which is frozen.
@@ -198,14 +198,20 @@ model come from `RESUMEMATCH_QA_PROVIDER` and `RESUMEMATCH_QA_MODEL`.
 | Sampling parameters | adapter defaults; none set | `run-config.yml` sets none |
 | Input rate | $0.44 / 1M tokens, peak | `cordis.yml` |
 | Output rate | $1.32 / 1M tokens, peak | `cordis.yml` |
-| Off-peak window | not configured; every request labelled `peak` | `cordis.yml` |
+| Peak bands (UTC minutes) | `60-240` and `360-600`; everything else off-peak | `cordis.yml` |
 | Investigation ceiling | $0.50 | `cordis.yml` |
 | Sweep ceiling | $5.00 | `qa/investigation/cost.ts` |
 
 Every prompt token is charged at the input rate, cache hits included: the
 configured rates carry no separate cache price, and charging a hit as a miss can
 only overstate the bill. The finding records the disjoint counts, so a more
-precise bill can be recomputed from it later.
+precise bill can be recomputed from it later. The pricing band is a label only;
+billing stays at the peak rates whichever band a request lands in.
+
+`finding.costUsd` covers the requests made up to `submit_finding` and therefore
+excludes the closing turn that follows it. The sweep ceiling is not enforced
+against that figure: the adapter writes every request to its own log, including
+the closing turn, and the runner prices that log at the peak rates.
 
 ### Toolchain
 

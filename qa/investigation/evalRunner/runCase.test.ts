@@ -9,7 +9,7 @@ function result(overrides: Partial<EvalCaseResult>): EvalCaseResult {
     expectationMet: true, failedOracle: null, artifactValidation: 'passed', releaseGrade: false,
     triage: 'expected', expectedTriage: 'expected', triageMatched: true, harnessLaunched: false,
     modelRequests: 0, classification: null, expectedClassification: null, classificationMatched: false,
-    firstProbe: null, goldFirstProbe: null, goldProbeHit: null, costUsd: 0, wallClockMs: 4_000,
+    firstProbe: null, goldFirstProbe: null, goldProbeHit: null, costUsd: 0, findingCostUsd: 0, wallClockMs: 4_000,
     worktreeRemoved: true, errors: [],
     ...overrides,
   }
