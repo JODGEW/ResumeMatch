@@ -68,6 +68,9 @@ export class StatefulContractRouter implements ContractRouteHandler {
       this.scenario.recordContractViolation('last-resume-method-or-count')
       return null
     }
+    // A contract-legal request whose response never arrives. The upload page
+    // then has no previous resume to offer, so the reuse path is unavailable.
+    if (this.scenario.consumeTransientFault('last_resume_interrupted_once')) return null
     this.scenario.recordTransition(`last-resume:${this.scenario.lastResume ? 'existing' : 'none'}`)
     return jsonResponse({ lastResume: this.scenario.lastResume })
   }

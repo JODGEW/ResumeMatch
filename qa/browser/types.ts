@@ -18,7 +18,11 @@ export type FaultInjection =
  * is contract-legal, so it records no contract violation. Default is none, and
  * no Phase 1 scenario enables one.
  */
-export type TransientFault = 'upload_503_once' | 'analysis_interrupted_once' | 's3_response_500_once'
+export type TransientFault =
+  | 'upload_503_once'
+  | 'analysis_interrupted_once'
+  | 's3_response_500_once'
+  | 'last_resume_interrupted_once'
 
 /**
  * Marks a run as belonging to the Phase 2 evaluation corpus rather than to a

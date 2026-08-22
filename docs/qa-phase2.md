@@ -76,7 +76,11 @@ A finding that names `classification`, `reproductionOracleResult`, `safetyViolat
 
 ## Evaluation
 
-The twelve-case corpus lives in `qa/investigation/evalCases.ts`: three clean cases, six seeded defects anchored to exact single-occurrence source strings, and three benign transient cases driven by evaluation-only fault injection. D5, D6, and B2 are held out and carry no gold first probe. The runner is not built yet, and no case has run against a real model.
+The corpus is split in two. `qa/investigation/evalCases.ts` holds the public half — three clean cases, four seeded defects anchored to exact single-occurrence source strings, and three benign transient cases — with their mutations, faults, and gold first probes. `qa/investigation/evalCases.heldout.ts` holds D5, D6, and B4 as expectations only: no mutation, no fault, no gold probe. Their definitions live in the gitignored `qa/investigation/heldout/` directory and load only under an explicit `--held-out` opt-in, and a gate test fails if any held-out id appears in the public file.
+
+That makes thirteen cases, not the original twelve. B2 was implemented and executed during Phase 2 development, so it can no longer serve as held out; it stays in the corpus as a public benign case and carries no gold probe, and B4 takes the held-out slot. B4 interrupts the last-resume lookup once in the reuse scenario — a route and a scenario no public benign case covers, failing as a missing element rather than a failed navigation or a stalled poll.
+
+The runner is not built yet, and no case has run against a real model.
 
 ## Evaluation identity
 
@@ -107,6 +111,7 @@ Both measured on this machine at commit `f111fd3`, macOS 25.5, Node 18.20.4, Vit
 - `upload_503_once` — `/upload` returns a fixed synthetic failure body once.
 - `analysis_interrupted_once` — the second analysis poll is aborted; the response sequence still advances.
 - `s3_response_500_once` — the multipart object is accepted and recorded, then the response fails.
+- `last_resume_interrupted_once` — the previous-resume lookup is aborted, so the reuse path has nothing to offer.
 
 Artifact validation accepts exactly two more fixed synthetic values for these — the transient upload body hash, and the transient S3 status with its empty body — and only for a run whose `evaluationIdentity` declared the matching fault. The allowlist stays closed, and stays exactly the Phase 1 set for every release check.
 

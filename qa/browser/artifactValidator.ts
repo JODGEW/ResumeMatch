@@ -60,7 +60,9 @@ const QUERY_KEYS = new Set<NetworkQueryKey>(['display', 'family', 'userId', 'mar
 const REQUEST_FIELD_NAMES = new Set<RequestFieldName>([
   'fileName', 'jobDescription', 'existingAnalysisId', 'key', 'x-amz-meta-qa', 'file', 'multipartFormData', '[other]',
 ])
-const TRANSIENT_FAULTS = new Set<TransientFault>(['upload_503_once', 'analysis_interrupted_once', 's3_response_500_once'])
+const TRANSIENT_FAULTS = new Set<TransientFault>([
+  'upload_503_once', 'analysis_interrupted_once', 's3_response_500_once', 'last_resume_interrupted_once',
+])
 const MOCK_DECISIONS = new Set<NetworkEvent['mockDecision']>(['local-application', 'fulfilled-contract', 'fulfilled-font-css', 'blocked'])
 const SYNTHETIC_EMAIL_DOMAINS = new Set(['qa.invalid', 'example.com'])
 const SYNTHETIC_PDF_NAMES = new Set(['qa-synthetic-resume.pdf', 'qa-synthetic-existing-resume.pdf', 'sample_resume_jordan_reyes.pdf'])

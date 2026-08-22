@@ -110,3 +110,23 @@ describe('B3: S3 accepts the object but its response fails', () => {
     expect(events).toContain('transient-fault:s3_response_500_once')
   })
 })
+
+describe('B4: one interrupted last-resume lookup', () => {
+  it('aborts the lookup without a contract violation, leaving no resume to reuse', async () => {
+    const scenario = createScenario('P1-03', { transientFaults: ['last_resume_interrupted_once'] })
+    const router = new StatefulContractRouter(scenario)
+    expect(await router.handle(request({ url: 'https://api.qa.invalid/user/last-resume' }))).toBeNull()
+    expect(scenario.contractViolations).toEqual([])
+    const events = scenario.transitions.map(item => item.event)
+    expect(events).toContain('transient-fault:last_resume_interrupted_once')
+    expect(events.some(event => event.startsWith('last-resume:'))).toBe(false)
+  })
+
+  it('leaves the lookup untouched when the fault is not configured', async () => {
+    const scenario = createScenario('P1-03')
+    const router = new StatefulContractRouter(scenario)
+    const response = await router.handle(request({ url: 'https://api.qa.invalid/user/last-resume' })) as ContractResponse
+    expect(JSON.parse(response.body).lastResume.analysisId).toBe('qa-existing-source-1')
+    expect(scenario.transitions.map(item => item.event)).toContain('last-resume:existing')
+  })
+})
