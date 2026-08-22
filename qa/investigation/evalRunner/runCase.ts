@@ -58,6 +58,19 @@ export interface EvalCaseResult {
 
 const TASK = 'Investigate the recorded release failure.'
 
+/**
+ * Which scripted sequence the keyless provider replays for a scenario.
+ *
+ * The script stands in for a model's plan, and a plan is scenario-shaped: the
+ * sample page defines one route and no form actions, while the upload scenarios
+ * need the whole form. A scenario with no entry falls back to the upload plan.
+ */
+const SCRIPT_BY_SCENARIO: Readonly<Record<string, string>> = {
+  'P1-01': 'sample',
+  'P1-02': 'gold',
+  'P1-03': 'gold',
+}
+
 function registry(): MutationRegistry {
   return caseId => EVAL_CASES.find(item => item.id === caseId)?.mutation
 }
@@ -110,7 +123,13 @@ async function runScenario(worktree: string, caseId: string, label: string, opti
  * depend on which Node happens to be first on PATH.
  * @returns the number of model requests the provider recorded.
  */
-async function runInvestigation(worktree: string, runId: string, requestLog: string, options: EvalRunnerOptions): Promise<{ errors: string[] }> {
+async function runInvestigation(
+  worktree: string,
+  runId: string,
+  requestLog: string,
+  scenarioId: string,
+  options: EvalRunnerOptions,
+): Promise<{ errors: string[] }> {
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'resumematch-eval-harness-'))
   const errors: string[] = []
   try {
@@ -129,7 +148,7 @@ async function runInvestigation(worktree: string, runId: string, requestLog: str
         DSH_AGENTS_HOME: path.join(scratch, '.agents'),
         RESUMEMATCH_QA_REPOSITORY: worktree,
         RESUMEMATCH_QA_RUN_ID: runId,
-        RESUMEMATCH_QA_SCRIPT: 'gold',
+        RESUMEMATCH_QA_SCRIPT: SCRIPT_BY_SCENARIO[scenarioId] ?? 'gold',
         RESUMEMATCH_QA_REQUEST_LOG: requestLog,
       },
       encoding: 'utf8',
@@ -191,7 +210,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
 
     if (result.triage === 'investigate') {
       result.harnessLaunched = true
-      errors.push(...(await runInvestigation(worktree.directory, result.runId, requestLog, options)).errors)
+      errors.push(...(await runInvestigation(worktree.directory, result.runId, requestLog, evalCase.scenarioId, options)).errors)
       const finding = await findFinding(worktree.directory)
       if (finding === null) errors.push('no finding was submitted')
       else {
