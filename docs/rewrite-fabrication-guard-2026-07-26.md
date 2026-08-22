@@ -59,7 +59,9 @@ it is a lie that a hiring manager finds in the first five minutes of a phone
 screen.
 
 So the model's output doesn't go to you. It goes through a deterministic filter,
-and that filter has exactly two ways to say yes. Here they are, in full:
+and that filter has exactly two ways to say yes. Both functions are below, with
+their docstrings removed and the order swapped to match the explanation that
+follows:
 
 ```python
 def _keyword_supported_elsewhere(keyword, resume_text):
@@ -102,6 +104,7 @@ CONCEPT_ANCHORS = {
         'alert', 'alerts', 'alerting', 'tracing', 'telemetry',
         'datadog', 'grafana', 'prometheus', 'cloudwatch', 'splunk', 'kibana',
     },
+}
 ```
 
 Note what `_concept_anchor_present` searches. It takes `original_line`, not the
