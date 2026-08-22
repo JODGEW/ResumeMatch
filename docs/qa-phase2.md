@@ -40,13 +40,25 @@ It takes the same process lock as `qa:test`, rebuilds the QA application, bundle
 
 ## Tools
 
-Read-only evidence: `read_failure_manifest`, `read_failed_assertion`, `read_console_events`, `read_page_errors`, `read_network_events`, `read_scenario_transition_log`, `read_safety_violations`, `count_requests`.
+Sixteen tools, closed on both sides: the adapter registers exactly this list and the investigation server authorizes exactly this list, so a name added in only one place is refused rather than silently enabled.
 
-Bounded reproduction: `start_fresh_reproduction`, `execute_allowed_action`, `inspect_element_state`, `capture_region_screenshot`, `capture_accessibility_snapshot`, `advance_controlled_clock`, `run_oracle`, `submit_finding`.
+Read-only evidence (8): `read_failure_manifest`, `read_failed_assertion`, `read_console_events`, `read_page_errors`, `read_network_events`, `read_scenario_transition_log`, `read_safety_violations`, `count_requests`.
+
+Bounded reproduction (8): `start_fresh_reproduction`, `execute_allowed_action`, `inspect_element_state`, `capture_region_screenshot`, `capture_accessibility_snapshot`, `advance_controlled_clock`, `run_oracle`, `submit_finding`.
 
 There is no shell, filesystem, navigation, HTTP, evaluation, or selector tool, and no Playwright handle reaches a model. Actions use a closed grammar — `open_route`, `fill_synthetic_text`, `attach_synthetic_file`, `click_by_role`, `wait_for_state` — resolved per scenario: a route names a semantic target and the scenario supplies the path, text and files come from fixtures, and click names come from an approved list. The controlled clock is authorized only for the scenario that installs one.
 
 `read_failed_assertion` returns the oracle id and the recorded failures. Phase 1 records no expected/actual pair, and none is invented.
+
+`capture_accessibility_snapshot` exists because Phase 1 captures no accessibility tree — its trace snapshots are DOM, not the accessibility view. Rather than read one that does not exist, Phase 2 takes its own inside the reproduction context: the snapshot is redacted with Phase 1's `redactText`, written under the investigation's own artifact root, and returned as a reference plus a bounded excerpt.
+
+## Composition and prompt
+
+`resumematch-qa-tools/cordis.yml` composes one `main` agent over the QA tool registry and nothing else: no bash, filesystem, subagent, or workflow rows. Its model adapter is a scripted keyless provider; swapping that one row for the DeepSeek adapter is the only change a live evaluation needs.
+
+The investigator's prompt is a file, `resumematch-qa-tools/prompts/investigator.md`, registered as its own prompt section rather than inlined in the composition, so a prompt edit is reviewable on its own. It states the role, that the agent holds no pass/fail authority, that budgets and lifecycle state arrive in each tool result's `status`, and that `submit_finding` is the only kept output. It does not restate the tool descriptions, which the registrations already carry.
+
+First-probe scoring lives in `qa/investigation/goldProbe.ts`: it reads the head of a finding's recorded probe order and compares it to the public corpus's gold probe. Only cases declaring a gold probe are scored, so clean cases and held-out cases neither inflate nor depress the rate.
 
 ## Budgets and latches
 
