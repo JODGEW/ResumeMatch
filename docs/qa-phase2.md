@@ -92,7 +92,26 @@ The corpus is split in two. `qa/investigation/evalCases.ts` holds the public hal
 
 That makes thirteen cases, not the original twelve. B2 was implemented and executed during Phase 2 development, so it can no longer serve as held out; it stays in the corpus as a public benign case and carries no gold probe, and B4 takes the held-out slot. B4 interrupts the last-resume lookup once in the reuse scenario — a route and a scenario no public benign case covers, failing as a missing element rather than a failed navigation or a stalled poll.
 
-The runner is not built yet, and no case has run against a real model.
+### Runner
+
+`node qa/browser/qaCommand.mjs evaluate <caseId...> --harness-node <path> --harness-path <path> --adapter-path <path>`
+
+Per case it creates a detached worktree at the given commit, symlinks
+`node_modules`, applies the seeded mutation by case id when there is one, and
+runs `tests/e2e/evalCase.e2e.ts` inside that worktree through the ordinary QA
+launcher — which owns the build, the fixed preview port, and the lock, so the
+evaluation copy needs none of its own. That executor asserts nothing; it records
+the run and its triage decision. Only when triage says `investigate` does the
+runner launch the harness, under the Node named on the command line rather than
+whichever Node is first on PATH. It then reads the submitted finding, scores the
+first probe, removes the worktree, and prunes the registration.
+
+A model-request counter file is created for every case whether or not an
+investigation is launched, and the scripted provider appends one entry per
+request, so a clean case's zero is a reading of that counter rather than the
+absence of an observation.
+
+No case has run against a real model.
 
 ## Freeze
 
@@ -126,10 +145,13 @@ enforced.
 | --- | --- |
 | ResumeMatch | `b0bc3e597a18abdc13b139f8501fa399362444a6` |
 | DeepSeek Harness | `47f943859bef60e4160492346772ded9b24f765a` |
-| `resumematch-qa-tools` adapter | `19486127a403dba6f78c086d8b6685ff21cbd07d` |
+| `resumematch-qa-tools` adapter | `d8959fc8454afaf3488a85af79446e17d007deee` |
 
 The ResumeMatch commit is the one the hashes were taken at; the commit that adds
 this section changes only this document and its test, neither of which is frozen.
+The adapter commit advanced once afterwards, to instrument the scripted
+provider's request counter; all three frozen adapter hashes are unchanged, and
+the commit is updated here rather than left stale.
 
 ### Toolchain
 

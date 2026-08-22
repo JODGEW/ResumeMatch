@@ -17,6 +17,8 @@ const playwrightCli = path.join(repositoryRoot, 'node_modules', '@playwright', '
 const viteConfig = path.join(repositoryRoot, 'qa', 'browser', 'vite.qa.config.ts')
 const investigateConfig = path.join(repositoryRoot, 'qa', 'investigation', 'vite.investigate.config.ts')
 const investigateEntry = path.join(repositoryRoot, '.qa-artifacts', 'investigation-runtime', 'serverMain.mjs')
+const evaluateConfig = path.join(repositoryRoot, 'qa', 'investigation', 'evalRunner', 'vite.evalRunner.config.ts')
+const evaluateEntry = path.join(repositoryRoot, '.qa-artifacts', 'evaluation-runtime', 'main.mjs')
 const previewUrl = 'http://127.0.0.1:4173/'
 
 function sanitizedEnvironment(invocationRoot, token) {
@@ -26,6 +28,11 @@ function sanitizedEnvironment(invocationRoot, token) {
     LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', NODE_ENV: 'production', PLAYWRIGHT_BROWSERS_PATH: browserCache,
     QA_INVOCATION_ID: token, QA_LOCK_TOKEN: token,
     QA_APP_ORIGIN: 'http://127.0.0.1:4173', QA_API_ORIGIN: 'https://api.qa.invalid', QA_S3_ORIGIN: 'https://s3.qa.invalid',
+    // Evaluation-case selection, forwarded explicitly rather than by spreading
+    // the parent environment, so the sanitized environment stays enumerable.
+    ...Object.fromEntries(['QA_EVAL_CASE', 'QA_EVAL_RESULT', 'QA_EVAL_WORKTREE_LABEL']
+      .filter(name => process.env[name] !== undefined)
+      .map(name => [name, process.env[name]])),
     VITE_DEV_BYPASS: 'true', VITE_API_BASE_URL: 'https://api.qa.invalid', VITE_API_KEY: 'qa-synthetic-api-key-not-secret',
     VITE_USER_POOL_ID: 'us-east-1_QaSynthetic', VITE_USER_POOL_CLIENT_ID: 'qasyntheticclient00000000000',
     VITE_COGNITO_OAUTH_DOMAIN: 'auth.qa.invalid', VITE_APP_URL: 'https://app.qa.invalid',
@@ -92,6 +99,19 @@ async function runInvestigation(commandArgs, environment) {
   }
 }
 
+/**
+ * Bundle and run the evaluation runner.
+ *
+ * The runner owns its own worktrees and child launchers, so it runs under the
+ * caller's environment rather than the sanitized QA one: it must reach git, the
+ * harness Node, and the parent PATH.
+ */
+function runEvaluation(commandArgs) {
+  const bundleStatus = runSync([viteCli, 'build', '--config', evaluateConfig], sanitizedEnvironment(path.join(runtimeRoot, 'evaluate'), 'evaluate'), ['ignore', 'ignore', 'inherit'])
+  if (bundleStatus !== 0) return bundleStatus
+  return runSync([evaluateEntry, ...commandArgs], process.env)
+}
+
 function runAttached(args, environment) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, { cwd: repositoryRoot, env: environment, stdio: 'inherit' })
@@ -104,10 +124,13 @@ function runAttached(args, environment) {
 
 async function main() {
   const [command, ...commandArgs] = process.argv.slice(2)
-  if (!['build', 'serve', 'test', 'investigate'].includes(command)) {
-    process.stderr.write('Usage: node qa/browser/qaCommand.mjs <build|serve|test|investigate>\n')
+  if (!['build', 'serve', 'test', 'investigate', 'evaluate'].includes(command)) {
+    process.stderr.write('Usage: node qa/browser/qaCommand.mjs <build|serve|test|investigate|evaluate>\n')
     return 2
   }
+  // The evaluation runner creates its own worktrees, each with its own artifact
+  // root and lock, so it must not hold the main checkout's lock while they run.
+  if (command === 'evaluate') return runEvaluation(commandArgs)
   let lock
   let invocationRoot
   let status = 1
