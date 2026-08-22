@@ -61,7 +61,7 @@ describe('validateNarrative', () => {
   })
 
   it('blocks any attempt to supply a deterministic authority field', () => {
-    for (const field of ['classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model']) {
+    for (const field of ['classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model', 'evaluationIdentity']) {
       expect(() => validateNarrative(narrative({ [field]: 'confirmed' }))).toThrow(/may not supply the deterministic field/)
       try { validateNarrative(narrative({ [field]: 'confirmed' })) } catch (error) { expect(error).toMatchObject({ code: 'POLICY_BLOCKED' }) }
     }

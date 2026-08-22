@@ -8,7 +8,9 @@ export const FINDING_SCHEMA_VERSION = 'phase2-finding/1'
 export type Classification = 'confirmed' | 'not_reproduced' | 'inconclusive' | 'policy_blocked'
 
 /** Authority fields a model may never supply; naming one is an unauthorized action. */
-const AUTHORITY_FIELDS = ['classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model'] as const
+const AUTHORITY_FIELDS = [
+  'classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model', 'evaluationIdentity',
+] as const
 
 const CONFIDENCE = ['low', 'medium', 'high'] as const
 const MAX_HYPOTHESES = 3

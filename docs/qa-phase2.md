@@ -78,6 +78,28 @@ A finding that names `classification`, `reproductionOracleResult`, `safetyViolat
 
 The twelve-case corpus lives in `qa/investigation/evalCases.ts`: three clean cases, six seeded defects anchored to exact single-occurrence source strings, and three benign transient cases driven by evaluation-only fault injection. D5, D6, and B2 are held out and carry no gold first probe. The runner is not built yet, and no case has run against a real model.
 
+## Evaluation identity
+
+A run that belongs to the evaluation corpus carries `evaluationIdentity` in its manifest; a release check carries `null`. It records the case id, the mutation applied, the transient faults configured, a source digest, a build digest, and a worktree label. The label is deliberately not a path: an absolute temp path would carry the operator's home directory into evidence.
+
+It does two things. `releaseGrade` is false whenever it is present, no matter how clean the worktree is, and artifact validation asserts both directions — an evaluation bundle can never be release grade, and a release-grade bundle can never carry one. And it is the only thing that widens the synthetic allowlist: with `null`, `canonicalApiResponseHashes` and `validNetworkEvent` are byte-for-byte the Phase 1 sets, so a bundle recording a transient failure body or a transient S3 status without having declared that fault is rejected as `INVALID_ARTIFACT_SCHEMA`. A manifest that fails its own schema is judged under the strict release set, so a malformed manifest cannot widen anything.
+
+No model-reachable surface can produce one. The runner, the mutation applier, and worktree creation are not tools; `evaluationIdentity` is an authority field a submitted finding may not name.
+
+### Evaluation copies
+
+Each case runs in a detached `git worktree` under the system temp directory, never inside the main worktree, and the main worktree must be clean before one is created. The mutation applier takes a case id only — never a patch — resolves it through a registry, requires its anchor to match exactly once, and re-counts both strings after the write.
+
+`investigate` rebuilds the application, so it recomputes both digests at startup and compares them to the manifest's. A mismatch is `EVALUATION_SOURCE_DRIFT` (exit 5) rather than an investigation of a different build.
+
+### Measured build facts
+
+Both measured on this machine at commit `f111fd3`, macOS 25.5, Node 18.20.4, Vite 5.4.21.
+
+- **The QA build is byte-reproducible.** Three consecutive `qa:build` runs of the same commit produced the identical digest `1ce1aff0…2390` over 11 files. `buildDigest` is therefore an assertable identity, not just a record.
+- **A temporary worktree uses a symlinked `node_modules`, not `npm ci`.** Symlinking the main checkout's `node_modules` into the evaluation worktree built successfully three times, and its output digest equals the main worktree's for the same commit. `npm ci` per case is unnecessary.
+- **Dot entries are excluded from `buildDigest`.** The only difference between the two otherwise identical builds was a `.DS_Store` the file browser dropped into `.qa-dist`. Left in, it would change the evaluation identity and read as source drift.
+
 ## Evaluation-only transient faults
 
 `RunOptions.transientFaults` is empty in every release check. Each fault fires at most once per scenario instance and models a contract-legal failure, so it records no contract violation:
@@ -86,6 +108,6 @@ The twelve-case corpus lives in `qa/investigation/evalCases.ts`: three clean cas
 - `analysis_interrupted_once` — the second analysis poll is aborted; the response sequence still advances.
 - `s3_response_500_once` — the multipart object is accepted and recorded, then the response fails.
 
-Artifact validation accepts exactly two more fixed synthetic values for these: the transient upload body hash, and the transient S3 status with its empty body. The allowlist stays closed.
+Artifact validation accepts exactly two more fixed synthetic values for these — the transient upload body hash, and the transient S3 status with its empty body — and only for a run whose `evaluationIdentity` declared the matching fault. The allowlist stays closed, and stays exactly the Phase 1 set for every release check.
 
 Two Phase 1 behaviors changed to make this usable. `createScenario` takes options, defaulting to no faults. And the results navigation in P1-02/P1-03 now goes through `requireUrl`, so a page that never navigates is a deterministic oracle failure rather than an unbounded wait inherited from the context's navigation timeout.

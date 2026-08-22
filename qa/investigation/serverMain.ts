@@ -7,6 +7,7 @@ import { INVESTIGATION_BUDGET } from './budget'
 import { InvestigationError } from './errors'
 import { readManifest } from './evidenceReader'
 import { approvedArtifactRoot, createInvestigationDirectory, newInvestigationId, resolveAcceptedRunDirectory } from './paths'
+import { buildDigest, detectSourceDrift, sourceDigest } from './evalRunner/digest'
 import { PlaywrightReproduction } from './reproduction'
 import { InvestigationSession } from './session'
 import { scenarioActionPolicy } from './actions'
@@ -49,6 +50,26 @@ async function main(): Promise<number> {
   if (triage.decision !== 'investigate') {
     write({ ready: false, triage, error: { code: 'NOT_INVESTIGABLE', message: `Triage decision ${triage.decision}: ${triage.reason}` } })
     return 3
+  }
+
+  // An evaluation bundle must be investigated against the same mutated source
+  // and build it failed on. `investigate` rebuilds, so the digests are compared
+  // rather than assumed; a release bundle carries no identity and skips this.
+  if (manifest.evaluationIdentity !== null) {
+    const drift = detectSourceDrift(manifest.evaluationIdentity, {
+      sourceDigest: await sourceDigest(process.cwd()),
+      buildDigest: await buildDigest(path.join(process.cwd(), '.qa-dist')),
+    })
+    if (drift.drifted) {
+      write({
+        ready: false,
+        error: {
+          code: 'EVALUATION_SOURCE_DRIFT',
+          message: `Evaluation checkout no longer matches the failing run: ${drift.fields.join(', ')}`,
+        },
+      })
+      return 5
+    }
   }
 
   const investigationId = newInvestigationId()

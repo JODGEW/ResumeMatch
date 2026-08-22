@@ -284,6 +284,7 @@ export async function runReleaseCheck(scenarioId: ScenarioId, options: RunOption
         expectationMet, failedOracle, failures, networkEvents: policy?.events ?? [],
         networkSummary: policy?.summary() ?? { resumeMatchRest: 0, cognito: 0, s3: 0, deepgram: 0, outreach: 0, unexpectedEgress: 0, locallyFulfilled: 0 },
         transitions: scenario?.transitions ?? [], safetyViolations: policy?.safetyViolations ?? [],
+        evaluationIdentity: options.evaluationIdentity ?? null,
       })
       validation = hasFault(options, 'validation')
         ? { valid: false, violations: [{ code: 'INVALID_ARTIFACT_FORMAT', file: 'trace.zip', detail: 'Injected validation failure' }] }

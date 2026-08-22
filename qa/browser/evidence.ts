@@ -6,7 +6,7 @@ import process from 'node:process'
 import type { BrowserContext, ConsoleMessage, Page } from '@playwright/test'
 
 import { PLAYWRIGHT_NETWORK_ENFORCEMENT_SCOPE } from './types'
-import type { ArtifactReferences, EvidenceManifest, NetworkEvent, NetworkSummary, RunFailure, SafetyViolation, ScenarioId, SourceIdentity, TransitionEvent } from './types'
+import type { ArtifactReferences, EvaluationIdentity, EvidenceManifest, NetworkEvent, NetworkSummary, RunFailure, SafetyViolation, ScenarioId, SourceIdentity, TransitionEvent } from './types'
 
 interface ConsoleEvidence { type: string; text: string }
 
@@ -52,6 +52,7 @@ export interface PersistEvidenceInput {
   networkSummary: NetworkSummary
   transitions: TransitionEvent[]
   safetyViolations: SafetyViolation[]
+  evaluationIdentity: EvaluationIdentity | null
 }
 
 export class EvidenceCollector {
@@ -119,7 +120,12 @@ export class EvidenceCollector {
       scenarioId: this.scenarioId,
       browserVersion: input.browserVersion,
       durationMs: input.durationMs,
-      sourceIdentity: readSourceIdentity(input.executionStatus === 'completed' && input.expectationMet),
+      // An evaluation run is never release grade: its source carries a seeded
+      // mutation or its contracts carry an injected fault, so a clean worktree
+      // and a valid commit are not enough to attest the released product.
+      sourceIdentity: readSourceIdentity(
+        input.executionStatus === 'completed' && input.expectationMet && input.evaluationIdentity === null,
+      ),
       executionStatus: input.executionStatus,
       oracleStatus: input.oracleStatus,
       expectedOracleStatus: input.expectedOracleStatus,
@@ -134,6 +140,7 @@ export class EvidenceCollector {
         'Known API and S3 request bodies, mocked responses, and local build resources are positively validated against independent synthetic inputs',
         'PNG, JPEG, and WebM receive format-signature checks only; this is not semantic content redaction or OCR',
       ],
+      evaluationIdentity: input.evaluationIdentity,
     }
     await this.writeJson('manifest.json', manifest)
     return manifest

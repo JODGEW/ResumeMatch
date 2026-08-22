@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test'
 
 import { runReleaseCheck } from '../../qa/browser/runReleaseCheck'
 import type { EvidenceManifest, TransientFault } from '../../qa/browser/types'
+import { buildDigest, sourceDigest } from '../../qa/investigation/evalRunner/digest'
 import { approvedArtifactRoot, createInvestigationDirectory, newInvestigationId } from '../../qa/investigation/paths'
 import { PlaywrightReproduction } from '../../qa/investigation/reproduction'
 import { InvestigationSession } from '../../qa/investigation/session'
@@ -49,12 +50,27 @@ async function investigate(manifest: EvidenceManifest, runDirectory: string): Pr
 }
 
 async function failingRun(fault: TransientFault) {
-  const result = await runReleaseCheck('P1-02', { transientFaults: [fault] })
+  // A run that injects a fault must declare it: without an evaluation identity
+  // the validator judges the bundle under the strict release allowlist and
+  // rejects the transient response, so the run never becomes investigable.
+  const result = await runReleaseCheck('P1-02', {
+    transientFaults: [fault],
+    evaluationIdentity: {
+      caseId: fault === 'upload_503_once' ? 'B1' : 'B2',
+      mutationApplied: null,
+      transientFaults: [fault],
+      sourceDigest: await sourceDigest(process.cwd()),
+      buildDigest: await buildDigest(path.join(process.cwd(), '.qa-dist')),
+      worktreeLabel: 'harness-inline-e2e',
+    },
+  })
   expect(result.executionStatus).toBe('completed')
   expect(result.oracleStatus).toBe('failed')
   expect(result.expectationMet).toBe(false)
   expect(result.artifactValidation.status).toBe('passed')
   expect(result.evidenceManifest).not.toBeNull()
+  expect(result.evidenceManifest?.sourceIdentity.releaseGrade).toBe(false)
+  expect(result.evidenceManifest?.evaluationIdentity?.transientFaults).toEqual([fault])
   expect(triageRun(result).decision).toBe('investigate')
   const manifest = result.evidenceManifest as EvidenceManifest
   expect(triageAcceptedManifest(manifest).decision).toBe('investigate')

@@ -20,6 +20,34 @@ export type FaultInjection =
  */
 export type TransientFault = 'upload_503_once' | 'analysis_interrupted_once' | 's3_response_500_once'
 
+/**
+ * Marks a run as belonging to the Phase 2 evaluation corpus rather than to a
+ * release check.
+ *
+ * A run carrying this is never release grade, no matter how clean its worktree
+ * is, and it is the only thing that widens artifact validation's synthetic
+ * allowlist. Release checks carry `null`, and no model-reachable surface can
+ * produce one.
+ */
+export interface EvaluationIdentity {
+  /** Corpus case identifier, such as `D1` or `B1`. */
+  caseId: string
+  /** Case id of the source mutation applied to the evaluation copy, or null for a benign case. */
+  mutationApplied: string | null
+  /** Transient contract faults configured for this run. */
+  transientFaults: TransientFault[]
+  /** SHA-256 over the tracked source of the evaluation copy, after any mutation. */
+  sourceDigest: string
+  /** SHA-256 over the generated QA build the run executed against. */
+  buildDigest: string
+  /**
+   * Stable label for the temporary evaluation worktree. Deliberately not a
+   * filesystem path: an absolute path would leak the operator's home directory
+   * into evidence.
+   */
+  worktreeLabel: string
+}
+
 export interface RunOptions {
   artifactsRoot?: string
   headless?: boolean
@@ -27,6 +55,8 @@ export interface RunOptions {
   faultInjection?: FaultInjection | FaultInjection[]
   /** Evaluation-only transient contract faults; empty in every release check. */
   transientFaults?: TransientFault[]
+  /** Evaluation-corpus identity; absent in every release check. */
+  evaluationIdentity?: EvaluationIdentity
 }
 
 export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'OTHER'
@@ -211,6 +241,7 @@ export interface EvidenceManifest {
   networkSummary: NetworkSummary
   artifacts: ArtifactReferences
   opaqueArtifactValidation: string[]
+  evaluationIdentity: EvaluationIdentity | null
 }
 
 export interface ArtifactValidationSummary {
