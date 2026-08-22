@@ -111,7 +111,30 @@ investigation is launched, and the scripted provider appends one entry per
 request, so a clean case's zero is a reading of that counter rather than the
 absence of an observation.
 
-No case has run against a real model.
+### Keyless results
+
+Five public cases, run with the scripted provider at ResumeMatch `5578e95` and
+adapter `65da3b5`:
+
+| Case | Triage | Model requests | Classification | First probe | Gold hit |
+| --- | --- | --- | --- | --- | --- |
+| C1 | expected | 0 | — | — | — |
+| C2 | expected | 0 | — | — | — |
+| C3 | expected | 0 | — | — | — |
+| D1 | investigate | 6 | `confirmed` | `read_network_events` | yes |
+| B1 | investigate | 11 | `not_reproduced` | `read_failed_assertion` | no |
+
+Every case matched its expected triage and classification, the main worktree
+stayed clean throughout, and every temporary worktree was removed and pruned.
+The three clean cases cost zero model requests, read from the provider's own
+counter file rather than inferred from an absence of calls.
+
+The gold-probe column measures the script, not a model: B1's miss is the fixed
+sequence reaching for the failed assertion before the network events, which is
+the plan the script encodes. It becomes a real signal only under a live model.
+
+D2 through D4, B2, and B3 are deliberately unrun: they are the live model's
+first real work. No case has run against a real model.
 
 ## Freeze
 
@@ -145,13 +168,14 @@ enforced.
 | --- | --- |
 | ResumeMatch | `b0bc3e597a18abdc13b139f8501fa399362444a6` |
 | DeepSeek Harness | `47f943859bef60e4160492346772ded9b24f765a` |
-| `resumematch-qa-tools` adapter | `d8959fc8454afaf3488a85af79446e17d007deee` |
+| `resumematch-qa-tools` adapter | `65da3b56942b5f3772634e44cad58999c88e74f1` |
 
 The ResumeMatch commit is the one the hashes were taken at; the commit that adds
 this section changes only this document and its test, neither of which is frozen.
-The adapter commit advanced once afterwards, to instrument the scripted
-provider's request counter; all three frozen adapter hashes are unchanged, and
-the commit is updated here rather than left stale.
+The adapter commit advances whenever a non-frozen adapter file changes — so far
+to instrument the scripted provider's request counter and to give it a
+sample-page plan. Its three frozen hashes are unchanged in both cases, and the
+commit is updated here rather than left stale.
 
 ### Toolchain
 
