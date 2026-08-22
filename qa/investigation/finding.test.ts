@@ -24,7 +24,7 @@ function facts(overrides: Partial<DeterministicFacts> = {}): DeterministicFacts 
     probesSelected: ['read_network_events'], reproductionSequence: [],
     reproductionOracleResult: { oracleStatus: 'failed', failedOracle: 'P1-04_FAILURE_TITLE', failures: [] },
     safetyViolations: [], model: { provider: 'fake', modelId: 'fake-1' },
-    usage: { inputTokens: 1, outputTokens: 1, toolCalls: 1 },
+    usage: { toolCalls: 1, cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 0, costUsd: 0, requests: [] },
     policyBlocked: false, budgetExhausted: false,
     ...overrides,
   }

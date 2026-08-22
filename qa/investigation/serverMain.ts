@@ -4,6 +4,8 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { INVESTIGATION_BUDGET } from './budget'
+import { CostLedger, INVESTIGATION_COST_LIMIT_USD } from './cost'
+import type { OffPeakWindow } from './cost'
 import { InvestigationError } from './errors'
 import { readManifest } from './evidenceReader'
 import { approvedArtifactRoot, createInvestigationDirectory, newInvestigationId, resolveAcceptedRunDirectory } from './paths'
@@ -18,7 +20,38 @@ interface Request {
   tool?: string
   args?: unknown
   control?: 'status' | 'usage' | 'close'
-  usage?: { inputTokens: number; outputTokens: number }
+  usage?: { cacheHitTokens: number; cacheMissTokens: number; completionTokens: number; requestedAt?: string }
+}
+
+/**
+ * Build the cost gate from the adapter's pricing configuration.
+ *
+ * Absent rates mean a keyless run, which spends nothing and needs no gate; a
+ * partially supplied pair is a configuration error rather than a free run.
+ * @returns the ledger, or undefined for a keyless run.
+ */
+function costLedger(): CostLedger | undefined {
+  const input = argumentValue('--input-rate')
+  const output = argumentValue('--output-rate')
+  if (input === undefined && output === undefined) return undefined
+  const inputPerMillion = Number(input)
+  const outputPerMillion = Number(output)
+  if (!Number.isFinite(inputPerMillion) || !Number.isFinite(outputPerMillion) || inputPerMillion < 0 || outputPerMillion < 0) {
+    throw new Error('investigate requires both --input-rate and --output-rate as non-negative USD per million tokens')
+  }
+  const limit = argumentValue('--cost-limit')
+  const window = argumentValue('--off-peak-window')
+  let offPeak: OffPeakWindow | undefined
+  if (window !== undefined) {
+    const [start, end] = window.split('-').map(Number)
+    if (!Number.isInteger(start) || !Number.isInteger(end)) throw new Error('--off-peak-window must be <startMinutes>-<endMinutes> past UTC midnight')
+    offPeak = { startMinutes: start, endMinutes: end }
+  }
+  return new CostLedger(
+    { inputPerMillion, outputPerMillion },
+    limit === undefined ? INVESTIGATION_COST_LIMIT_USD : Number(limit),
+    offPeak,
+  )
 }
 
 function argumentValue(flag: string): string | undefined {
@@ -89,6 +122,7 @@ async function main(): Promise<number> {
   const investigationId = newInvestigationId()
   const findingId = `f-${randomUUID()}`
   const directories = await createInvestigationDirectory(approvedRoot, investigationId)
+  const cost = costLedger()
   const driver = new PlaywrightReproduction(manifest.scenarioId, directories.reproductionDirectory)
   const session = new InvestigationSession({
     investigationId, findingId, runDirectory, manifest, directories, driver,
@@ -98,6 +132,7 @@ async function main(): Promise<number> {
       harnessCommit: checkoutCommit('--harness-commit'),
       adapterCommit: checkoutCommit('--adapter-commit'),
     },
+    ...cost === undefined ? {} : { cost },
   })
 
   write({
@@ -129,8 +164,13 @@ async function main(): Promise<number> {
       continue
     }
     if (request.control === 'usage') {
-      session.recordUsage({ inputTokens: request.usage?.inputTokens ?? 0, outputTokens: request.usage?.outputTokens ?? 0 })
-      write({ id: request.id, ok: true, result: { recorded: true } })
+      const requestedAt = request.usage?.requestedAt
+      session.recordUsage({
+        cacheHitTokens: request.usage?.cacheHitTokens ?? 0,
+        cacheMissTokens: request.usage?.cacheMissTokens ?? 0,
+        completionTokens: request.usage?.completionTokens ?? 0,
+      }, requestedAt === undefined ? new Date() : new Date(requestedAt))
+      write({ id: request.id, ok: true, result: { recorded: true }, status: session.status() })
       continue
     }
     if (typeof request.tool !== 'string') {

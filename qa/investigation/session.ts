@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { resolveRoute, validateAction, validateInspectionTarget, allowsControlledClock, scenarioActionPolicy, type AllowedAction } from './actions'
 import { BudgetLedger, INVESTIGATION_BUDGET } from './budget'
+import { CostLedger } from './cost'
 import { InvestigationError, policyBlocked } from './errors'
 import {
   countRequests, failedAssertion, filterEvents, readConsoleEvents, readManifest, readNetworkEvents,
@@ -38,6 +39,8 @@ export interface SessionOptions {
   driver: ReproductionDriver
   model: { provider: string; modelId: string }
   checkouts: CheckoutIdentity
+  /** Cost gate for this investigation; absent for a keyless run that spends nothing. */
+  cost?: CostLedger
   now?: () => number
 }
 
@@ -82,7 +85,7 @@ export class InvestigationSession {
   private readonly probes: string[] = []
   private readonly steps: ReproductionStep[] = []
   private reproductionOracleResult: ReproductionOracleResult | null = null
-  private usage = { inputTokens: 0, outputTokens: 0, toolCalls: 0 }
+  private toolCalls = 0
   private finding: Finding | null = null
   private started = false
 
@@ -90,9 +93,25 @@ export class InvestigationSession {
     this.ledger = new BudgetLedger((options.now ?? Date.now)(), options.now ?? Date.now)
   }
 
-  /** Token usage reported by the harness; never model-supplied through a tool. */
-  recordUsage(usage: { inputTokens: number; outputTokens: number }): void {
-    this.usage = { ...this.usage, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }
+  /**
+   * Record one model request's token accounting, reported by the harness rather
+   * than by the model.
+   *
+   * A request that crosses the cost ceiling latches the same way a spent tool
+   * budget does, so the investigation can still submit but can only be
+   * `inconclusive`.
+   * @param usage - disjoint token counts from the provider.
+   * @param requestedAt - UTC timestamp of the request.
+   */
+  recordUsage(
+    usage: { cacheHitTokens: number; cacheMissTokens: number; completionTokens: number },
+    requestedAt: Date = new Date(),
+  ): void {
+    try {
+      this.options.cost?.record(usage, requestedAt)
+    } catch (error) {
+      if (!(error instanceof InvestigationError && error.code === 'BUDGET_EXHAUSTED')) throw error
+    }
   }
 
   /** Current lifecycle state, budget remainder, and latches, for the agent's context. */
@@ -100,7 +119,7 @@ export class InvestigationSession {
     return {
       state: this.state,
       policyBlocked: this.policyBlockedLatch,
-      budgetExhausted: this.ledger.isExhausted(),
+      budgetExhausted: this.ledger.isExhausted() || (this.options.cost?.isExhausted() ?? false),
       remaining: this.ledger.remaining(),
       scenarioId: this.options.manifest.scenarioId,
       actionPolicy: scenarioActionPolicy(this.options.manifest.scenarioId),
@@ -118,10 +137,13 @@ export class InvestigationSession {
    * to the model rather than crashing the investigation.
    */
   async call(tool: string, input: unknown): Promise<unknown> {
-    this.usage.toolCalls += 1
+    this.toolCalls += 1
     if (this.state === 'done') throw new InvestigationError('INVALID_STATE', 'The investigation already submitted its finding')
     if (this.policyBlockedLatch && tool !== 'submit_finding') {
       throw policyBlocked('The investigation is blocked after an unauthorized action; only submit_finding remains')
+    }
+    if (this.options.cost?.isExhausted() === true && tool !== 'submit_finding') {
+      throw new InvestigationError('BUDGET_EXHAUSTED', 'The investigation cost ceiling is exhausted; only submit_finding remains')
     }
     try {
       this.ledger.spend('toolCalls')
@@ -324,9 +346,9 @@ export class InvestigationSession {
       reproductionOracleResult: this.reproductionOracleResult,
       safetyViolations: [...originalViolations, ...this.options.driver.safetyViolations()],
       model: this.options.model,
-      usage: { ...this.usage },
+      usage: this.usageSummary(),
       policyBlocked: this.policyBlockedLatch,
-      budgetExhausted: this.ledger.isExhausted(),
+      budgetExhausted: this.ledger.isExhausted() || (this.options.cost?.isExhausted() ?? false),
     }
     const finding = buildFinding(facts, narrative)
     const destination = path.join(this.options.directories.directory, 'finding.json')
@@ -334,6 +356,19 @@ export class InvestigationSession {
     this.finding = finding
     this.state = 'done'
     return { accepted: true, findingId: finding.findingId, classification: finding.classification }
+  }
+
+  /** Fold the recorded requests into the finding's usage field. */
+  private usageSummary(): DeterministicFacts['usage'] {
+    const requests = [...this.options.cost?.records() ?? []]
+    return {
+      toolCalls: this.toolCalls,
+      cacheHitTokens: requests.reduce((total, item) => total + item.cacheHitTokens, 0),
+      cacheMissTokens: requests.reduce((total, item) => total + item.cacheMissTokens, 0),
+      completionTokens: requests.reduce((total, item) => total + item.completionTokens, 0),
+      costUsd: this.options.cost?.totalUsd() ?? 0,
+      requests,
+    }
   }
 
   private safeLabel(value: unknown, tool: string): string {

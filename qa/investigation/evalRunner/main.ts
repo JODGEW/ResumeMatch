@@ -3,7 +3,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-import { runEvalCase, summaryTable } from './runCase'
+import { EVALUATION_COST_LIMIT_USD } from '../cost'
+import { runEvalCase, summaryTable, sweepCostUsd } from './runCase'
 import type { EvalCaseResult, EvalRunnerOptions } from './runCase'
 
 function argumentValue(flag: string, fallback?: string): string {
@@ -38,13 +39,15 @@ async function main(): Promise<number> {
 
   const results: EvalCaseResult[] = []
   for (const caseId of cases) {
-    process.stderr.write(`running ${caseId}\n`)
-    const result = await runEvalCase(caseId, options)
+    const spentUsd = sweepCostUsd(results)
+    process.stderr.write(`running ${caseId} (spent $${spentUsd.toFixed(4)} of $${EVALUATION_COST_LIMIT_USD.toFixed(2)})\n`)
+    const result = await runEvalCase(caseId, { ...options, spentUsd })
     results.push(result)
     await writeFile(path.join(options.outputDirectory, `${caseId}.json`), `${JSON.stringify(result, null, 2)}\n`, 'utf8')
   }
   await writeFile(path.join(options.outputDirectory, 'summary.json'), `${JSON.stringify(results, null, 2)}\n`, 'utf8')
   process.stdout.write(`${summaryTable(results)}\n`)
+  process.stdout.write(`total cost $${sweepCostUsd(results).toFixed(4)} of the $${EVALUATION_COST_LIMIT_USD.toFixed(2)} sweep ceiling\n`)
   return results.every(item => item.triageMatched && item.errors.length === 0) ? 0 : 1
 }
 

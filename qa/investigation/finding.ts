@@ -1,4 +1,5 @@
 import { InvestigationError, policyBlocked } from './errors'
+import type { UsageRecord } from './cost'
 import type { RunFailure, SafetyViolation, ScenarioId } from '../browser/types'
 
 /** Bumped only when the closed finding schema changes. */
@@ -66,9 +67,24 @@ export interface DeterministicFacts {
   reproductionOracleResult: ReproductionOracleResult | null
   safetyViolations: SafetyViolation[]
   model: { provider: string; modelId: string }
-  usage: { inputTokens: number; outputTokens: number; toolCalls: number }
+  usage: FindingUsage
   policyBlocked: boolean
   budgetExhausted: boolean
+}
+
+/**
+ * Token accounting for one investigation, as reported by the provider.
+ *
+ * `requests` holds one entry per model request with its UTC timestamp, pricing
+ * window, and cost, so a bill can be reconstructed from the finding alone.
+ */
+export interface FindingUsage {
+  toolCalls: number
+  cacheHitTokens: number
+  cacheMissTokens: number
+  completionTokens: number
+  costUsd: number
+  requests: UsageRecord[]
 }
 
 export interface Finding extends ModelNarrative {
@@ -87,7 +103,7 @@ export interface Finding extends ModelNarrative {
   classification: Classification
   safetyViolations: SafetyViolation[]
   model: { provider: string; modelId: string }
-  usage: { inputTokens: number; outputTokens: number; toolCalls: number }
+  usage: FindingUsage
 }
 
 /**

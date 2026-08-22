@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
+import { sweepHasBudget } from '../cost'
 import { EVAL_CASES } from '../evalCases'
 import type { EvalCase } from '../evalCases'
 import type { Finding } from '../finding'
@@ -28,6 +29,10 @@ export interface EvalRunnerOptions {
   adapterPath: string
   /** Where per-case JSON results are written. */
   outputDirectory: string
+  /** Cost already spent by earlier cases in this sweep. */
+  spentUsd?: number
+  /** Sweep ceiling; the case is refused rather than started once it is reached. */
+  sweepLimitUsd?: number
 }
 
 /** One case outcome, deterministic apart from the narrative inside the finding. */
@@ -48,11 +53,20 @@ export interface EvalCaseResult {
   modelRequests: number
   classification: string | null
   expectedClassification: string | null
+  costUsd: number
+  wallClockMs: number
   classificationMatched: boolean
   firstProbe: string | null
   goldFirstProbe: string | null
   goldProbeHit: boolean | null
   worktreeRemoved: boolean
+  /** Per-request accounting copied from the finding; empty for a case that spent nothing. */
+  usage?: {
+    cacheHitTokens: number
+    cacheMissTokens: number
+    completionTokens: number
+    requests: Array<{ requestedAt: string; pricingWindow: string; costUsd: number }>
+  }
   errors: string[]
 }
 
@@ -150,6 +164,10 @@ async function runInvestigation(
         RESUMEMATCH_QA_RUN_ID: runId,
         RESUMEMATCH_QA_SCRIPT: SCRIPT_BY_SCENARIO[scenarioId] ?? 'gold',
         RESUMEMATCH_QA_REQUEST_LOG: requestLog,
+        // The harness child is the only process that receives the key, and it
+        // receives it straight from this process's environment. Nothing writes
+        // it to disk, and no other spawn below forwards it.
+        ...process.env.DEEPSEEK_API_KEY === undefined ? {} : { DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY },
       },
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,
@@ -174,14 +192,21 @@ async function runInvestigation(
 export async function runEvalCase(caseId: string, options: EvalRunnerOptions): Promise<EvalCaseResult> {
   const evalCase = EVAL_CASES.find(item => item.id === caseId)
   if (evalCase === undefined) throw new Error(`Unknown public evaluation case: ${caseId}`)
+  const startedAt = Date.now()
   const errors: string[] = []
   const result: EvalCaseResult = {
     caseId, kind: evalCase.kind, scenarioId: evalCase.scenarioId, runId: null, oracleStatus: null,
     expectationMet: null, failedOracle: null, artifactValidation: null, releaseGrade: null, triage: null,
     expectedTriage: evalCase.expectedTriage, triageMatched: false, harnessLaunched: false, modelRequests: 0,
     classification: null, expectedClassification: evalCase.expectedClassification, classificationMatched: false,
+    costUsd: 0, wallClockMs: 0,
     firstProbe: null, goldFirstProbe: evalCase.goldFirstProbe ?? null, goldProbeHit: null,
     worktreeRemoved: false, errors,
+  }
+
+  if (!sweepHasBudget(options.spentUsd ?? 0, options.sweepLimitUsd)) {
+    errors.push('sweep cost ceiling reached before this case started')
+    return result
   }
 
   // Created for every case, investigated or not, so a zero is a reading of the
@@ -217,11 +242,19 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
         result.classification = finding.classification
         result.firstProbe = firstProbe(finding)
         result.goldProbeHit = result.goldFirstProbe === null ? null : result.firstProbe === result.goldFirstProbe
+        result.costUsd = finding.usage.costUsd
+        result.usage = {
+          cacheHitTokens: finding.usage.cacheHitTokens,
+          cacheMissTokens: finding.usage.cacheMissTokens,
+          completionTokens: finding.usage.completionTokens,
+          requests: finding.usage.requests.map(item => ({ requestedAt: item.requestedAt, pricingWindow: item.pricingWindow, costUsd: item.costUsd })),
+        }
       }
     }
     result.classificationMatched = result.classification === evalCase.expectedClassification
     return result
   } finally {
+    result.wallClockMs = Date.now() - startedAt
     result.modelRequests = (await readFile(requestLog, 'utf8')).split('\n').filter(line => line.trim().length > 0).length
     try {
       await removeEvaluationWorktree(options.repositoryPath, worktree)
@@ -233,13 +266,19 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
   }
 }
 
+/** Total spend across a sweep's completed cases. */
+export function sweepCostUsd(results: readonly EvalCaseResult[]): number {
+  return results.reduce((total, item) => total + item.costUsd, 0)
+}
+
 /** Render the per-case results as a fixed-width summary table. */
 export function summaryTable(results: readonly EvalCaseResult[]): string {
-  const header = ['case', 'kind', 'triage', 'ok', 'requests', 'classification', 'ok', 'first probe', 'gold', 'clean']
+  const header = ['case', 'kind', 'triage', 'ok', 'requests', 'classification', 'ok', 'first probe', 'gold', 'cost', 'wall', 'clean']
   const rows = results.map(item => [
     item.caseId, item.kind, item.triage ?? '-', item.triageMatched ? 'y' : 'n', String(item.modelRequests),
     item.classification ?? '-', item.classification === null && item.expectedClassification === null ? 'y' : item.classificationMatched ? 'y' : 'n',
     item.firstProbe ?? '-', item.goldProbeHit === null ? '-' : item.goldProbeHit ? 'y' : 'n',
+    `$${item.costUsd.toFixed(4)}`, `${(item.wallClockMs / 1000).toFixed(0)}s`,
     item.worktreeRemoved ? 'y' : 'n',
   ])
   const widths = header.map((_, column) => Math.max(header[column].length, ...rows.map(row => row[column].length)))

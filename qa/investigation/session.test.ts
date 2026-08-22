@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { CostLedger } from './cost'
 import { InvestigationSession, type ReproductionDriver } from './session'
 import { createInvestigationDirectory, newInvestigationId } from './paths'
 import type { AllowedAction } from './actions'
@@ -208,5 +209,63 @@ describe('probe arguments', () => {
     expect(await session.call('read_console_events', { typeFilter: 'error' })).toEqual([{ type: 'error', text: 'boom' }])
     await expect(session.call('read_console_events', { limit: 0 })).rejects.toMatchObject({ code: 'INVALID_ARGUMENTS' })
     await expect(session.call('read_console_events', { grep: 'x' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENTS' })
+  })
+})
+
+describe('cost gate', () => {
+  const RATES = { inputPerMillion: 0.44, outputPerMillion: 1.32 }
+
+  async function costSession(limitUsd: number): Promise<{ session: InvestigationSession; ledger: CostLedger }> {
+    const approved = await realpath(await mkdtemp(path.join(tmpdir(), 'qa-cost-')))
+    const runDir = path.join(approved, 'runs', RUN_ID)
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'manifest.json'), JSON.stringify(manifest()))
+    for (const name of ['safety-violations.json', 'network-events.json', 'page-errors.json', 'console-events.json']) {
+      await writeFile(path.join(runDir, name), '[]')
+    }
+    const directories = await createInvestigationDirectory(approved, newInvestigationId())
+    const ledger = new CostLedger(RATES, limitUsd)
+    return {
+      ledger,
+      session: new InvestigationSession({
+        investigationId: path.basename(directories.directory), findingId: `f-${randomUUID()}`,
+        runDirectory: runDir, manifest: manifest(), directories, driver: new FakeDriver(directories.reproductionDirectory),
+        model: { provider: 'deepseek-official', modelId: 'deepseek-v4-flash' },
+        checkouts: { resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) },
+        cost: ledger,
+      }),
+    }
+  }
+
+  it('records the disjoint token counts, timestamp, and window in the finding', async () => {
+    const { session } = await costSession(0.5)
+    session.recordUsage({ cacheHitTokens: 100, cacheMissTokens: 900, completionTokens: 200 }, new Date('2026-08-20T12:00:00Z'))
+    await session.call('start_fresh_reproduction', {})
+    await session.call('run_oracle', {})
+    await session.call('submit_finding', { finding: NARRATIVE })
+    const usage = session.submittedFinding()?.usage
+    expect(usage).toMatchObject({ cacheHitTokens: 100, cacheMissTokens: 900, completionTokens: 200 })
+    expect(usage?.requests).toHaveLength(1)
+    expect(usage?.requests[0]).toMatchObject({ requestedAt: '2026-08-20T12:00:00.000Z', pricingWindow: 'peak' })
+    expect(usage?.costUsd).toBeGreaterThan(0)
+    expect(session.submittedFinding()?.classification).toBe('confirmed')
+  })
+
+  it('halts the investigation at the ceiling and records inconclusive', async () => {
+    const { session } = await costSession(0.01)
+    session.recordUsage({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 1_000_000 }, new Date('2026-08-20T12:00:00Z'))
+    expect(session.status().budgetExhausted).toBe(true)
+    await expect(session.call('start_fresh_reproduction', {})).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    await session.call('submit_finding', { finding: NARRATIVE })
+    expect(session.submittedFinding()?.classification).toBe('inconclusive')
+    expect(session.submittedFinding()?.usage.costUsd).toBeCloseTo(1.32, 10)
+  })
+
+  it('spends nothing and stays unlatched without a cost ledger', async () => {
+    await session.call('start_fresh_reproduction', {})
+    await session.call('run_oracle', {})
+    await session.call('submit_finding', { finding: NARRATIVE })
+    expect(session.submittedFinding()?.usage).toMatchObject({ costUsd: 0, requests: [] })
+    expect(session.submittedFinding()?.classification).toBe('confirmed')
   })
 })
