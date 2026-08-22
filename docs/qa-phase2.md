@@ -155,27 +155,57 @@ enforced.
 | File | sha256 |
 | --- | --- |
 | `adapter:prompts/investigator.md` | `3552005ef4a135ddd05b4607a6dd624231f5fe7e241ad21d10a196c7fe9ab09a` |
-| `adapter:src/qa-tools.ts` | `aa58b8a66ae82cbd9ff725951d578765dbc5580f881930b9e798d336dd74ad0b` |
-| `adapter:cordis.yml` | `fec97d76c5511d4329944689b592a4ee17122511ec180be66c9804d022433609` |
+| `adapter:src/qa-tools.ts` | `267c618cc95950b7a00e011be1706400fc1d636043ce90d2b621022bb8812b3b` |
+| `adapter:cordis.yml` | `88931be79c6febf035243b53215ff3c898fc7543368427f4eea8435a4bbbad3c` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
 | `qa/investigation/actions.ts` | `ae6ad73af507c923734b9f14f3c4be5cdac107ed3e87ad8c1f949bd21bebe74d` |
 | `qa/investigation/budget.ts` | `e5307cfa5504eb0dac1eeac92ebd6878892a3fadc5008ebb46521ea8ec53dff5` |
-| `qa/investigation/finding.ts` | `d65a735aeddfb46002ce537beaf3d1407e41075cfb1dca48db139a3beeb97a2f` |
+| `qa/investigation/finding.ts` | `97884755e6d2d0c84f5e20ac5a5d6086afcc43889f6e2bd5323da091c76409b6` |
 | `qa/investigation/evalCases.ts` | `e973094715410f0ae5bd00fb4c91e268c56611a0d6c792507488f8c7faa6f5f5` |
 
 ### Frozen at
 
 | Checkout | Commit |
 | --- | --- |
-| ResumeMatch | `b0bc3e597a18abdc13b139f8501fa399362444a6` |
+| ResumeMatch | `a05115ba4c9e8252a95a1c39b82b2c632337dfb5` |
 | DeepSeek Harness | `47f943859bef60e4160492346772ded9b24f765a` |
-| `resumematch-qa-tools` adapter | `65da3b56942b5f3772634e44cad58999c88e74f1` |
+| `resumematch-qa-tools` adapter | `ec1421c8b40e37a2a1a48b73b152a10c43f6445b` |
 
 The ResumeMatch commit is the one the hashes were taken at; the commit that adds
 this section changes only this document and its test, neither of which is frozen.
-The adapter commit advances whenever a non-frozen adapter file changes — so far
-to instrument the scripted provider's request counter and to give it a
-sample-page plan. Its three frozen hashes are unchanged in both cases, and the
-commit is updated here rather than left stale.
+The adapter commit advances whenever any adapter file changes; the record is
+updated rather than left stale. Preparing the live evaluation moved four frozen
+hashes: `finding.ts` gained the per-request token accounting, `qa-tools.ts`
+gained the pricing configuration and the usage forwarding, `cordis.yml` gained
+the rates, and `run-config.yml` was added. `investigator.md`, `actions.ts`,
+`budget.ts`, and `evalCases.ts` are untouched — the prompt, the action grammar,
+the tool budgets, and the corpus are what a result must be attributable to, and
+none of them moved.
+
+### Run config
+
+The live overlay is `adapter:run-config.yml`, hashed above. It disables the
+scripted provider and mounts the DeepSeek adapter; the agent row's provider and
+model come from `RESUMEMATCH_QA_PROVIDER` and `RESUMEMATCH_QA_MODEL`.
+
+| Setting | Value | Source |
+| --- | --- | --- |
+| Provider route | `deepseek-official` | live run environment |
+| Model id | `deepseek-v4-flash` | live run environment |
+| Context window | 128000 | `run-config.yml` |
+| Thinking | `enabled` | harness headless example |
+| Reasoning effort | `max` | harness headless example |
+| Sampling parameters | adapter defaults; none set | `run-config.yml` sets none |
+| Input rate | $0.44 / 1M tokens, peak | `cordis.yml` |
+| Output rate | $1.32 / 1M tokens, peak | `cordis.yml` |
+| Off-peak window | not configured; every request labelled `peak` | `cordis.yml` |
+| Investigation ceiling | $0.50 | `cordis.yml` |
+| Sweep ceiling | $5.00 | `qa/investigation/cost.ts` |
+
+Every prompt token is charged at the input rate, cache hits included: the
+configured rates carry no separate cache price, and charging a hit as a miss can
+only overstate the bill. The finding records the disjoint counts, so a more
+precise bill can be recomputed from it later.
 
 ### Toolchain
 

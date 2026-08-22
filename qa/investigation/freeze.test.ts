@@ -38,7 +38,7 @@ async function digest(file: string): Promise<string | null> {
 describe('freeze record', () => {
   it('lists every frozen file exactly once', async () => {
     const files = await frozenFiles()
-    expect(files.length).toBeGreaterThanOrEqual(7)
+    expect(files.length).toBeGreaterThanOrEqual(8)
     expect(new Set(files.map(file => file.reference)).size).toBe(files.length)
   })
 
@@ -53,7 +53,7 @@ describe('freeze record', () => {
 
   it('matches the recorded hash for every frozen adapter file that is present', async () => {
     const files = (await frozenFiles()).filter(file => file.reference.startsWith('adapter:'))
-    expect(files).toHaveLength(3)
+    expect(files).toHaveLength(4)
     for (const file of files) {
       const actual = await digest(resolve(file.reference))
       if (actual === null) continue
@@ -65,6 +65,7 @@ describe('freeze record', () => {
     expect((await frozenFiles()).map(file => file.reference).sort()).toEqual([
       'adapter:cordis.yml',
       'adapter:prompts/investigator.md',
+      'adapter:run-config.yml',
       'adapter:src/qa-tools.ts',
       'qa/investigation/actions.ts',
       'qa/investigation/budget.ts',
