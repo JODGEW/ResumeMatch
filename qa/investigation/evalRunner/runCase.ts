@@ -28,6 +28,12 @@ export interface EvalRunnerOptions {
   harnessPath: string
   /** The adapter checkout inside the harness. */
   adapterPath: string
+  /** Composition the harness boots; the live overlay replaces the scripted provider. */
+  configFile: string
+  /** Provider route the agent uses. */
+  provider: string
+  /** Model id the agent uses. */
+  model: string
   /** Where per-case JSON results are written. */
   outputDirectory: string
   /** Cost already spent by earlier cases in this sweep. */
@@ -158,7 +164,7 @@ async function runInvestigation(
     const outcome = spawnSync(options.harnessNodePath, [
       '--import', path.join(options.harnessPath, 'node_modules', 'tsx', 'dist', 'loader.mjs'),
       path.join(options.adapterPath, 'tests', 'fixtures', 'investigation-driver.ts'),
-      path.join(options.adapterPath, 'cordis.yml'),
+      options.configFile,
       TASK,
     ], {
       cwd: scratch,
@@ -170,6 +176,8 @@ async function runInvestigation(
         DSH_AGENTS_HOME: path.join(scratch, '.agents'),
         RESUMEMATCH_QA_REPOSITORY: worktree,
         RESUMEMATCH_QA_RUN_ID: runId,
+        RESUMEMATCH_QA_PROVIDER: options.provider,
+        RESUMEMATCH_QA_MODEL: options.model,
         RESUMEMATCH_QA_SCRIPT: SCRIPT_BY_SCENARIO[scenarioId] ?? 'gold',
         RESUMEMATCH_QA_REQUEST_LOG: requestLog,
         // The harness child is the only process that receives the key, and it

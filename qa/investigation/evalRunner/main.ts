@@ -33,6 +33,9 @@ async function main(): Promise<number> {
     harnessNodePath: argumentValue('--harness-node'),
     harnessPath: argumentValue('--harness-path'),
     adapterPath: argumentValue('--adapter-path'),
+    configFile: argumentValue('--config', path.join(argumentValue('--adapter-path'), 'cordis.yml')),
+    provider: argumentValue('--provider', 'resumematch-qa-fake'),
+    model: argumentValue('--model', 'scripted-investigation'),
     outputDirectory: argumentValue('--output', path.join(repositoryPath, '.qa-artifacts', 'evaluations')),
     // The sweep ceiling is enforced at the peak rates the evaluation is
     // authorized against; a lower rate here could only understate the spend.
@@ -46,7 +49,7 @@ async function main(): Promise<number> {
   const results: EvalCaseResult[] = []
   for (const caseId of cases) {
     const spentUsd = sweepCostUsd(results)
-    process.stderr.write(`running ${caseId} (spent $${spentUsd.toFixed(4)} of $${EVALUATION_COST_LIMIT_USD.toFixed(2)})\n`)
+    process.stderr.write(`running ${caseId} on ${options.provider}/${options.model} (spent $${spentUsd.toFixed(4)} of $${EVALUATION_COST_LIMIT_USD.toFixed(2)})\n`)
     const result = await runEvalCase(caseId, { ...options, spentUsd })
     results.push(result)
     await writeFile(path.join(options.outputDirectory, `${caseId}.json`), `${JSON.stringify(result, null, 2)}\n`, 'utf8')
