@@ -49,7 +49,21 @@ export interface OracleDefinition {
    * precondition, not observing a defect.
    */
   preconditionTransition: string | null
+  /**
+   * Precondition expressed as an observation rather than a transition.
+   *
+   * Used where the meaningful precondition is that a request was *attempted*:
+   * a rejected request records a violation and no acceptance transition, so
+   * keying on the transition would skip exactly the case worth judging.
+   * Overrides {@link preconditionTransition} when present.
+   */
+  precondition?(context: OracleContext): boolean
   evaluate(page: Page, context: OracleContext): Promise<void>
+}
+
+/** Whether this reproduction sent the upload request at all. */
+function uploadAttempted(context: OracleContext): boolean {
+  return context.scenario.counters.upload >= 1
 }
 
 async function visible(locator: Locator, id: string): Promise<void> {
@@ -135,8 +149,29 @@ const P1_02: OracleDefinition[] = [
   { id: 'P1-02_UPLOAD_PAGE', scenarioId: 'P1-02', stage: 'driver', preconditionTransition: 'reproduction-open:/upload', evaluate: page => visible(page.getByRole('heading', { name: 'New Analysis' }), 'P1-02_UPLOAD_PAGE') },
   { id: 'P1-02_SELECTED_FILE', scenarioId: 'P1-02', stage: 'driver', preconditionTransition: 'reproduction-open:/upload', evaluate: page => visible(page.getByText(SYNTHETIC_FILE_NAME, { exact: true }), 'P1-02_SELECTED_FILE') },
   {
+    // Keyed on the attempt rather than the acceptance: an upload the router
+    // rejects records no acceptance transition, and that is precisely the run
+    // where "did the application navigate" is the question worth asking.
     id: 'P1-02_RESULTS_NAVIGATION', scenarioId: 'P1-02', stage: 'driver', preconditionTransition: UPLOAD_ACCEPTED,
+    precondition: uploadAttempted,
     evaluate: async page => condition(new URL(page.url()).pathname === '/results/qa-new-1', 'P1-02_RESULTS_NAVIGATION', 'Application did not reach the expected route: P1-02_RESULTS_NAVIGATION'),
+  },
+  {
+    /**
+     * The upload request carried a body the contract does not accept.
+     *
+     * Phase 1 records that as a contract violation rather than an oracle, and
+     * only synthesizes `CONTRACT_UNEXPECTED_REQUEST` when the scenario driver
+     * returned without failing an oracle first — which a rejected upload never
+     * does, because the page then fails to navigate. Naming it here gives a
+     * reproduction the root observation to report alongside the symptom.
+     */
+    id: 'CONTRACT_UPLOAD_BODY', scenarioId: 'P1-02', stage: 'verify', preconditionTransition: null,
+    precondition: uploadAttempted,
+    evaluate: async (_page, ctx) => {
+      const rejected = ctx.scenario.transitions.some(item => item.event === 'contract-violation:new-upload-body-schema')
+      condition(!rejected, 'CONTRACT_UPLOAD_BODY', 'The upload request body was rejected by the contract')
+    },
   },
   { id: 'P1-02_PROCESSING_STATE', scenarioId: 'P1-02', stage: 'driver', preconditionTransition: UPLOAD_ACCEPTED, evaluate: page => visible(page.getByRole('status'), 'P1-02_PROCESSING_STATE') },
   { id: 'P1-02_COMPLETED_REPORT', scenarioId: 'P1-02', stage: 'driver', preconditionTransition: UPLOAD_ACCEPTED, evaluate: page => visible(page.getByRole('heading', { name: 'QA Synthetic Software Engineer' }), 'P1-02_COMPLETED_REPORT') },

@@ -153,3 +153,21 @@ describe('buildFinding', () => {
     }).toEqual({ resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) })
   })
 })
+
+describe('corpus shapes', () => {
+  it('confirms D2: the rejected upload body and the navigation it prevented (D2 shape)', () => {
+    const d2 = facts({
+      failedOracle: 'P1-02_RESULTS_NAVIGATION',
+      reproductionOracleResult: repro('failed', ['CONTRACT_UPLOAD_BODY', 'P1-02_RESULTS_NAVIGATION']),
+    })
+    expect(classify(d2)).toBe('confirmed')
+  })
+
+  it('leaves B1 not_reproduced when the same anchor passes on retry (B1 regression)', () => {
+    const b1 = facts({
+      failedOracle: 'P1-02_RESULTS_NAVIGATION',
+      reproductionOracleResult: repro('passed', []),
+    })
+    expect(classify(b1)).toBe('not_reproduced')
+  })
+})

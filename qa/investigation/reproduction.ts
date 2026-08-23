@@ -166,8 +166,10 @@ export class PlaywrightReproduction implements ReproductionDriver {
       analysisCountAtTimeout: this.analysisCountAtTimeout,
     }
     const recorded = new Set(scenario.transitions.map(item => item.event))
-    const met = (oracle: { preconditionTransition: string | null }): boolean =>
-      oracle.preconditionTransition === null || recorded.has(oracle.preconditionTransition)
+    const met = (oracle: { preconditionTransition: string | null; precondition?(context: OracleContext): boolean }): boolean =>
+      oracle.precondition !== undefined
+        ? oracle.precondition(context)
+        : oracle.preconditionTransition === null || recorded.has(oracle.preconditionTransition)
 
     const source = sourceFailedOracle === null ? undefined : oracleById(this.scenarioId, sourceFailedOracle)
     const ordered = [
