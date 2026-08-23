@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { EVAL_CASES, verifyMutationAnchors } from './evalCases'
 import { HELD_OUT_CASES, HELD_OUT_CASE_IDS } from './evalCases.heldout'
-import { heldOutDefinitionDirectory, loadHeldOutDefinition } from './heldoutDefinitions'
+import { heldOutDefinitionDirectory, loadHeldOutDefinition, resolveEvalCase } from './heldoutDefinitions'
 
 describe('evaluation corpus', () => {
   // Thirteen, not the original twelve: B4 replaces B2 in the held-out slot while
@@ -85,5 +85,21 @@ describe('public corpus rules', () => {
     for (const anchor of anchors) {
       expect({ id: anchor.id, occurrences: anchor.occurrences }).toEqual({ id: anchor.id, occurrences: 1 })
     }
+  })
+})
+
+describe('case resolution across both halves', () => {
+  it('resolves a public case without any held-out opt-in', async () => {
+    const d1 = await resolveEvalCase('D1', EVAL_CASES, false)
+    expect({ id: d1?.id, scenario: d1?.scenarioId, gold: d1?.goldFirstProbe })
+      .toEqual({ id: 'D1', scenario: 'P1-01', gold: 'read_network_events' })
+  })
+
+  it('refuses a held-out case without the opt-in', async () => {
+    await expect(resolveEvalCase('D5', EVAL_CASES, false)).rejects.toThrow(/explicit --held-out opt-in/)
+  })
+
+  it('returns undefined for an id in neither half', async () => {
+    expect(await resolveEvalCase('Z9', EVAL_CASES, true)).toBeUndefined()
   })
 })

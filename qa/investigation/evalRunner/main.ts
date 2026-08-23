@@ -35,6 +35,7 @@ async function main(): Promise<number> {
     adapterPath: argumentValue('--adapter-path'),
     configFile: argumentValue('--config', path.join(argumentValue('--adapter-path'), 'cordis.yml')),
     provider: argumentValue('--provider', 'resumematch-qa-fake'),
+    heldOut: process.argv.includes('--held-out'),
     model: argumentValue('--model', 'scripted-investigation'),
     outputDirectory: argumentValue('--output', path.join(repositoryPath, '.qa-artifacts', 'evaluations')),
     // The sweep ceiling is enforced at the peak rates the evaluation is

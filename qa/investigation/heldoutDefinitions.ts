@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-import { HELD_OUT_CASE_IDS } from './evalCases.heldout'
+import type { EvalCase } from './evalCases'
+import { HELD_OUT_CASES, HELD_OUT_CASE_IDS } from './evalCases.heldout'
 import type { SourceMutation } from './evalRunner/mutation'
 import type { TransientFault } from '../browser/types'
 
@@ -11,6 +12,43 @@ export interface HeldOutDefinition {
   caseId: string
   mutation?: SourceMutation
   transientFaults?: TransientFault[]
+}
+
+/**
+ * Resolve a case id to the shape the runner works with, from either half.
+ *
+ * A held-out case is assembled from its expectations and its gitignored
+ * definition, and never carries a gold probe: scoring a case whose
+ * implementation was hidden while the investigator was tuned would measure
+ * nothing the public set does not already measure.
+ * @param caseId - a public or held-out case id.
+ * @param publicCases - the public corpus.
+ * @param heldOutEnabled - whether the operator passed `--held-out`.
+ * @param repositoryRoot - checkout to resolve the definition directory against.
+ * @returns the case, or undefined when the id belongs to neither half.
+ */
+export async function resolveEvalCase(
+  caseId: string,
+  publicCases: readonly EvalCase[],
+  heldOutEnabled: boolean,
+  repositoryRoot: string = process.cwd(),
+): Promise<EvalCase | undefined> {
+  const open = publicCases.find(item => item.id === caseId)
+  if (open !== undefined) return open
+  if (!HELD_OUT_CASE_IDS.includes(caseId)) return undefined
+  const expectations = HELD_OUT_CASES.find(item => item.id === caseId)
+  if (expectations === undefined) return undefined
+  const definition = await loadHeldOutDefinition(caseId, heldOutEnabled, repositoryRoot)
+  return {
+    id: expectations.id,
+    kind: expectations.kind,
+    scenarioId: expectations.scenarioId,
+    summary: `Held-out case ${expectations.id}`,
+    expectedTriage: expectations.expectedTriage,
+    expectedClassification: expectations.expectedClassification,
+    ...definition.mutation === undefined ? {} : { mutation: definition.mutation },
+    ...definition.transientFaults === undefined ? {} : { transientFaults: definition.transientFaults },
+  }
 }
 
 /** Directory holding held-out definitions. Gitignored, so the corpus is not committed. */

@@ -7,6 +7,7 @@ import process from 'node:process'
 import { parseProviderLog, providerLogCostUsd, providerLogTotals, sweepHasBudget } from '../cost'
 import type { TokenRates } from '../cost'
 import { EVAL_CASES } from '../evalCases'
+import { resolveEvalCase } from '../heldoutDefinitions'
 import type { EvalCase } from '../evalCases'
 import type { Finding } from '../finding'
 import { firstProbe, GOLD_PROBE_WINDOW, GOLD_PROBE_WINDOW_EXCLUSIVE, ORIENTATION_PROBES } from '../goldProbe'
@@ -40,6 +41,8 @@ export interface EvalRunnerOptions {
   spentUsd?: number
   /** Sweep ceiling; the case is refused rather than started once it is reached. */
   sweepLimitUsd?: number
+  /** Whether held-out definitions may be read; off unless the operator asks. */
+  heldOut?: boolean
   /** Peak rates the sweep ceiling is enforced at. */
   rates: TokenRates
 }
@@ -107,8 +110,8 @@ const SCRIPT_BY_SCENARIO: Readonly<Record<string, string>> = {
   'P1-03': 'gold',
 }
 
-function registry(): MutationRegistry {
-  return caseId => EVAL_CASES.find(item => item.id === caseId)?.mutation
+function registry(evalCase: EvalCase): MutationRegistry {
+  return caseId => (caseId === evalCase.id ? evalCase.mutation : EVAL_CASES.find(item => item.id === caseId)?.mutation)
 }
 
 async function findFinding(worktree: string): Promise<Finding | null> {
@@ -145,6 +148,7 @@ async function runScenario(worktree: string, caseId: string, label: string, opti
       QA_EVAL_CASE: caseId,
       QA_EVAL_RESULT: resultPath,
       QA_EVAL_WORKTREE_LABEL: label,
+      ...options.heldOut === true ? { QA_EVAL_HELD_OUT: '1' } : {},
     },
     encoding: 'utf8',
   })
@@ -218,8 +222,8 @@ async function runInvestigation(
  * @returns the case result.
  */
 export async function runEvalCase(caseId: string, options: EvalRunnerOptions): Promise<EvalCaseResult> {
-  const evalCase = EVAL_CASES.find(item => item.id === caseId)
-  if (evalCase === undefined) throw new Error(`Unknown public evaluation case: ${caseId}`)
+  const evalCase = await resolveEvalCase(caseId, EVAL_CASES, options.heldOut === true, options.repositoryPath)
+  if (evalCase === undefined) throw new Error(`Unknown evaluation case: ${caseId}`)
   const startedAt = Date.now()
   const errors: string[] = []
   const result: EvalCaseResult = {
@@ -246,7 +250,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
   const worktree = await createEvaluationWorktree(options.repositoryPath, options.commit, caseId)
   try {
     await symlink(path.join(options.repositoryPath, 'node_modules'), path.join(worktree.directory, 'node_modules'))
-    if (evalCase.mutation !== undefined) await applyMutationById(worktree.directory, caseId, registry())
+    if (evalCase.mutation !== undefined) await applyMutationById(worktree.directory, caseId, registry(evalCase))
 
     const scenario = await runScenario(worktree.directory, caseId, worktree.label, options)
     if (scenario === null) {

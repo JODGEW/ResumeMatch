@@ -7,6 +7,7 @@ import { test } from '@playwright/test'
 import { runReleaseCheck } from '../../qa/browser/runReleaseCheck'
 import type { EvaluationIdentity } from '../../qa/browser/types'
 import { EVAL_CASES } from '../../qa/investigation/evalCases'
+import { resolveEvalCase } from '../../qa/investigation/heldoutDefinitions'
 import { buildDigest, sourceDigest } from '../../qa/investigation/evalRunner/digest'
 import { triageRun } from '../../qa/investigation/triage'
 
@@ -29,8 +30,8 @@ test('evaluation case', async () => {
   if (caseId === undefined || resultPath === undefined || worktreeLabel === undefined) {
     throw new Error('evalCase requires QA_EVAL_CASE, QA_EVAL_RESULT, and QA_EVAL_WORKTREE_LABEL')
   }
-  const evalCase = EVAL_CASES.find(item => item.id === caseId)
-  if (evalCase === undefined) throw new Error(`Unknown public evaluation case: ${caseId}`)
+  const evalCase = await resolveEvalCase(caseId, EVAL_CASES, process.env.QA_EVAL_HELD_OUT === '1')
+  if (evalCase === undefined) throw new Error(`Unknown evaluation case: ${caseId}`)
 
   const evaluationIdentity: EvaluationIdentity = {
     caseId: evalCase.id,
