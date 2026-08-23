@@ -140,11 +140,22 @@ describe('lifecycle', () => {
 describe('authorization latches', () => {
   it('latches policy_blocked after an unauthorized action and forces the classification', async () => {
     await session.call('start_fresh_reproduction', {})
-    await expect(session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'sample' } }))
+    // Leaving the application, rather than naming a route this scenario lacks.
+    await expect(session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'https://example.com' } }))
       .rejects.toMatchObject({ code: 'POLICY_BLOCKED' })
     await expect(session.call('read_page_errors', {})).rejects.toMatchObject({ code: 'POLICY_BLOCKED' })
     await session.call('submit_finding', { finding: NARRATIVE })
     expect(session.submittedFinding()?.classification).toBe('policy_blocked')
+  })
+
+  it('does not latch for a route this scenario simply does not define', async () => {
+    await session.call('start_fresh_reproduction', {})
+    await expect(session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'sample' } }))
+      .rejects.toMatchObject({ code: 'INVALID_ARGUMENTS' })
+    expect(session.status().policyBlocked).toBe(false)
+    await session.call('run_oracle', {})
+    await session.call('submit_finding', { finding: NARRATIVE })
+    expect(session.submittedFinding()?.classification).toBe('confirmed')
   })
 
   it('blocks an unsupported tool name', async () => {

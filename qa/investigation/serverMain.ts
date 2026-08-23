@@ -201,7 +201,11 @@ async function main(): Promise<number> {
           message: error instanceof Error ? error.message : String(error),
           // Repair material travels with the refusal: a caller that cannot see
           // the schema it failed spends its remaining attempts guessing.
-          ...help === undefined ? {} : { schema: help.schema, example: help.example },
+          ...help === undefined ? {} : {
+            schema: help.schema,
+            example: help.example,
+            ...help.scenarioPolicy === undefined ? {} : { scenarioPolicy: help.scenarioPolicy },
+          },
         },
         status: session.status(),
       })

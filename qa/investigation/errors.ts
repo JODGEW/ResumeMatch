@@ -17,6 +17,8 @@ export type InvestigationErrorCode =
 export interface ArgumentHelp {
   schema: unknown
   example: unknown
+  /** What this scenario actually authorizes, so a caller need not guess it. */
+  scenarioPolicy?: unknown
 }
 
 /**

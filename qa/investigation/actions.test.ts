@@ -14,9 +14,9 @@ describe('validateAction', () => {
     for (const action of actions) expect(validateAction('P1-02', action)).toEqual(action)
   })
 
-  it('refuses a route the scenario does not define', () => {
-    expect(() => validateAction('P1-01', { kind: 'open_route', route: 'upload' })).toThrow(/does not define the route/)
-    expect(() => validateAction('P1-04', { kind: 'open_route', route: 'sample' })).toThrow(/does not define the route/)
+  it('refuses a route the scenario does not define, naming the ones it does', () => {
+    expect(() => validateAction('P1-01', { kind: 'open_route', route: 'upload' })).toThrow(/defines the routes sample/)
+    expect(() => validateAction('P1-04', { kind: 'open_route', route: 'sample' })).toThrow(/defines the routes results/)
   })
 
   it('refuses free-form navigation, selectors, and scripts', () => {
@@ -35,7 +35,6 @@ describe('validateAction', () => {
     for (const malformed of [
       { route: 'upload' },
       { kind: 'teleport', route: 'upload' },
-      { kind: 'open_route', route: 'https://example.com' },
       { kind: 'open_route', route: 'upload', selector: '.x' },
       { kind: 'click_by_role', role: 'combobox', name: 'Analyze Resume' },
     ]) {
@@ -46,17 +45,29 @@ describe('validateAction', () => {
         expect({ input: malformed, code: (error as { code?: string }).code }).toEqual({ input: malformed, code: 'INVALID_ARGUMENTS' })
       }
     }
-    // Authorization errors: well formed, but not what this scenario allows.
-    for (const unauthorized of [
+    // Fixable by reading the scenario's own policy, so retryable rather than latching.
+    for (const fixable of [
       { kind: 'open_route', route: 'sample' },
       { kind: 'wait_for_state', state: 'timeout_report' },
       { kind: 'click_by_role', role: 'button', name: 'Delete account' },
     ]) {
       try {
-        validateAction('P1-02', unauthorized)
-        throw new Error(`expected a refusal for ${JSON.stringify(unauthorized)}`)
+        validateAction('P1-02', fixable)
+        throw new Error(`expected a refusal for ${JSON.stringify(fixable)}`)
       } catch (error) {
-        expect({ input: unauthorized, code: (error as { code?: string }).code }).toEqual({ input: unauthorized, code: 'POLICY_BLOCKED' })
+        expect({ input: fixable, code: (error as { code?: string }).code }).toEqual({ input: fixable, code: 'INVALID_ARGUMENTS' })
+      }
+    }
+    // Leaving the application is the finding, so it still latches.
+    for (const outside of [
+      { kind: 'open_route', route: 'https://example.com' },
+      { kind: 'open_route', route: '/etc/passwd' },
+    ]) {
+      try {
+        validateAction('P1-02', outside)
+        throw new Error(`expected a refusal for ${JSON.stringify(outside)}`)
+      } catch (error) {
+        expect({ input: outside, code: (error as { code?: string }).code }).toEqual({ input: outside, code: 'POLICY_BLOCKED' })
       }
     }
   })
@@ -72,18 +83,38 @@ describe('validateAction', () => {
     }
   })
 
-  it('refuses an unapproved accessible name', () => {
-    expect(() => validateAction('P1-02', { kind: 'click_by_role', role: 'button', name: 'Delete account' }))
-      .toThrow(/not on the approved click list/)
+  it('returns the whole click list when a name is not on it', () => {
+    try {
+      validateAction('P1-02', { kind: 'click_by_role', role: 'button', name: 'Analyze' })
+      throw new Error('expected a refusal')
+    } catch (error) {
+      const failure = error as { code?: string; message: string; help?: { scenarioPolicy?: { clickNames?: string[] } } }
+      expect(failure.code).toBe('INVALID_ARGUMENTS')
+      expect(failure.message).toContain('Analyze Resume')
+      expect(failure.help?.scenarioPolicy?.clickNames).toContain('Analyze Resume')
+    }
+  })
+
+  it('publishes the scenario policy with every fixable refusal', () => {
+    try {
+      validateAction('P1-04', { kind: 'open_route', route: 'upload' })
+      throw new Error('expected a refusal')
+    } catch (error) {
+      const help = (error as { help?: { scenarioPolicy?: { routes?: string[]; states?: string[] } } }).help
+      expect(help?.scenarioPolicy?.routes).toEqual(['results'])
+      expect(help?.scenarioPolicy?.states).toEqual(['processing', 'failed_report'])
+    }
   })
 
   it('refuses attaching a file in a scenario that reuses a resume', () => {
-    expect(() => validateAction('P1-03', { kind: 'attach_synthetic_file', file: 'qa_synthetic_resume' })).toThrow(/does not authorize attaching/)
+    expect(() => validateAction('P1-03', { kind: 'attach_synthetic_file', file: 'qa_synthetic_resume' }))
+      .toThrow(/reuses an existing resume and attaches no file/)
   })
 
-  it('refuses a state the scenario cannot reach', () => {
-    expect(() => validateAction('P1-04', { kind: 'wait_for_state', state: 'completed_report' })).toThrow(/does not define the state/)
-    expect(() => validateAction('P1-01', { kind: 'wait_for_state', state: 'processing' })).toThrow(/does not define the state/)
+  it('refuses a state the scenario cannot reach, naming the ones it defines', () => {
+    expect(() => validateAction('P1-04', { kind: 'wait_for_state', state: 'completed_report' }))
+      .toThrow(/defines the states processing, failed_report/)
+    expect(() => validateAction('P1-01', { kind: 'wait_for_state', state: 'processing' })).toThrow(/defines the states /)
   })
 })
 

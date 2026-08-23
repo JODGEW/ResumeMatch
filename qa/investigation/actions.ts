@@ -35,6 +35,8 @@ export type AllowedAction =
 interface ScenarioActionPolicy {
   routes: SemanticRoute[]
   states: SemanticState[]
+  /** The accessible names this scenario will click, published so a caller need not guess. */
+  clickNames: readonly ApprovedClickName[]
   fill: boolean
   attach: boolean
   clock: boolean
@@ -42,12 +44,12 @@ interface ScenarioActionPolicy {
 
 /** What each scenario's own definition makes reachable. Nothing else is authorized. */
 const SCENARIO_POLICY: Record<ScenarioId, ScenarioActionPolicy> = {
-  'P1-01': { routes: ['sample'], states: [], fill: false, attach: false, clock: false },
-  'P1-02': { routes: ['upload', 'results'], states: ['upload_ready', 'processing', 'completed_report'], fill: true, attach: true, clock: false },
-  'P1-03': { routes: ['upload', 'results'], states: ['upload_ready', 'processing', 'completed_report'], fill: true, attach: false, clock: false },
-  'P1-04': { routes: ['results'], states: ['processing', 'failed_report'], fill: false, attach: false, clock: false },
-  'P1-05': { routes: ['results'], states: ['processing', 'timeout_report'], fill: false, attach: false, clock: true },
-  'P1-06': { routes: ['sample'], states: [], fill: false, attach: false, clock: false },
+  'P1-01': { routes: ['sample'], states: [], clickNames: APPROVED_CLICK_NAMES, fill: false, attach: false, clock: false },
+  'P1-02': { routes: ['upload', 'results'], states: ['upload_ready', 'processing', 'completed_report'], clickNames: APPROVED_CLICK_NAMES, fill: true, attach: true, clock: false },
+  'P1-03': { routes: ['upload', 'results'], states: ['upload_ready', 'processing', 'completed_report'], clickNames: APPROVED_CLICK_NAMES, fill: true, attach: false, clock: false },
+  'P1-04': { routes: ['results'], states: ['processing', 'failed_report'], clickNames: APPROVED_CLICK_NAMES, fill: false, attach: false, clock: false },
+  'P1-05': { routes: ['results'], states: ['processing', 'timeout_report'], clickNames: APPROVED_CLICK_NAMES, fill: false, attach: false, clock: true },
+  'P1-06': { routes: ['sample'], states: [], clickNames: APPROVED_CLICK_NAMES, fill: false, attach: false, clock: false },
 }
 
 /** The analysis id each scenario's contract router accepts, or null when it has none. */
@@ -91,19 +93,23 @@ export function actionHelp(scenarioId: ScenarioId): ArgumentHelp {
   return {
     schema: ACTION_JSON_SCHEMA,
     example: { action: { kind: 'open_route', route: policy.routes[0] } },
+    scenarioPolicy: policy,
   }
 }
 
 /**
  * Validate one untrusted action against the closed grammar and this scenario's policy.
  *
- * A malformed action is `INVALID_ARGUMENTS` and retryable; only a well-formed
- * action the scenario does not authorize is `POLICY_BLOCKED`. Conflating the two
- * ends an investigation for a typo.
+ * `POLICY_BLOCKED` is reserved for reaching outside the application: a route
+ * that is not one of its own. Everything a caller could fix by reading the
+ * scenario's policy — a route or state this scenario does not define, a name
+ * that is not on the click list — is `INVALID_ARGUMENTS` and carries that
+ * policy back, because latching an investigation for a guessable value spends
+ * the whole run on a typo.
  * @param scenarioId - the scenario under investigation.
  * @param input - the untrusted action.
  * @returns the validated action.
- * @throws `INVALID_ARGUMENTS` for a shape error, `POLICY_BLOCKED` for an unauthorized one.
+ * @throws `INVALID_ARGUMENTS` for a fixable argument, `POLICY_BLOCKED` for an out-of-application route.
  */
 export function validateAction(scenarioId: ScenarioId, input: unknown): AllowedAction {
   const help = actionHelp(scenarioId)
@@ -122,26 +128,35 @@ export function validateAction(scenarioId: ScenarioId, input: unknown): AllowedA
     case 'open_route': {
       const route = candidate.route
       exactKeys(2, 'kind and route')
-      if (!['sample', 'upload', 'results'].includes(String(route))) throw invalidArguments(`route must be sample, upload, or results, not ${String(route)}`, help)
-      if (!policy.routes.includes(route as SemanticRoute)) throw policyBlocked(`Scenario ${scenarioId} does not define the route ${String(route)}`)
+      // Anything that is not one of the application's own routes is an attempt
+      // to leave it, which is the finding rather than a fixable argument.
+      if (!['sample', 'upload', 'results'].includes(String(route))) throw policyBlocked(`route must name an application route, not ${String(route)}`)
+      if (!policy.routes.includes(route as SemanticRoute)) {
+        throw invalidArguments(`Scenario ${scenarioId} defines the routes ${policy.routes.join(', ')}, not ${String(route)}`, help)
+      }
       return { kind: 'open_route', route: route as SemanticRoute }
     }
     case 'fill_synthetic_text': {
       exactKeys(2, 'kind and field')
       if (candidate.field !== 'job_description') throw invalidArguments(`field must be job_description, not ${String(candidate.field)}`, help)
-      if (!policy.fill) throw policyBlocked(`Scenario ${scenarioId} does not authorize filling job_description`)
+      if (!policy.fill) throw invalidArguments(`Scenario ${scenarioId} has no job description to fill`, help)
       return { kind: 'fill_synthetic_text', field: 'job_description' }
     }
     case 'attach_synthetic_file': {
       exactKeys(2, 'kind and file')
       if (candidate.file !== 'qa_synthetic_resume') throw invalidArguments(`file must be qa_synthetic_resume, not ${String(candidate.file)}`, help)
-      if (!policy.attach) throw policyBlocked(`Scenario ${scenarioId} does not authorize attaching qa_synthetic_resume`)
+      if (!policy.attach) throw invalidArguments(`Scenario ${scenarioId} reuses an existing resume and attaches no file`, help)
       return { kind: 'attach_synthetic_file', file: 'qa_synthetic_resume' }
     }
     case 'click_by_role': {
       exactKeys(3, 'kind, role, and name')
       if (candidate.role !== 'button' && candidate.role !== 'link') throw invalidArguments('role must be button or link', help)
-      if (!APPROVED_CLICK_NAMES.includes(candidate.name as ApprovedClickName)) throw policyBlocked(`Accessible name ${String(candidate.name)} is not on the approved click list`)
+      if (!APPROVED_CLICK_NAMES.includes(candidate.name as ApprovedClickName)) {
+        throw invalidArguments(
+          `Accessible name ${JSON.stringify(candidate.name)} is not on the click list; the names are ${APPROVED_CLICK_NAMES.join(', ')}`,
+          help,
+        )
+      }
       return { kind: 'click_by_role', role: candidate.role, name: candidate.name as ApprovedClickName }
     }
     case 'wait_for_state': {
@@ -149,7 +164,9 @@ export function validateAction(scenarioId: ScenarioId, input: unknown): AllowedA
       if (!['upload_ready', 'processing', 'completed_report', 'failed_report', 'timeout_report'].includes(String(candidate.state))) {
         throw invalidArguments(`state must be one of the five semantic states, not ${String(candidate.state)}`, help)
       }
-      if (!policy.states.includes(candidate.state as SemanticState)) throw policyBlocked(`Scenario ${scenarioId} does not define the state ${String(candidate.state)}`)
+      if (!policy.states.includes(candidate.state as SemanticState)) {
+        throw invalidArguments(`Scenario ${scenarioId} defines the states ${policy.states.join(', ')}, not ${String(candidate.state)}`, help)
+      }
       return { kind: 'wait_for_state', state: candidate.state as SemanticState }
     }
     default:
