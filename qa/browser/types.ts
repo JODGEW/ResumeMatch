@@ -50,6 +50,17 @@ export interface EvaluationIdentity {
    * into evidence.
    */
   worktreeLabel: string
+  /**
+   * SHA-256 hashes of request bodies this case's mutation is expected to
+   * produce.
+   *
+   * A seeded defect that changes the shape of a request produces a body the
+   * closed synthetic allowlist cannot know, so its evidence is rejected and the
+   * case never reaches an investigator. Declaring the hash in advance keeps the
+   * allowlist closed while letting that class of defect be evaluated. Admitted
+   * only when `mutationApplied` names this case; empty for every other run.
+   */
+  approvedRequestHashes: string[]
 }
 
 export interface RunOptions {

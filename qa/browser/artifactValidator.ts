@@ -179,7 +179,10 @@ function validArtifactReferences(value: unknown): value is EvidenceManifest['art
 }
 
 function validEvaluationIdentity(value: unknown): value is EvaluationIdentity {
-  if (!exactObject(value, ['caseId', 'mutationApplied', 'transientFaults', 'sourceDigest', 'buildDigest', 'worktreeLabel'])) return false
+  const keys = ['caseId', 'mutationApplied', 'transientFaults', 'sourceDigest', 'buildDigest', 'worktreeLabel', 'approvedRequestHashes']
+  if (!exactObject(value, keys)) return false
+  if (!Array.isArray(value.approvedRequestHashes)
+    || !value.approvedRequestHashes.every(item => typeof item === 'string' && /^[0-9a-f]{64}$/.test(item))) return false
   if (typeof value.caseId !== 'string' || !/^[A-Z][0-9]{1,2}$/.test(value.caseId)) return false
   if (value.mutationApplied !== null && (typeof value.mutationApplied !== 'string' || !/^[A-Z][0-9]{1,2}$/.test(value.mutationApplied))) return false
   if (!Array.isArray(value.transientFaults) || !value.transientFaults.every(item => TRANSIENT_FAULTS.has(item as TransientFault))) return false
@@ -367,11 +370,24 @@ function sha256(value: Buffer | string): string { return createHash('sha256').up
 function sha1(value: Buffer): string { return createHash('sha1').update(value).digest('hex') }
 function canonicalJson(value: unknown): Buffer { return Buffer.from(JSON.stringify(value)) }
 
-function canonicalApiRequestHashes(pathname: string): Set<string> {
+/**
+ * The exact request bodies a bundle may hold for one API path.
+ *
+ * Exported for the reverse test that pins the release set: with a null
+ * evaluation identity, or one whose `mutationApplied` does not name its own
+ * case, the returned set is byte-for-byte the Phase 1 set.
+ * @param pathname - the sentinel API path.
+ * @param identity - the manifest's evaluation identity, or null.
+ * @returns SHA-256 hashes of every allowed canonical body.
+ */
+export function canonicalApiRequestHashes(pathname: string, identity: EvaluationIdentity | null): Set<string> {
   if (pathname !== '/upload') return new Set()
+  // A declared hash is admitted only for the run whose own mutation produced it.
+  const declared = identity !== null && identity.mutationApplied === identity.caseId ? identity.approvedRequestHashes : []
   return new Set([
     sha256(canonicalJson({ fileName: SYNTHETIC_FILE_NAME, jobDescription: SYNTHETIC_JOB_DESCRIPTION })),
     sha256(canonicalJson({ existingAnalysisId: 'qa-existing-source-1', jobDescription: SYNTHETIC_JOB_DESCRIPTION })),
+    ...declared,
   ])
 }
 
@@ -528,7 +544,9 @@ async function validateTraceRole(
   if (role.kind === 'screenshot') return resourceName.endsWith('.jpeg') && body.subarray(0, 3).toString('hex') === 'ffd8ff'
   const url = new URL(role.url)
   if (role.kind === 'request') {
-    if (url.origin === QA_API_ORIGIN && role.method === 'POST' && url.search === '') return canonicalApiRequestHashes(url.pathname).has(sha256(body))
+    if (url.origin === QA_API_ORIGIN && role.method === 'POST' && url.search === '') {
+      return canonicalApiRequestHashes(url.pathname, options.evaluationIdentity).has(sha256(body))
+    }
     if (url.origin === QA_S3_ORIGIN && url.pathname === '/synthetic-upload' && url.search === '' && role.method === 'POST') {
       return validSyntheticMultipart(body, role.mimeType, await readFile(options.fixturePdfPath), options.observedSyntheticUpload)
     }

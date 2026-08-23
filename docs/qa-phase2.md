@@ -292,6 +292,26 @@ Both measured on this machine at commit `f111fd3`, macOS 25.5, Node 18.20.4, Vit
 - **A temporary worktree uses a symlinked `node_modules`, not `npm ci`.** Symlinking the main checkout's `node_modules` into the evaluation worktree built successfully three times, and its output digest equals the main worktree's for the same commit. `npm ci` per case is unnecessary.
 - **Dot entries are excluded from `buildDigest`.** The only difference between the two otherwise identical builds was a `.DS_Store` the file browser dropped into `.qa-dist`. Left in, it would change the evaluation identity and read as source drift.
 
+### Declared boundary: request-shape defects
+
+A seeded defect that changes the *shape* of a request — D2 renames `fileName` to
+`filename` — produces a body the closed synthetic allowlist cannot know. Phase 1
+rejects that evidence as `INVALID_TRACE_RESOURCE`, the bundle is deleted, and
+triage routes the run to `artifact_rejected` without invoking a model. That is
+the allowlist doing its job: it exists to keep anything but known synthetic
+bytes out of a raw trace, not to judge whether a request is well formed.
+
+The evaluation corpus can declare such a body in advance:
+`mutation.approvedRequestHashes` travels into the manifest's evaluation identity
+and is admitted only for the run whose own `mutationApplied` names that case. A
+release bundle, or an evaluation run attributing the hash to another case, sees
+the Phase 1 set byte for byte.
+
+**Outside the evaluation corpus this class is not covered.** A production defect
+that changes a request's shape will be rejected as evidence and routed to human
+review, because its body cannot have been declared beforehand. The investigator
+does not see it.
+
 ## Evaluation-only transient faults
 
 `RunOptions.transientFaults` is empty in every release check. Each fault fires at most once per scenario instance and models a contract-legal failure, so it records no contract violation:

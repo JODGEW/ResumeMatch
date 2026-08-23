@@ -63,6 +63,7 @@ async function failingRun(fault: TransientFault) {
       sourceDigest: await sourceDigest(process.cwd()),
       buildDigest: await buildDigest(path.join(process.cwd(), '.qa-dist')),
       worktreeLabel: 'harness-inline-e2e',
+      approvedRequestHashes: [],
     },
   })
   expect(result.executionStatus).toBe('completed')

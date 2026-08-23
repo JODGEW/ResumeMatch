@@ -80,7 +80,7 @@ describe('build digest', () => {
 describe('source drift', () => {
   const identity: EvaluationIdentity = {
     caseId: 'D1', mutationApplied: 'D1', transientFaults: [],
-    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-d1',
+    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-d1', approvedRequestHashes: [],
   }
 
   it('never drifts for a release bundle', () => {

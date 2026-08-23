@@ -39,6 +39,7 @@ test('evaluation case', async () => {
     sourceDigest: await sourceDigest(process.cwd()),
     buildDigest: await buildDigest(path.join(process.cwd(), '.qa-dist')),
     worktreeLabel,
+    approvedRequestHashes: evalCase.mutation?.approvedRequestHashes ?? [],
   }
 
   const result = await runReleaseCheck(evalCase.scenarioId, {

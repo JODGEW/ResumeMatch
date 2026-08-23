@@ -16,8 +16,15 @@ export interface EvalCase {
   kind: 'clean' | 'seeded_defect' | 'benign_transient'
   scenarioId: ScenarioId
   summary: string
-  /** Exact single-occurrence source anchor, for seeded defects only. */
-  mutation?: { file: string; find: string; replace: string }
+  /**
+   * Exact single-occurrence source anchor, for seeded defects only.
+   *
+   * `approvedRequestHashes` declares the request bodies the mutation is expected
+   * to produce. A defect that changes a request's shape produces a body the
+   * closed synthetic allowlist cannot know, so without this its evidence is
+   * rejected and the case never reaches an investigator.
+   */
+  mutation?: { file: string; find: string; replace: string; approvedRequestHashes?: string[] }
   /** Evaluation-only transient faults, for benign cases only. */
   transientFaults?: TransientFault[]
   expectedTriage: TriageDecision
@@ -69,6 +76,9 @@ export const EVAL_CASES: readonly EvalCase[] = [
       file: 'src/api/upload.ts',
       find: "const { data } = await client.post('/upload', { fileName, jobDescription });",
       replace: "const { data } = await client.post('/upload', { filename: fileName, jobDescription });",
+      // The `filename` body this mutation produces, measured from the rejected
+      // bundle of the 2026-08-23 run.
+      approvedRequestHashes: ['33a86e49600cc12ae5c60a51f11efbeebb299967aa2d2cd0803c7ab917ed807a'],
     },
     expectedTriage: 'investigate', expectedClassification: 'confirmed',
     goldFirstProbe: 'read_network_events',

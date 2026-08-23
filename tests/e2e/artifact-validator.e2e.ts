@@ -293,7 +293,7 @@ test('a transient S3 status is accepted only for the evaluation run that declare
   const declared = testInfo.outputPath('transient-s3-declared')
   await bundleWithTransientS3(declared, {
     caseId: 'B3', mutationApplied: null, transientFaults: ['s3_response_500_once'],
-    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-b3',
+    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-b3', approvedRequestHashes: [],
   })
   const accepted = await validateEvidenceBundle(declared)
   expect(accepted.violations.filter(item => item.file === 'network-events.json')).toEqual([])
@@ -301,7 +301,7 @@ test('a transient S3 status is accepted only for the evaluation run that declare
   const other = testInfo.outputPath('transient-s3-other-fault')
   await bundleWithTransientS3(other, {
     caseId: 'B1', mutationApplied: null, transientFaults: ['upload_503_once'],
-    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-b1',
+    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-b1', approvedRequestHashes: [],
   })
   const rejected = await validateEvidenceBundle(other)
   expect(rejected.violations).toContainEqual(expect.objectContaining({ code: 'INVALID_ARTIFACT_SCHEMA', file: 'network-events.json' }))
@@ -316,7 +316,7 @@ test('an evaluation bundle can never be release grade', async ({ browserName }, 
     sourceIdentity: { headCommit: '0'.repeat(40), worktreeDirty: false, exactCommittedSource: true, releaseGrade: true },
     evaluationIdentity: {
       caseId: 'D1', mutationApplied: 'D1', transientFaults: [],
-      sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-d1',
+      sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-d1', approvedRequestHashes: [],
     },
   })}\n`)
 
