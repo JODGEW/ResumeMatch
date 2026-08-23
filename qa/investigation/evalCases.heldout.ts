@@ -31,7 +31,11 @@ export interface HeldOutCase {
 export const HELD_OUT_CASES: readonly HeldOutCase[] = [
   { id: 'D5', kind: 'seeded_defect', scenarioId: 'P1-04', expectedTriage: 'investigate', expectedClassification: 'confirmed' },
   { id: 'D6', kind: 'seeded_defect', scenarioId: 'P1-05', expectedTriage: 'investigate', expectedClassification: 'confirmed' },
-  { id: 'B4', kind: 'benign_transient', scenarioId: 'P1-03', expectedTriage: 'investigate', expectedClassification: 'not_reproduced' },
+  // Corrected after the case ran: the interrupted lookup fails P1-03's first
+  // assertion, which precedes the scenario's first checkpoint, so the bundle is
+  // rejected for having none and no investigator is reachable. See the declared
+  // boundary in docs/qa-phase2.md.
+  { id: 'B4', kind: 'benign_transient', scenarioId: 'P1-03', expectedTriage: 'artifact_rejected', expectedClassification: null },
 ]
 
 /** Ids whose implementations must never inform prompts, probe rules, or tool descriptions. */

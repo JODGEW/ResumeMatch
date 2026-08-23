@@ -358,6 +358,34 @@ requests. It still earns its place: it is the corpus's only case proving that an
 injected fault the product deliberately absorbs does not manufacture work for a
 model.
 
+### Declared boundary: failures before the first checkpoint
+
+A run whose first oracle failure precedes its scenario's first checkpoint
+produces a bundle with a trace and a video but no checkpoint screenshot, and
+artifact validation requires all three
+([artifactValidator.ts:674](../qa/browser/artifactValidator.ts#L674)). The whole
+bundle is rejected, triage routes the run to `artifact_rejected`, and no
+investigator is reachable.
+
+Found by held-out case B4 on 2026-08-23. B4 interrupts the previous-resume
+lookup in the reuse scenario; without a previous resume the upload page never
+offers one, so `P1-03_EXISTING_FILE` fails at
+[runReleaseCheck.ts:121](../qa/browser/runReleaseCheck.ts#L121) — two lines
+before the `existing-resume-ready` checkpoint. Its `checkpointScreenshots` array
+is empty and the bundle is refused.
+
+B4 was registered expecting `not_reproduced`. That expectation was written
+before the case ran and was wrong about this boundary, not about the product:
+the expectation is corrected to `artifact_rejected` with zero model calls. This
+is a change to a held-out expectation made after seeing its result, which is
+exactly what the held-out set exists to prevent — so it is recorded here rather
+than quietly applied. Nothing about the investigator, the prompt, the budgets,
+or the validator changed in response.
+
+**Outside the corpus this class is not covered.** A production defect that fails
+before its scenario's first checkpoint is rejected as evidence and goes to human
+review.
+
 ### Declared boundary: request-shape defects
 
 A seeded defect that changes the *shape* of a request — D2 renames `fileName` to
