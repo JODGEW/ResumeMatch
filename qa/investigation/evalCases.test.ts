@@ -59,6 +59,13 @@ describe('held-out isolation gate', () => {
 })
 
 describe('public corpus rules', () => {
+  it('expects B3 to pass its oracle rather than reach an investigator', () => {
+    const b3 = EVAL_CASES.find(item => item.id === 'B3')
+    expect({ triage: b3?.expectedTriage, classification: b3?.expectedClassification, gold: b3?.goldFirstProbe })
+      .toEqual({ triage: 'expected', classification: null, gold: undefined })
+    expect(b3?.transientFaults).toEqual(['s3_response_500_once'])
+  })
+
   it('never expects a confirmed finding for a clean or benign case', () => {
     for (const testCase of EVAL_CASES.filter(item => item.kind !== 'seeded_defect')) {
       expect(testCase.expectedClassification).not.toBe('confirmed')

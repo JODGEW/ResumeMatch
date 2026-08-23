@@ -31,6 +31,27 @@ describe('scoreFirstProbes', () => {
     expect(score.entries[0].openingProbes).toHaveLength(3)
   })
 
+  it('discounts the orientation reads in the exclusive window', () => {
+    // Every live run opened with these two; the gold probe is the fourth call
+    // but the second discriminating one.
+    const score = scoreFirstProbes([
+      { caseId: 'D1', finding: finding(['read_failed_assertion', 'read_failure_manifest', 'read_scenario_transition_log', 'read_network_events']) },
+    ], gold)
+    expect({ first: score.goldFirstProbe, window: score.goldWithinFirst3, exclusive: score.goldWithinFirst4Excl })
+      .toEqual({ first: 0, window: 0, exclusive: 1 })
+  })
+
+  it('counts a gold probe beyond the fourth discriminating read as a miss on all three', () => {
+    const score = scoreFirstProbes([
+      { caseId: 'D1', finding: finding([
+        'read_failed_assertion', 'read_failure_manifest', 'read_page_errors', 'read_console_events',
+        'read_safety_violations', 'read_scenario_transition_log', 'count_requests', 'read_network_events',
+      ]) },
+    ], gold)
+    expect({ first: score.goldFirstProbe, window: score.goldWithinFirst3, exclusive: score.goldWithinFirst4Excl })
+      .toEqual({ first: 0, window: 0, exclusive: 0 })
+  })
+
   it('counts a gold probe that arrives after the opening three as a miss on both metrics', () => {
     const score = scoreFirstProbes([
       { caseId: 'D1', finding: finding(['read_page_errors', 'read_console_events', 'read_safety_violations', 'read_network_events']) },
@@ -65,6 +86,7 @@ describe('scoreFirstProbes', () => {
     const score = scoreFirstProbes([{ caseId: 'C1', finding: finding(['read_page_errors']) }], gold)
     expect(score.goldFirstProbe).toBeNull()
     expect(score.goldWithinFirst3).toBeNull()
+    expect(score.goldWithinFirst4Excl).toBeNull()
   })
 
   it('cannot score a held-out case, because none declares a gold probe', () => {

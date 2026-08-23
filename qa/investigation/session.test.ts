@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { CostLedger } from './cost'
 import { validateNarrative } from './finding'
-import { InvestigationSession, type ReproductionDriver } from './session'
+import { INVESTIGATION_BUDGET, InvestigationSession, type ReproductionDriver } from './session'
 import { createInvestigationDirectory, newInvestigationId } from './paths'
 import type { AllowedAction } from './actions'
 import type { ReproductionOracleResult } from './finding'
@@ -168,7 +168,7 @@ describe('authorization latches', () => {
   })
 
   it('refuses a probe past the ceiling without latching the investigation', async () => {
-    for (let index = 0; index < 6; index += 1) await session.call('read_page_errors', {})
+    for (let index = 0; index < INVESTIGATION_BUDGET.probes; index += 1) await session.call('read_page_errors', {})
     await expect(session.call('read_page_errors', {})).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
     expect(session.status().budgetExhausted).toBe(false)
     await session.call('start_fresh_reproduction', {})
@@ -177,8 +177,8 @@ describe('authorization latches', () => {
     expect(session.submittedFinding()?.classification).toBe('confirmed')
   })
 
-  it('confirms after six probes and three refusals when the reproduction fails the same oracle', async () => {
-    for (let index = 0; index < 6; index += 1) await session.call('read_page_errors', {})
+  it('confirms after a spent probe ceiling and three refusals when the reproduction fails the same oracle', async () => {
+    for (let index = 0; index < INVESTIGATION_BUDGET.probes; index += 1) await session.call('read_page_errors', {})
     for (const tool of ['read_safety_violations', 'count_requests', 'read_network_events']) {
       const args = tool === 'count_requests' ? { groupBy: 'originAlias' } : {}
       await expect(session.call(tool, args)).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
@@ -194,6 +194,7 @@ describe('authorization latches', () => {
     expect(finding?.rejectedCalls.map(item => item.tool))
       .toEqual(['read_safety_violations', 'count_requests', 'read_network_events'])
     expect(finding?.rejectedCalls.every(item => /probes is exhausted/.test(item.reason))).toBe(true)
+    expect(finding?.rejectedCalls[0].reason).toContain(`limit ${INVESTIGATION_BUDGET.probes}`)
   })
 
   it('still latches when an action, reproduction, or oracle ceiling is spent', async () => {

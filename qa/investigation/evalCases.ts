@@ -123,11 +123,13 @@ export const EVAL_CASES: readonly EvalCase[] = [
     expectedTriage: 'investigate', expectedClassification: 'not_reproduced',
   },
   {
+    // The upload page swallows a failed S3 response on purpose and navigates
+    // anyway, so this fault reaches no oracle: the run passes and triage never
+    // reaches an investigator. Measured 2026-08-23; see docs/qa-phase2.md.
     id: 'B3', kind: 'benign_transient', scenarioId: 'P1-02',
-    summary: 'S3 accepts the object but its response fails',
+    summary: 'S3 accepts the object but its response fails; the product continues regardless',
     transientFaults: ['s3_response_500_once'],
-    expectedTriage: 'investigate', expectedClassification: 'not_reproduced',
-    goldFirstProbe: 'read_scenario_transition_log',
+    expectedTriage: 'expected', expectedClassification: null,
   },
 ]
 

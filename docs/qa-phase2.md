@@ -58,7 +58,7 @@ There is no shell, filesystem, navigation, HTTP, evaluation, or selector tool, a
 
 The investigator's prompt is a file, `resumematch-qa-tools/prompts/investigator.md`, registered as its own prompt section rather than inlined in the composition, so a prompt edit is reviewable on its own. It states the role, that the agent holds no pass/fail authority, that budgets and lifecycle state arrive in each tool result's `status`, and that `submit_finding` is the only kept output. It does not restate the tool descriptions, which the registrations already carry.
 
-First-probe scoring lives in `qa/investigation/goldProbe.ts` and reports two rates against the public corpus's gold probe. `goldFirstProbe` asks whether the very first read was the gold one. `goldWithinFirst3` asks whether it appeared among the opening three, and was added on 2026-08-22 after the D1 smoke test: the model read the manifest first and the gold probe third, an ordering the strict metric scores identically to never reaching for it at all. Only cases declaring a gold probe are scored, so clean cases and held-out cases neither inflate nor depress either rate.
+First-probe scoring lives in `qa/investigation/goldProbe.ts` and reports two rates against the public corpus's gold probe. `goldFirstProbe` asks whether the very first read was the gold one. `goldWithinFirst3` asks whether it appeared among the opening three, and was added on 2026-08-22 after the D1 smoke test: the model read the manifest first and the gold probe third, an ordering the strict metric scores identically to never reaching for it at all. `goldWithinFirst4Excl` asks the same of the opening four once `read_failed_assertion` and `read_failure_manifest` are discounted; every live investigation opened with those two whichever case it was given, so counting them against the window measures a habit rather than a choice. Only cases declaring a gold probe are scored, so clean cases and held-out cases neither inflate nor depress any of the three rates.
 
 ## Budgets and latches
 
@@ -291,6 +291,22 @@ Both measured on this machine at commit `f111fd3`, macOS 25.5, Node 18.20.4, Vit
 - **The QA build is byte-reproducible.** Three consecutive `qa:build` runs of the same commit produced the identical digest `1ce1aff0…2390` over 11 files. `buildDigest` is therefore an assertable identity, not just a record.
 - **A temporary worktree uses a symlinked `node_modules`, not `npm ci`.** Symlinking the main checkout's `node_modules` into the evaluation worktree built successfully three times, and its output digest equals the main worktree's for the same commit. `npm ci` per case is unnecessary.
 - **Dot entries are excluded from `buildDigest`.** The only difference between the two otherwise identical builds was a `.DS_Store` the file browser dropped into `.qa-dist`. Left in, it would change the evaluation identity and read as source drift.
+
+### Declared boundary: a fault the product absorbs
+
+B3 injects a failing S3 response after the object is accepted. The upload page
+catches that failure on purpose and navigates anyway
+([src/pages/Upload.tsx:159-168](../src/pages/Upload.tsx#L159-L168)): the comment
+there records the reasoning — a presigned POST can fail to return a readable
+response while the upload itself succeeded, so the page lets polling decide.
+Measured 2026-08-23: the fault fires (`transient-fault:s3_response_500_once` is
+in the transition log, the S3 request is recorded once with status 500), the
+analysis polls to `completed`, and every oracle passes.
+
+So B3 reaches no investigator, and its expectation is `expected` with zero model
+requests. It still earns its place: it is the corpus's only case proving that an
+injected fault the product deliberately absorbs does not manufacture work for a
+model.
 
 ### Declared boundary: request-shape defects
 

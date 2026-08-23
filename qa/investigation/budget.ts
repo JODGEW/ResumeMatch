@@ -3,7 +3,9 @@ import { InvestigationError } from './errors'
 /** Hard ceilings for one investigation. Enforced here, never by prompt text. */
 export const INVESTIGATION_BUDGET = {
   hypotheses: 3,
-  probes: 6,
+  // Eight, not six: across four live runs every investigation spent its probe
+  // ceiling and then asked for more, and probes are read-only.
+  probes: 8,
   reproductions: 1,
   actions: 8,
   inspections: 6,
