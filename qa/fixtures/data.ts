@@ -12,6 +12,19 @@ export const SYNTHETIC_JOB_DESCRIPTION = [
 
 export const SYNTHETIC_BACKEND_ERROR = 'qa-synthetic backend analysis failure'
 
+/**
+ * The single body a transiently failing `/upload` returns under evaluation-only
+ * fault injection. Fixed so artifact validation keeps a closed allowlist of
+ * synthetic response bodies.
+ */
+export const TRANSIENT_UPLOAD_FAILURE_BODY = { message: 'qa-synthetic transient upload failure' }
+
+/** Status of the transiently failing `/upload` response. */
+export const TRANSIENT_UPLOAD_FAILURE_STATUS = 503
+
+/** Status of a transiently failing S3 response after the object was accepted. */
+export const TRANSIENT_S3_FAILURE_STATUS = 500
+
 export function completedAnalysis(analysisId: string, fileName: string): Analysis {
   return {
     analysisId,

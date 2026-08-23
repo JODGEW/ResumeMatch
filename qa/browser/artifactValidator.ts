@@ -8,6 +8,7 @@ import { createScenario } from './scenarios'
 import { PLAYWRIGHT_NETWORK_ENFORCEMENT_SCOPE } from './types'
 import type {
   BrowserResourceType,
+  EvaluationIdentity,
   EvidenceManifest,
   HttpMethod,
   NetworkEvent,
@@ -18,6 +19,7 @@ import type {
   RunFailure,
   SafetyViolation,
   ScenarioId,
+  TransientFault,
 } from './types'
 import {
   SYNTHETIC_EXISTING_FILE_NAME,
@@ -25,6 +27,8 @@ import {
   SYNTHETIC_JOB_DESCRIPTION,
   SYNTHETIC_PDF_SHA256,
   SYNTHETIC_PDF_SIZE,
+  TRANSIENT_S3_FAILURE_STATUS,
+  TRANSIENT_UPLOAD_FAILURE_BODY,
 } from '../fixtures/data'
 
 export type ArtifactViolationCode =
@@ -55,6 +59,9 @@ const ROUTE_TEMPLATES = new Set<NetworkRouteTemplate>([
 const QUERY_KEYS = new Set<NetworkQueryKey>(['display', 'family', 'userId', 'marker', 'probe', 'unexpected', '[other]'])
 const REQUEST_FIELD_NAMES = new Set<RequestFieldName>([
   'fileName', 'jobDescription', 'existingAnalysisId', 'key', 'x-amz-meta-qa', 'file', 'multipartFormData', '[other]',
+])
+const TRANSIENT_FAULTS = new Set<TransientFault>([
+  'upload_503_once', 'analysis_interrupted_once', 's3_response_500_once', 'last_resume_interrupted_once',
 ])
 const MOCK_DECISIONS = new Set<NetworkEvent['mockDecision']>(['local-application', 'fulfilled-contract', 'fulfilled-font-css', 'blocked'])
 const SYNTHETIC_EMAIL_DOMAINS = new Set(['qa.invalid', 'example.com'])
@@ -171,6 +178,32 @@ function validArtifactReferences(value: unknown): value is EvidenceManifest['art
     && Array.isArray(value.checkpointScreenshots) && value.checkpointScreenshots.every(item => typeof item === 'string' && safeReference(item))
 }
 
+function validEvaluationIdentity(value: unknown): value is EvaluationIdentity {
+  const keys = ['caseId', 'mutationApplied', 'transientFaults', 'sourceDigest', 'buildDigest', 'worktreeLabel', 'approvedRequestHashes']
+  if (!exactObject(value, keys)) return false
+  if (!Array.isArray(value.approvedRequestHashes)
+    || !value.approvedRequestHashes.every(item => typeof item === 'string' && /^[0-9a-f]{64}$/.test(item))) return false
+  if (typeof value.caseId !== 'string' || !/^[A-Z][0-9]{1,2}$/.test(value.caseId)) return false
+  if (value.mutationApplied !== null && (typeof value.mutationApplied !== 'string' || !/^[A-Z][0-9]{1,2}$/.test(value.mutationApplied))) return false
+  if (!Array.isArray(value.transientFaults) || !value.transientFaults.every(item => TRANSIENT_FAULTS.has(item as TransientFault))) return false
+  if (new Set(value.transientFaults).size !== value.transientFaults.length) return false
+  if (typeof value.sourceDigest !== 'string' || !/^[0-9a-f]{64}$/.test(value.sourceDigest)) return false
+  if (typeof value.buildDigest !== 'string' || !/^[0-9a-f]{64}$/.test(value.buildDigest)) return false
+  return typeof value.worktreeLabel === 'string' && /^[a-z0-9-]{1,64}$/.test(value.worktreeLabel)
+}
+
+/**
+ * The transient faults this bundle is allowed to have exercised.
+ *
+ * A release bundle carries no evaluation identity and therefore no faults, so
+ * every conditional allowlist entry below collapses to the Phase 1 set.
+ * @param identity - the manifest's evaluation identity, or null.
+ * @returns the configured faults, empty for a release bundle.
+ */
+function allowedFaults(identity: EvaluationIdentity | null): ReadonlySet<TransientFault> {
+  return new Set(identity?.transientFaults ?? [])
+}
+
 function validP106ExpectedFailures(failures: RunFailure[]): boolean {
   return failures.filter(item => item.kind === 'safety').length === 3
     && failures.filter(item => item.kind === 'oracle' && item.oracleId === 'SAFETY_UNEXPECTED_EGRESS').length === 1
@@ -181,7 +214,7 @@ function validateManifestShape(value: unknown): value is EvidenceManifest {
   const keys = [
     'runId', 'scenarioId', 'browserVersion', 'durationMs', 'sourceIdentity', 'executionStatus', 'oracleStatus',
     'expectedOracleStatus', 'expectationMet', 'failedOracle', 'failures', 'artifactsAccepted',
-    'networkEnforcementScope', 'networkSummary', 'artifacts', 'opaqueArtifactValidation',
+    'networkEnforcementScope', 'networkSummary', 'artifacts', 'opaqueArtifactValidation', 'evaluationIdentity',
   ]
   if (!exactObject(value, keys)) return false
   if (!SCENARIOS.has(value.scenarioId as ScenarioId) || typeof value.runId !== 'string') return false
@@ -206,8 +239,14 @@ function validateManifestShape(value: unknown): value is EvidenceManifest {
   } else if (!validCommit || typeof source.worktreeDirty !== 'boolean' || typeof source.exactCommittedSource !== 'boolean' || typeof source.releaseGrade !== 'boolean') return false
   if (source.worktreeDirty === true && (source.exactCommittedSource !== false || source.releaseGrade !== false)) return false
   if (source.exactCommittedSource === true && (!validCommit || source.worktreeDirty !== false)) return false
-  const releaseGrade = source.exactCommittedSource === true && value.executionStatus === 'completed' && value.artifactsAccepted === true && value.expectationMet === true
+  if (value.evaluationIdentity !== null && !validEvaluationIdentity(value.evaluationIdentity)) return false
+  // Both directions of the evaluation/release split: an evaluation bundle can
+  // never be release grade, and a release-grade bundle can never carry an
+  // evaluation identity.
+  const releaseGrade = source.exactCommittedSource === true && value.executionStatus === 'completed'
+    && value.artifactsAccepted === true && value.expectationMet === true && value.evaluationIdentity === null
   if (source.releaseGrade !== releaseGrade) return false
+  if (source.releaseGrade === true && value.evaluationIdentity !== null) return false
   if (value.executionStatus === 'infrastructure_failed' && value.expectationMet) return false
   if ((value.oracleStatus === 'not_run' || value.oracleStatus === 'incomplete') && value.expectationMet) return false
   if (value.artifactsAccepted === false && value.expectationMet) return false
@@ -244,7 +283,7 @@ function exactRequestFields(actual: NetworkEvent['requestFields'], alternatives:
   return alternatives.some(expected => JSON.stringify(actual) === JSON.stringify(expected))
 }
 
-function validNetworkEvent(value: unknown): value is NetworkEvent {
+function validNetworkEvent(value: unknown, identity: EvaluationIdentity | null): value is NetworkEvent {
   const keys = ['durationMs', 'method', 'mockDecision', 'originAlias', 'queryKeys', 'relativeTimestampMs', 'requestFields', 'resourceType', 'routeTemplate', 'sequence', 'status']
   if (!exactObject(value, keys)) return false
   if (!Number.isInteger(value.sequence) || (value.sequence as number) < 1 || !finiteNonnegative(value.relativeTimestampMs) || !finiteNonnegative(value.durationMs)) return false
@@ -287,7 +326,10 @@ function validNetworkEvent(value: unknown): value is NetworkEvent {
     if (event.routeTemplate === '/synthetic-upload' && event.method !== 'POST') return false
     if (event.mockDecision === 'blocked') return event.status === null
     return event.routeTemplate === '/synthetic-upload' && event.method === 'POST' && event.resourceType === 'fetch'
-      && event.mockDecision === 'fulfilled-contract' && event.status === 204 && exactQueryKeys(event.queryKeys, [])
+      && event.mockDecision === 'fulfilled-contract'
+      && (event.status === 204
+        || (event.status === TRANSIENT_S3_FAILURE_STATUS && allowedFaults(identity).has('s3_response_500_once')))
+      && exactQueryKeys(event.queryKeys, [])
       && exactRequestFields(event.requestFields, [[
         expectedField('key', 'qa-synthetic/qa-new-1/qa-synthetic-resume.pdf'),
         expectedField('x-amz-meta-qa', 'qa-synthetic'),
@@ -308,7 +350,7 @@ function validSafetyViolation(value: unknown): value is SafetyViolation {
     && typeof value.target === 'string' && value.blockedByPlaywrightRoute === true && typeof value.reason === 'string'
 }
 
-function validateJsonSchema(file: string, value: unknown, violations: ArtifactValidationViolation[]): void {
+function validateJsonSchema(file: string, value: unknown, violations: ArtifactValidationViolation[], identity: EvaluationIdentity | null): void {
   const fail = () => violations.push({ code: 'INVALID_ARTIFACT_SCHEMA', file, detail: `Invalid closed schema for ${file}` })
   if (file === 'manifest.json') { if (!validateManifestShape(value)) fail(); return }
   if (!Array.isArray(value)) { fail(); return }
@@ -321,22 +363,45 @@ function validateJsonSchema(file: string, value: unknown, violations: ArtifactVa
       || !Number.isInteger(item.sequence) || (item.sequence as number) < 1 || !finiteNonnegative(item.relativeTimestampMs))) fail()
   } else if (file === 'safety-violations.json') {
     if (value.some(item => !validSafetyViolation(item))) fail()
-  } else if (file === 'network-events.json' && value.some(item => !validNetworkEvent(item))) fail()
+  } else if (file === 'network-events.json' && value.some(item => !validNetworkEvent(item, identity))) fail()
 }
 
 function sha256(value: Buffer | string): string { return createHash('sha256').update(value).digest('hex') }
 function sha1(value: Buffer): string { return createHash('sha1').update(value).digest('hex') }
 function canonicalJson(value: unknown): Buffer { return Buffer.from(JSON.stringify(value)) }
 
-function canonicalApiRequestHashes(pathname: string): Set<string> {
+/**
+ * The exact request bodies a bundle may hold for one API path.
+ *
+ * Exported for the reverse test that pins the release set: with a null
+ * evaluation identity, or one whose `mutationApplied` does not name its own
+ * case, the returned set is byte-for-byte the Phase 1 set.
+ * @param pathname - the sentinel API path.
+ * @param identity - the manifest's evaluation identity, or null.
+ * @returns SHA-256 hashes of every allowed canonical body.
+ */
+export function canonicalApiRequestHashes(pathname: string, identity: EvaluationIdentity | null): Set<string> {
   if (pathname !== '/upload') return new Set()
+  // A declared hash is admitted only for the run whose own mutation produced it.
+  const declared = identity !== null && identity.mutationApplied === identity.caseId ? identity.approvedRequestHashes : []
   return new Set([
     sha256(canonicalJson({ fileName: SYNTHETIC_FILE_NAME, jobDescription: SYNTHETIC_JOB_DESCRIPTION })),
     sha256(canonicalJson({ existingAnalysisId: 'qa-existing-source-1', jobDescription: SYNTHETIC_JOB_DESCRIPTION })),
+    ...declared,
   ])
 }
 
-function canonicalApiResponseHashes(pathname: string): Set<string> {
+/**
+ * The exact response bodies a bundle may hold for one API path.
+ *
+ * Exported for the reverse test that pins the release set: with a null
+ * evaluation identity the returned set is byte-for-byte the Phase 1 set, so a
+ * transient failure body recorded by a run that declared no fault is rejected.
+ * @param pathname - the sentinel API path.
+ * @param identity - the manifest's evaluation identity, or null.
+ * @returns SHA-256 hashes of every allowed canonical body.
+ */
+export function canonicalApiResponseHashes(pathname: string, identity: EvaluationIdentity | null): Set<string> {
   if (pathname === '/user/last-resume') return new Set([
     sha256(canonicalJson({ lastResume: null })),
     sha256(canonicalJson({ lastResume: { analysisId: 'qa-existing-source-1', fileName: SYNTHETIC_EXISTING_FILE_NAME, uploadedAt: '2026-01-14T12:00:00Z' } })),
@@ -348,6 +413,8 @@ function canonicalApiResponseHashes(pathname: string): Set<string> {
       analysisId: 'qa-new-1', s3Key: 'qa-synthetic/qa-new-1/qa-synthetic-resume.pdf',
     })),
     sha256(canonicalJson({ analysisId: 'qa-reuse-1', reused: true, presignedUrl: null, presignedFields: null })),
+    // Admitted only for a run that declared the matching evaluation fault.
+    ...allowedFaults(identity).has('upload_503_once') ? [sha256(canonicalJson(TRANSIENT_UPLOAD_FAILURE_BODY))] : [],
   ])
   if (/^\/analysis\/qa-(?:new|reuse|failed|timeout)-1$/.test(pathname)) {
     const hashes = new Set<string>()
@@ -469,12 +536,17 @@ async function validateTraceRole(
   body: Buffer,
   resourceName: string,
   role: TraceResourceRole,
-  options: Required<Pick<ArtifactValidatorOptions, 'buildDirectory' | 'fixturePdfPath'>> & { observedSyntheticUpload: boolean },
+  options: Required<Pick<ArtifactValidatorOptions, 'buildDirectory' | 'fixturePdfPath'>> & {
+    observedSyntheticUpload: boolean
+    evaluationIdentity: EvaluationIdentity | null
+  },
 ): Promise<boolean> {
   if (role.kind === 'screenshot') return resourceName.endsWith('.jpeg') && body.subarray(0, 3).toString('hex') === 'ffd8ff'
   const url = new URL(role.url)
   if (role.kind === 'request') {
-    if (url.origin === QA_API_ORIGIN && role.method === 'POST' && url.search === '') return canonicalApiRequestHashes(url.pathname).has(sha256(body))
+    if (url.origin === QA_API_ORIGIN && role.method === 'POST' && url.search === '') {
+      return canonicalApiRequestHashes(url.pathname, options.evaluationIdentity).has(sha256(body))
+    }
     if (url.origin === QA_S3_ORIGIN && url.pathname === '/synthetic-upload' && url.search === '' && role.method === 'POST') {
       return validSyntheticMultipart(body, role.mimeType, await readFile(options.fixturePdfPath), options.observedSyntheticUpload)
     }
@@ -482,7 +554,7 @@ async function validateTraceRole(
   }
   if (url.origin === QA_APP_ORIGIN) return validateLocalBuildResource(body, url, options.buildDirectory)
   if (url.origin === 'https://fonts.googleapis.com' && url.pathname === '/css2') return body.length === 0
-  if (url.origin === QA_API_ORIGIN) return canonicalApiResponseHashes(url.pathname).has(sha256(body))
+  if (url.origin === QA_API_ORIGIN) return canonicalApiResponseHashes(url.pathname, options.evaluationIdentity).has(sha256(body))
   if (url.origin === QA_S3_ORIGIN && url.pathname === '/synthetic-upload') return body.length === 0
   return false
 }
@@ -493,6 +565,7 @@ async function inspectTrace(
   violations: ArtifactValidationViolation[],
   options: ArtifactValidatorOptions,
   observedSyntheticUpload: boolean,
+  evaluationIdentity: EvaluationIdentity | null,
 ): Promise<void> {
   try {
     if ((await readFile(filePath)).subarray(0, 2).toString('utf8') !== 'PK') throw new Error('invalid ZIP signature')
@@ -516,6 +589,7 @@ async function inspectTrace(
       buildDirectory: options.buildDirectory ?? path.join(process.cwd(), '.qa-dist'),
       fixturePdfPath: options.fixturePdfPath ?? path.join(process.cwd(), 'qa', 'fixtures', SYNTHETIC_FILE_NAME),
       observedSyntheticUpload,
+      evaluationIdentity,
     }
     for (const entry of resources) {
       const name = entry.slice('resources/'.length)
@@ -582,11 +656,17 @@ export async function validateEvidenceBundle(bundleDirectory: string, options: A
     const text = await readFile(manifestPath, 'utf8')
     addRules(text, 'manifest.json', violations)
     const parsed: unknown = JSON.parse(text)
-    validateJsonSchema('manifest.json', parsed, violations)
+    // The manifest is validated before its own identity is trusted, so a bundle
+    // whose manifest fails its schema is judged under the strict release set.
+    validateJsonSchema('manifest.json', parsed, violations, null)
     if (validateManifestShape(parsed)) manifest = parsed
   } catch {
     violations.push({ code: 'INVALID_MANIFEST', file: 'manifest.json', detail: 'Manifest is missing, unreadable, or malformed' })
   }
+
+  // Null unless a valid manifest declared one, so an unreadable or malformed
+  // manifest can never widen the synthetic allowlist.
+  const evaluationIdentity: EvaluationIdentity | null = manifest?.evaluationIdentity ?? null
 
   const referenced = new Set(['manifest.json'])
   if (manifest) {
@@ -613,13 +693,13 @@ export async function validateEvidenceBundle(bundleDirectory: string, options: A
         addRules(text, file, violations)
         let parsed: unknown
         try { parsed = JSON.parse(text) } catch { violations.push({ code: 'INVALID_ARTIFACT_FORMAT', file, detail: 'Malformed JSON' }); continue }
-        validateJsonSchema(file, parsed, violations)
+        validateJsonSchema(file, parsed, violations, evaluationIdentity)
         if (BODY_FREE_NORMALIZED_JSON.has(file)) {
           rejectNormalizedRawContent(parsed, file, violations, file === 'network-events.json')
         }
         if (file === 'network-events.json' && Array.isArray(parsed)) {
-          if (parsed.every(item => validNetworkEvent(item))) normalizedNetworkEvents = parsed
-          observedSyntheticUpload = parsed.some(item => validNetworkEvent(item)
+          if (parsed.every(item => validNetworkEvent(item, evaluationIdentity))) normalizedNetworkEvents = parsed
+          observedSyntheticUpload = parsed.some(item => validNetworkEvent(item, evaluationIdentity)
             && item.originAlias === 's3-sentinel'
             && item.routeTemplate === '/synthetic-upload'
             && item.mockDecision === 'fulfilled-contract')
@@ -631,7 +711,7 @@ export async function validateEvidenceBundle(bundleDirectory: string, options: A
         if ((await readFile(artifactPath)).subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') violations.push({ code: 'INVALID_ARTIFACT_FORMAT', file, detail: 'Invalid PNG signature' })
       } else if (file.endsWith('.webm')) {
         if ((await readFile(artifactPath)).subarray(0, 4).toString('hex') !== '1a45dfa3') violations.push({ code: 'INVALID_ARTIFACT_FORMAT', file, detail: 'Invalid WebM signature' })
-      } else if (file === 'trace.zip') await inspectTrace(artifactPath, file, violations, options, observedSyntheticUpload)
+      } else if (file === 'trace.zip') await inspectTrace(artifactPath, file, violations, options, observedSyntheticUpload, evaluationIdentity)
     } catch {
       violations.push({ code: 'UNREADABLE_ARTIFACT', file, detail: 'Artifact is unreadable or not an ordinary file' })
     }

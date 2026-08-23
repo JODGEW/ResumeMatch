@@ -3,7 +3,10 @@ import type { Request } from '@playwright/test'
 import { QA_API_ORIGIN, QA_S3_ORIGIN, type ContractResponse, type ContractRouteHandler } from './networkPolicy'
 import type { ScenarioInstance } from './scenarios'
 import type { RequestFieldEvidence, RequestFieldName, UploadFileEntry, UploadTextEntry } from './types'
-import { SYNTHETIC_FILE_NAME, SYNTHETIC_JOB_DESCRIPTION, SYNTHETIC_PDF_SHA256, SYNTHETIC_PDF_SIZE } from '../fixtures/data'
+import {
+  SYNTHETIC_FILE_NAME, SYNTHETIC_JOB_DESCRIPTION, SYNTHETIC_PDF_SHA256, SYNTHETIC_PDF_SIZE,
+  TRANSIENT_S3_FAILURE_STATUS, TRANSIENT_UPLOAD_FAILURE_BODY, TRANSIENT_UPLOAD_FAILURE_STATUS,
+} from '../fixtures/data'
 
 function jsonResponse(body: unknown, status = 200): ContractResponse {
   return {
@@ -65,6 +68,9 @@ export class StatefulContractRouter implements ContractRouteHandler {
       this.scenario.recordContractViolation('last-resume-method-or-count')
       return null
     }
+    // A contract-legal request whose response never arrives. The upload page
+    // then has no previous resume to offer, so the reuse path is unavailable.
+    if (this.scenario.consumeTransientFault('last_resume_interrupted_once')) return null
     this.scenario.recordTransition(`last-resume:${this.scenario.lastResume ? 'existing' : 'none'}`)
     return jsonResponse({ lastResume: this.scenario.lastResume })
   }
@@ -99,6 +105,9 @@ export class StatefulContractRouter implements ContractRouteHandler {
         return null
       }
 
+      if (this.scenario.consumeTransientFault('upload_503_once')) {
+        return jsonResponse(TRANSIENT_UPLOAD_FAILURE_BODY, TRANSIENT_UPLOAD_FAILURE_STATUS)
+      }
       this.scenario.recordTransition('upload-contract:accepted-existing-resume')
       return jsonResponse({
         analysisId: this.scenario.analysisId,
@@ -117,6 +126,9 @@ export class StatefulContractRouter implements ContractRouteHandler {
       return null
     }
 
+    if (this.scenario.consumeTransientFault('upload_503_once')) {
+      return jsonResponse(TRANSIENT_UPLOAD_FAILURE_BODY, TRANSIENT_UPLOAD_FAILURE_STATUS)
+    }
     this.scenario.recordTransition('upload-contract:accepted-new-resume')
     return jsonResponse({
       presignedUrl: `${QA_S3_ORIGIN}/synthetic-upload`,
@@ -163,6 +175,10 @@ export class StatefulContractRouter implements ContractRouteHandler {
     }
 
     this.scenario.recordTransition('s3-contract:accepted-multipart')
+    // The object was accepted; only the response fails, so a retry would upload twice.
+    if (this.scenario.consumeTransientFault('s3_response_500_once')) {
+      return { status: TRANSIENT_S3_FAILURE_STATUS, contentType: 'text/plain', body: '' }
+    }
     return { status: 204, contentType: 'text/plain', body: '' }
   }
 
@@ -183,6 +199,12 @@ export class StatefulContractRouter implements ContractRouteHandler {
       )
     ) {
       this.scenario.recordContractViolation('analysis-method-id-query-or-count')
+      return null
+    }
+
+    // A contract-legal request whose response never arrives: no violation, and the
+    // response sequence still advances, so the next poll sees the following state.
+    if (this.scenario.counters.analysis === 2 && this.scenario.consumeTransientFault('analysis_interrupted_once')) {
       return null
     }
 

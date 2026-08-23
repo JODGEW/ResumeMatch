@@ -23,6 +23,38 @@ export async function requireVisible(locator: Locator, oracleId: string): Promis
   }
 }
 
+/**
+ * Wait for the application to reach a route, as a deterministic observation.
+ *
+ * A page that never navigates is a product failure, not a harness failure, so
+ * this converts the timeout into an {@link OracleFailure} exactly as
+ * {@link requireVisible} does. Without it the wait inherits the context's
+ * unlimited navigation timeout and stalls the run instead of failing it.
+ *
+ * The budget is 30s, not the 8s {@link requireVisible} uses, because the two
+ * wait on different things. `requireVisible` waits for a render once its data
+ * has arrived; this waits for a whole upload round trip — the presigned-URL
+ * request, the browser-side multipart observation and hashing, and the S3 post —
+ * before the route changes. Measured across 65 accepted P1-02 bundles, that
+ * window ran p50 867ms and p95 954ms, but one run reached 29,329ms with 29,295ms
+ * of it inside the upload leg. An 8s budget would have failed that run as a
+ * product defect. 30s clears the observed tail and still converts a page that
+ * never navigates into an oracle failure well inside the 45s test timeout.
+ * @param page - the scenario page.
+ * @param pattern - the URL glob the application must reach.
+ * @param oracleId - the oracle identity recorded on failure.
+ */
+export async function requireUrl(page: Page, pattern: string, oracleId: string): Promise<void> {
+  try {
+    await page.waitForURL(pattern, { timeout: 30_000 })
+  } catch (error) {
+    if (error instanceof errors.TimeoutError) {
+      throw new OracleFailure(oracleId, `Application did not reach the expected route: ${oracleId}`)
+    }
+    throw error
+  }
+}
+
 export function requireCondition(condition: boolean, oracleId: string, message: string): void {
   if (!condition) throw new OracleFailure(oracleId, message)
 }

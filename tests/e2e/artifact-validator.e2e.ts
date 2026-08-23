@@ -8,8 +8,12 @@ import { expect, test } from '@playwright/test'
 import { validateEvidenceBundle } from '../../qa/browser/artifactValidator'
 import { QA_API_ORIGIN, QA_S3_ORIGIN } from '../../qa/browser/networkPolicy'
 import { runReleaseCheck } from '../../qa/browser/runReleaseCheck'
-import { PLAYWRIGHT_NETWORK_ENFORCEMENT_SCOPE, type EvidenceManifest, type NetworkEvent } from '../../qa/browser/types'
-import { SYNTHETIC_FILE_NAME, SYNTHETIC_JOB_DESCRIPTION } from '../../qa/fixtures/data'
+import { PLAYWRIGHT_NETWORK_ENFORCEMENT_SCOPE, type EvaluationIdentity, type EvidenceManifest, type NetworkEvent } from '../../qa/browser/types'
+import { SYNTHETIC_FILE_NAME, SYNTHETIC_JOB_DESCRIPTION, SYNTHETIC_PDF_SHA256, SYNTHETIC_PDF_SIZE } from '../../qa/fixtures/data'
+
+function textField(name: NetworkEvent['requestFields'][number]['name'], value: string): NetworkEvent['requestFields'][number] {
+  return { name, length: Buffer.byteLength(value), sha256: createHash('sha256').update(value).digest('hex') }
+}
 
 const opaqueArtifactValidation = [
   'Known API and S3 request bodies, mocked responses, and local build resources are positively validated against independent synthetic inputs',
@@ -53,6 +57,7 @@ async function validBundle(bundle: string): Promise<EvidenceManifest> {
       networkEvents: 'network-events.json', transitionLog: 'scenario-transitions.json', safetyViolations: 'safety-violations.json',
     },
     opaqueArtifactValidation,
+    evaluationIdentity: null,
   }
   await writeFile(path.join(bundle, 'manifest.json'), `${JSON.stringify(manifest)}\n`)
   return manifest
@@ -249,4 +254,72 @@ test('unreadable ordinary evidence fails closed where permissions are enforced',
   } finally {
     await chmod(target, 0o600)
   }
+})
+
+function s3TransientEvent(): NetworkEvent {
+  return {
+    sequence: 2, relativeTimestampMs: 2, method: 'POST', resourceType: 'fetch', originAlias: 's3-sentinel',
+    routeTemplate: '/synthetic-upload', queryKeys: [], status: 500, durationMs: 1, mockDecision: 'fulfilled-contract',
+    requestFields: [
+      textField('key', 'qa-synthetic/qa-new-1/qa-synthetic-resume.pdf'),
+      textField('x-amz-meta-qa', 'qa-synthetic'),
+      { name: 'file', length: SYNTHETIC_PDF_SIZE, sha256: SYNTHETIC_PDF_SHA256 },
+    ],
+  }
+}
+
+async function bundleWithTransientS3(bundle: string, evaluationIdentity: EvaluationIdentity | null): Promise<void> {
+  const manifest = await validBundle(bundle)
+  await writeFile(path.join(bundle, 'network-events.json'), `${JSON.stringify([s3TransientEvent()])}\n`)
+  await writeFile(path.join(bundle, 'manifest.json'), `${JSON.stringify({
+    ...manifest,
+    evaluationIdentity,
+    networkSummary: { ...manifest.networkSummary, s3: 1 },
+  })}\n`)
+}
+
+test('a transient S3 status is rejected when the run declared no evaluation identity', async ({ browserName }, testInfo) => {
+  expect(browserName).toBe('chromium')
+  const bundle = testInfo.outputPath('transient-s3-release')
+  await bundleWithTransientS3(bundle, null)
+
+  const result = await validateEvidenceBundle(bundle)
+  expect(result.valid).toBe(false)
+  expect(result.violations).toContainEqual(expect.objectContaining({ code: 'INVALID_ARTIFACT_SCHEMA', file: 'network-events.json' }))
+})
+
+test('a transient S3 status is accepted only for the evaluation run that declared the fault', async ({ browserName }, testInfo) => {
+  expect(browserName).toBe('chromium')
+  const declared = testInfo.outputPath('transient-s3-declared')
+  await bundleWithTransientS3(declared, {
+    caseId: 'B3', mutationApplied: null, transientFaults: ['s3_response_500_once'],
+    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-b3', approvedRequestHashes: [],
+  })
+  const accepted = await validateEvidenceBundle(declared)
+  expect(accepted.violations.filter(item => item.file === 'network-events.json')).toEqual([])
+
+  const other = testInfo.outputPath('transient-s3-other-fault')
+  await bundleWithTransientS3(other, {
+    caseId: 'B1', mutationApplied: null, transientFaults: ['upload_503_once'],
+    sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-b1', approvedRequestHashes: [],
+  })
+  const rejected = await validateEvidenceBundle(other)
+  expect(rejected.violations).toContainEqual(expect.objectContaining({ code: 'INVALID_ARTIFACT_SCHEMA', file: 'network-events.json' }))
+})
+
+test('an evaluation bundle can never be release grade', async ({ browserName }, testInfo) => {
+  expect(browserName).toBe('chromium')
+  const bundle = testInfo.outputPath('evaluation-release-grade')
+  const manifest = await validBundle(bundle)
+  await writeFile(path.join(bundle, 'manifest.json'), `${JSON.stringify({
+    ...manifest,
+    sourceIdentity: { headCommit: '0'.repeat(40), worktreeDirty: false, exactCommittedSource: true, releaseGrade: true },
+    evaluationIdentity: {
+      caseId: 'D1', mutationApplied: 'D1', transientFaults: [],
+      sourceDigest: 'a'.repeat(64), buildDigest: 'b'.repeat(64), worktreeLabel: 'abcdef012345-d1', approvedRequestHashes: [],
+    },
+  })}\n`)
+
+  const result = await validateEvidenceBundle(bundle)
+  expect(codes(result)).toContain('INVALID_ARTIFACT_SCHEMA')
 })

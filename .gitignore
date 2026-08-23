@@ -59,3 +59,7 @@ ops/deletion-manifests/
 # under docs/lighthouse-<date>/ are deliberately tracked evidence.
 /*.report.html
 /*.report.json
+
+# Held-out Phase 2 evaluation definitions: kept out of the repository so the
+# investigator cannot be tuned against them.
+qa/investigation/heldout/
