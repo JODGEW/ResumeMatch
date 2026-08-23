@@ -107,7 +107,12 @@ export function actionHelp(scenarioId: ScenarioId): ArgumentHelp {
  */
 export function validateAction(scenarioId: ScenarioId, input: unknown): AllowedAction {
   const help = actionHelp(scenarioId)
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidArguments('An action must be an object', help)
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    // Echo what arrived: the first live run sent a stringified JSON object seven
+    // times against a message that only restated the requirement.
+    const received = input === null ? 'null' : Array.isArray(input) ? 'array' : typeof input
+    throw invalidArguments(`An action must be an object; received ${received}`, help)
+  }
   const candidate = input as Record<string, unknown>
   const policy = SCENARIO_POLICY[scenarioId]
   const exactKeys = (count: number, names: string): void => {

@@ -101,6 +101,7 @@ export class InvestigationSession {
   private submitAttempts = 0
   private budgetLatched = false
   private readonly rejectedCalls: RejectedCall[] = []
+  private coercedArgs = 0
   private reproductionOracleResult: ReproductionOracleResult | null = null
   private toolCalls = 0
   private finding: Finding | null = null
@@ -156,8 +157,9 @@ export class InvestigationSession {
    * @throws {@link InvestigationError} for refusals; the caller reports the code
    * to the model rather than crashing the investigation.
    */
-  async call(tool: string, input: unknown): Promise<unknown> {
+  async call(tool: string, input: unknown, options: { coerced?: boolean } = {}): Promise<unknown> {
     this.toolCalls += 1
+    if (options.coerced === true) this.coercedArgs += 1
     if (this.state === 'done') throw new InvestigationError('INVALID_STATE', 'The investigation already submitted its finding')
     if (this.policyBlockedLatch && tool !== 'submit_finding') {
       throw policyBlocked('The investigation is blocked after an unauthorized action; only submit_finding remains')
@@ -400,6 +402,7 @@ export class InvestigationSession {
       policyBlocked: this.policyBlockedLatch,
       budgetExhausted: this.budgetLatched || (this.options.cost?.isExhausted() ?? false),
       rejectedCalls: [...this.rejectedCalls],
+      coercedArgs: this.coercedArgs,
     }
     const finding = buildFinding(facts, narrative)
     const destination = path.join(this.options.directories.directory, 'finding.json')

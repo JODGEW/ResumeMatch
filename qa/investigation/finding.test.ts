@@ -37,7 +37,7 @@ function facts(overrides: Partial<DeterministicFacts> = {}): DeterministicFacts 
     reproductionOracleResult: repro('failed', ['P1-04_FAILURE_TITLE']),
     safetyViolations: [], model: { provider: 'fake', modelId: 'fake-1' },
     usage: { toolCalls: 1, cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 0, costUsd: 0, requests: [] },
-    policyBlocked: false, budgetExhausted: false, rejectedCalls: [],
+    policyBlocked: false, budgetExhausted: false, rejectedCalls: [], coercedArgs: 0,
     ...overrides,
   }
 }
@@ -114,7 +114,7 @@ describe('validateNarrative', () => {
   it('blocks any attempt to supply a deterministic authority field', () => {
     for (const field of [
       'classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model',
-      'evaluationIdentity', 'resumematchCommit', 'harnessCommit', 'adapterCommit', 'rejectedCalls',
+      'evaluationIdentity', 'resumematchCommit', 'harnessCommit', 'adapterCommit', 'rejectedCalls', 'coercedArgs',
     ]) {
       expect(() => validateNarrative(narrative({ [field]: 'confirmed' }))).toThrow(/may not supply the deterministic field/)
       try { validateNarrative(narrative({ [field]: 'confirmed' })) } catch (error) { expect(error).toMatchObject({ code: 'POLICY_BLOCKED' }) }
@@ -143,8 +143,8 @@ describe('buildFinding', () => {
     expect(finding.classification).toBe('policy_blocked')
     expect(finding.schemaVersion).toBe(FINDING_SCHEMA_VERSION)
     expect(Object.keys(finding).sort()).toEqual([
-      'adapterCommit', 'classification', 'evidenceRefs', 'expectedBehavior', 'failedOracle', 'findingId',
-      'harnessCommit', 'hypotheses', 'model', 'observedBehavior', 'probesSelected', 'reasoningSummary',
+      'adapterCommit', 'classification', 'coercedArgs', 'evidenceRefs', 'expectedBehavior', 'failedOracle',
+      'findingId', 'harnessCommit', 'hypotheses', 'model', 'observedBehavior', 'probesSelected', 'reasoningSummary',
       'rejectedCalls', 'reproductionOracleResult', 'reproductionSequence', 'resumematchCommit', 'safetyViolations',
       'scenarioId', 'schemaVersion', 'sourceCommit', 'sourceRunId', 'usage',
     ])

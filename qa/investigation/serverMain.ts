@@ -19,6 +19,8 @@ interface Request {
   id?: number
   tool?: string
   args?: unknown
+  /** The adapter decoded a stringified argument before dispatch. */
+  coerced?: boolean
   control?: 'status' | 'usage' | 'close'
   usage?: { cacheHitTokens: number; cacheMissTokens: number; completionTokens: number; requestedAt?: string }
 }
@@ -187,7 +189,7 @@ async function main(): Promise<number> {
       continue
     }
     try {
-      const result = await session.call(request.tool, request.args)
+      const result = await session.call(request.tool, request.args, { coerced: request.coerced === true })
       write({ id: request.id, ok: true, result, status: session.status() })
     } catch (error) {
       const code = error instanceof InvestigationError ? error.code : 'REPRODUCTION_FAILED'

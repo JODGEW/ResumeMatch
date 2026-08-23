@@ -122,3 +122,16 @@ describe('validateInspectionTarget', () => {
     expect(() => validateInspectionTarget({ role: 'heading', name: 'x'.repeat(121) })).toThrow(/at most 120 characters/)
   })
 })
+
+describe('argument echo', () => {
+  it('names the type it received instead of only restating the requirement', () => {
+    for (const [input, received] of [
+      ['{"kind":"open_route","route":"upload"}', 'string'],
+      [42, 'number'],
+      [null, 'null'],
+      [['open_route'], 'array'],
+    ] as Array<[unknown, string]>) {
+      expect(() => validateAction('P1-02', input)).toThrow(new RegExp(`received ${received}$`))
+    }
+  })
+})

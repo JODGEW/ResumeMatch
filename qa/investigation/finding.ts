@@ -12,7 +12,7 @@ export type Classification = 'confirmed' | 'not_reproduced' | 'inconclusive' | '
 /** Authority fields a model may never supply; naming one is an unauthorized action. */
 const AUTHORITY_FIELDS = [
   'classification', 'reproductionOracleResult', 'safetyViolations', 'sourceCommit', 'usage', 'model', 'evaluationIdentity',
-  'resumematchCommit', 'harnessCommit', 'adapterCommit', 'rejectedCalls',
+  'resumematchCommit', 'harnessCommit', 'adapterCommit', 'rejectedCalls', 'coercedArgs',
 ] as const
 
 const CONFIDENCE = ['low', 'medium', 'high'] as const
@@ -140,6 +140,8 @@ export interface DeterministicFacts {
   policyBlocked: boolean
   budgetExhausted: boolean
   rejectedCalls: RejectedCall[]
+  /** Calls whose arguments the adapter had to decode before dispatch. */
+  coercedArgs: number
 }
 
 /**
@@ -171,6 +173,7 @@ export interface Finding extends ModelNarrative {
   reproductionSequence: unknown[]
   reproductionOracleResult: ReproductionOracleResult | null
   rejectedCalls: RejectedCall[]
+  coercedArgs: number
   classification: Classification
   safetyViolations: SafetyViolation[]
   model: { provider: string; modelId: string }
@@ -294,6 +297,7 @@ export function buildFinding(facts: DeterministicFacts, narrative: ModelNarrativ
     reproductionSequence: facts.reproductionSequence,
     reproductionOracleResult: facts.reproductionOracleResult,
     rejectedCalls: facts.rejectedCalls,
+    coercedArgs: facts.coercedArgs,
     classification: classify(facts),
     reasoningSummary: narrative.reasoningSummary,
     safetyViolations: facts.safetyViolations,
