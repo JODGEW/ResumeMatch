@@ -12,7 +12,7 @@ const ADAPTER_PATH = process.env.RESUMEMATCH_QA_ADAPTER_PATH
 const FREEZE_DOCUMENT = path.join(process.cwd(), 'docs', 'qa-phase2.md')
 const ROW = /^\| `([^`]+)` \| `([0-9a-f]{64})` \|$/gm
 /** Only the current version gates; earlier tables are kept as history. */
-const CURRENT_VERSION = '### Freeze v4'
+const CURRENT_VERSION = '### Freeze v5'
 
 interface FrozenFile { reference: string; sha256: string }
 
@@ -44,13 +44,13 @@ async function digest(file: string): Promise<string | null> {
 describe('freeze record', () => {
   it('lists every frozen file exactly once', async () => {
     const files = await frozenFiles()
-    expect(files).toHaveLength(8)
+    expect(files).toHaveLength(9)
     expect(new Set(files.map(file => file.reference)).size).toBe(files.length)
   })
 
   it('matches the recorded hash for every frozen repository file', async () => {
     const files = (await frozenFiles()).filter(file => !file.reference.startsWith('adapter:'))
-    expect(files).toHaveLength(4)
+    expect(files).toHaveLength(5)
     for (const file of files) {
       expect({ reference: file.reference, sha256: await digest(resolve(file.reference)) })
         .toEqual({ reference: file.reference, sha256: file.sha256 })
@@ -73,6 +73,7 @@ describe('freeze record', () => {
       'adapter:prompts/investigator.md',
       'adapter:run-config.yml',
       'adapter:src/qa-tools.ts',
+      'qa/browser/oracleRegistry.ts',
       'qa/investigation/actions.ts',
       'qa/investigation/budget.ts',
       'qa/investigation/evalCases.ts',

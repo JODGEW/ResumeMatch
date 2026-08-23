@@ -154,9 +154,35 @@ An `adapter:` path resolves inside the adapter checkout, located by
 adapter rows are reported as unverified and the four repository rows are still
 enforced.
 
-### Freeze v4 (2026-08-23)
+### Freeze v5 (2026-08-23)
 
-Superseding v3 after the first full phase-1 sweep. Six of the eight frozen files
+Superseding v4 after the first sweep left D2 inconclusive. **No file frozen in v4
+moved.** The change was in `qa/browser/oracleRegistry.ts`, which v5 adds to the
+set: it decides which observations a verdict is made from, so a result is only
+attributable if it is pinned like the prompt and the corpus. It names
+`CONTRACT_UPLOAD_BODY` — Phase 1 records a rejected upload body as a contract
+violation with no oracle id, so a reproduction had nothing to match — and keys
+that oracle and `P1-02_RESULTS_NAVIGATION` on the upload having been attempted
+rather than accepted.
+
+`freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `a8434b2ce46dac0d58659e0b7ef6e9a983965cbf4221311ae4a1f1cc453f744c` |
+| `adapter:src/qa-tools.ts` | `402ffac0d8a29c8e04028625c644fe78f15b1f40359779fae636bcc8afc28994` |
+| `adapter:cordis.yml` | `defc03624b3f0c4efe7920fcdd160e8ba02bb1f414b8548d43135d9b02a341ec` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `qa/browser/oracleRegistry.ts` | `c7381c8987c41153cd1875cecf8324461b5752fe4664f93f16b977b941637b61` |
+| `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
+| `qa/investigation/budget.ts` | `b2a5feef1fec034e3c1c3685a7762e5b45eba46a2469929e1bc8f3c88e61161d` |
+| `qa/investigation/finding.ts` | `69d0713a9a239a1f6f32780208cd5ba16c1d235469808565d1d8a3bf3067730c` |
+| `qa/investigation/evalCases.ts` | `c77174f5b01d81fa167940321049fb3f7fd62098df5182a7b7c4cc63164a9987` |
+
+### Freeze v4 (2026-08-23, superseded)
+
+Kept as the record the first full phase-1 sweep was taken under; it is history,
+not a gate. Superseded v3 after that sweep. Six of the eight frozen files
 moved, each for something the sweep measured rather than predicted: the sweep
 evaluates a scenario's whole verify set so a reproduction can be compared to its
 original failure, a refusal a caller could fix carries the scenario's policy
