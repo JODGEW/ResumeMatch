@@ -7,13 +7,13 @@ import type { Browser, BrowserContext, Locator, Page } from '@playwright/test'
 
 import { redactText } from '../browser/evidence'
 import { generatedBuildResourcePaths, NetworkPolicy, QA_API_ORIGIN, QA_APP_ORIGIN, QA_S3_ORIGIN } from '../browser/networkPolicy'
-import {
-  OracleFailure, verifyBackendFailedReport, verifyPollingTimeout, verifySamplePage, verifyUsableCompletedReport,
-} from '../browser/oracles'
+import { OracleFailure } from '../browser/oracles'
+import { oracleById, oraclesForScenario } from '../browser/oracleRegistry'
+import type { OracleContext } from '../browser/oracleRegistry'
 import { StatefulContractRouter } from '../browser/contractRouter'
 import { createScenario, type ScenarioInstance } from '../browser/scenarios'
 import { installUploadObservation } from '../browser/uploadObservation'
-import type { NetworkEvent, SafetyViolation, ScenarioId } from '../browser/types'
+import type { NetworkEvent, RunFailure, SafetyViolation, ScenarioId } from '../browser/types'
 import { SYNTHETIC_FILE_NAME, SYNTHETIC_JOB_DESCRIPTION } from '../fixtures/data'
 import type { AllowedAction, SemanticState } from './actions'
 import { InvestigationError } from './errors'
@@ -139,57 +139,88 @@ export class PlaywrightReproduction implements ReproductionDriver {
   }
 
   /**
-   * Run the same deterministic oracle the original run used, then apply Phase
-   * 1's contract-and-safety precedence to whatever the oracle left.
+   * Evaluate the whole scenario against the registry and collect every failure.
+   *
+   * Phase 1 stops at its first failed observation while driving, which is right
+   * for a release check but leaves a reproduction unable to say whether the
+   * original failure recurred: an earlier assertion failing first hides it.
+   * Here the original `failedOracle` is evaluated first, then the rest of the
+   * scenario, and every failure is kept.
+   *
+   * An observation whose precondition transition never appeared is skipped
+   * rather than failed — a reproduction that never drove the scenario is
+   * missing a precondition, not observing a defect.
+   * @param sourceFailedOracle - the oracle the original run failed, if any.
+   * @returns the collected verdict.
    */
-  async runOracle(): Promise<ReproductionOracleResult> {
+  async runOracle(sourceFailedOracle: string | null): Promise<ReproductionOracleResult> {
     const page = this.requirePage()
     const scenario = this.scenario
     const policy = this.policy
     if (scenario === null || policy === null) throw new InvestigationError('INVALID_STATE', 'The reproduction has no scenario state')
-    try {
-      switch (this.scenarioId) {
-        case 'P1-01':
-        case 'P1-06':
-          await verifySamplePage(page, () => policy.summary())
-          break
-        case 'P1-02':
-          await verifyUsableCompletedReport(page, scenario, 'qa-new-1', true)
-          break
-        case 'P1-03':
-          await verifyUsableCompletedReport(page, scenario, 'qa-reuse-1', false)
-          break
-        case 'P1-04':
-          await verifyBackendFailedReport(page, scenario)
-          break
-        case 'P1-05':
-          await verifyPollingTimeout(page, scenario, this.analysisCountAtTimeout ?? scenario.counters.analysis)
-          break
+
+    const context: OracleContext = {
+      scenario,
+      networkSummary: () => policy.summary(),
+      analysisCountAtTimeout: this.analysisCountAtTimeout,
+    }
+    const recorded = new Set(scenario.transitions.map(item => item.event))
+    const met = (oracle: { preconditionTransition: string | null }): boolean =>
+      oracle.preconditionTransition === null || recorded.has(oracle.preconditionTransition)
+
+    const source = sourceFailedOracle === null ? undefined : oracleById(this.scenarioId, sourceFailedOracle)
+    const ordered = [
+      ...source === undefined ? [] : [source],
+      ...oraclesForScenario(this.scenarioId).filter(oracle => oracle !== source),
+    ]
+
+    const failures: RunFailure[] = []
+    const evaluated: string[] = []
+    const skipped: string[] = []
+    for (const oracle of ordered) {
+      if (!met(oracle)) {
+        skipped.push(oracle.id)
+        continue
       }
-    } catch (error) {
-      if (error instanceof OracleFailure) {
+      evaluated.push(oracle.id)
+      try {
+        await oracle.evaluate(page, context)
+      } catch (error) {
+        if (error instanceof OracleFailure) {
+          failures.push({ phase: 'scenario', kind: 'oracle', message: error.message, oracleId: error.oracleId })
+          continue
+        }
         return {
-          oracleStatus: 'failed',
-          failedOracle: error.oracleId,
-          failures: [{ phase: 'scenario', kind: 'oracle', message: error.message, oracleId: error.oracleId }],
+          oracleStatus: 'incomplete',
+          failedOracle: null,
+          failures: [{ phase: 'scenario_execution', kind: 'infrastructure', message: error instanceof Error ? error.message : String(error) }],
+          preconditionMet: false,
+          evaluated,
+          skipped,
         }
       }
-      return {
-        oracleStatus: 'incomplete',
-        failedOracle: null,
-        failures: [{ phase: 'scenario_execution', kind: 'infrastructure', message: error instanceof Error ? error.message : String(error) }],
-      }
     }
-    const failedOracle = scenario.contractViolations.length
-      ? 'CONTRACT_UNEXPECTED_REQUEST'
-      : policy.safetyViolations.length
-        ? 'SAFETY_UNEXPECTED_EGRESS'
-        : null
-    if (failedOracle === null) return { oracleStatus: 'passed', failedOracle: null, failures: [] }
+
+    // Contract and safety observations are scenario-wide rather than per-id, so
+    // they are applied after the sweep with Phase 1's precedence.
+    if (scenario.contractViolations.length > 0 && !failures.some(item => item.oracleId === 'CONTRACT_UNEXPECTED_REQUEST')) {
+      failures.push({ phase: 'oracle', kind: 'oracle', message: 'Deterministic oracle failed: CONTRACT_UNEXPECTED_REQUEST', oracleId: 'CONTRACT_UNEXPECTED_REQUEST' })
+    }
+    if (policy.safetyViolations.length > 0) {
+      failures.push({ phase: 'oracle', kind: 'oracle', message: 'Deterministic oracle failed: SAFETY_UNEXPECTED_EGRESS', oracleId: 'SAFETY_UNEXPECTED_EGRESS' })
+    }
+
+    // The precondition that decides whether the verdict is comparable is the
+    // one belonging to the original failure; without a registry entry, any
+    // evaluated observation shows the reproduction reached the scenario.
+    const preconditionMet = source === undefined ? evaluated.length > 0 : met(source)
     return {
-      oracleStatus: 'failed',
-      failedOracle,
-      failures: [{ phase: 'oracle', kind: 'oracle', message: `Deterministic oracle failed: ${failedOracle}`, oracleId: failedOracle }],
+      oracleStatus: failures.length === 0 ? 'passed' : 'failed',
+      failedOracle: failures[0]?.oracleId ?? null,
+      failures,
+      preconditionMet,
+      evaluated,
+      skipped,
     }
   }
 

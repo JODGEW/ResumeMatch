@@ -16,13 +16,25 @@ function narrative(overrides: Partial<Record<string, unknown>> = {}): unknown {
   }
 }
 
+/** A reproduction verdict whose failure set holds the given oracle ids. */
+function repro(status: 'passed' | 'failed' | 'incomplete' | 'not_run', ids: string[], preconditionMet = true) {
+  return {
+    oracleStatus: status,
+    failedOracle: ids[0] ?? null,
+    failures: ids.map(id => ({ phase: 'scenario', kind: 'oracle' as const, message: `failed: ${id}`, oracleId: id })),
+    preconditionMet,
+    evaluated: ids,
+    skipped: [],
+  }
+}
+
 function facts(overrides: Partial<DeterministicFacts> = {}): DeterministicFacts {
   return {
     findingId: 'f-1', sourceRunId: 'p1-04-11111111-2222-4333-8444-555555555555', scenarioId: 'P1-04',
     sourceCommit: '6955de44ccfae897785292dcc0b78be84d36cdb4', failedOracle: 'P1-04_FAILURE_TITLE',
     checkouts: { resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) },
     probesSelected: ['read_network_events'], reproductionSequence: [],
-    reproductionOracleResult: { oracleStatus: 'failed', failedOracle: 'P1-04_FAILURE_TITLE', failures: [] },
+    reproductionOracleResult: repro('failed', ['P1-04_FAILURE_TITLE']),
     safetyViolations: [], model: { provider: 'fake', modelId: 'fake-1' },
     usage: { toolCalls: 1, cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 0, costUsd: 0, requests: [] },
     policyBlocked: false, budgetExhausted: false, rejectedCalls: [],
@@ -31,13 +43,39 @@ function facts(overrides: Partial<DeterministicFacts> = {}): DeterministicFacts 
 }
 
 describe('classify', () => {
+  it('confirms when the original failure is anywhere in the reproduction failure set (D4 shape)', () => {
+    // The reproduction fails an earlier assertion first; the original id is still present.
+    const d4 = facts({
+      failedOracle: 'P1-02_COMPLETED_REPORT',
+      reproductionOracleResult: repro('failed', ['COMPLETED_JOB_TITLE', 'P1-02_COMPLETED_REPORT']),
+    })
+    expect(d4.reproductionOracleResult?.failedOracle).toBe('COMPLETED_JOB_TITLE')
+    expect(classify(d4)).toBe('confirmed')
+  })
+
+  it('is inconclusive when the reproduction never reached the precondition (D3 shape)', () => {
+    const d3 = facts({
+      failedOracle: 'CONTRACT_S3_COUNT',
+      reproductionOracleResult: {
+        oracleStatus: 'failed', failedOracle: 'P1-02_UPLOAD_PAGE',
+        failures: [{ phase: 'scenario', kind: 'oracle', message: 'x', oracleId: 'P1-02_UPLOAD_PAGE' }],
+        preconditionMet: false, evaluated: ['P1-02_UPLOAD_PAGE'], skipped: ['CONTRACT_S3_COUNT'],
+      },
+    })
+    expect(classify(d3)).toBe('inconclusive')
+  })
+
+  it('is not_reproduced when the whole sweep passed', () => {
+    expect(classify(facts({ reproductionOracleResult: repro('passed', []) }))).toBe('not_reproduced')
+  })
+
   it('confirms only when the reproduction fails the same oracle', () => {
     expect(classify(facts())).toBe('confirmed')
-    expect(classify(facts({ reproductionOracleResult: { oracleStatus: 'failed', failedOracle: 'OTHER_ORACLE', failures: [] } }))).toBe('inconclusive')
+    expect(classify(facts({ reproductionOracleResult: repro('failed', ['OTHER_ORACLE']) }))).toBe('inconclusive')
   })
 
   it('reports a passing reproduction as not reproduced', () => {
-    expect(classify(facts({ reproductionOracleResult: { oracleStatus: 'passed', failedOracle: null, failures: [] } }))).toBe('not_reproduced')
+    expect(classify(facts({ reproductionOracleResult: repro('passed', []) }))).toBe('not_reproduced')
   })
 
   it('does not downgrade a completed reproduction for a spent budget', () => {
@@ -63,8 +101,8 @@ describe('classify', () => {
 
   it('is inconclusive without a completed reproduction oracle', () => {
     expect(classify(facts({ reproductionOracleResult: null }))).toBe('inconclusive')
-    expect(classify(facts({ reproductionOracleResult: { oracleStatus: 'incomplete', failedOracle: null, failures: [] } }))).toBe('inconclusive')
-    expect(classify(facts({ reproductionOracleResult: { oracleStatus: 'not_run', failedOracle: null, failures: [] } }))).toBe('inconclusive')
+    expect(classify(facts({ reproductionOracleResult: repro('incomplete', []) }))).toBe('inconclusive')
+    expect(classify(facts({ reproductionOracleResult: repro('not_run', []) }))).toBe('inconclusive')
   })
 })
 

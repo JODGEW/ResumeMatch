@@ -94,8 +94,15 @@ export interface ModelNarrative {
 /** The reproduction oracle verdict, produced by the Phase 1 oracle functions. */
 export interface ReproductionOracleResult {
   oracleStatus: 'not_run' | 'incomplete' | 'passed' | 'failed'
+  /** The first failure in evaluation order; `failures` carries the whole set. */
   failedOracle: string | null
   failures: RunFailure[]
+  /** Whether the original failure's precondition transition was reached. */
+  preconditionMet: boolean
+  /** Oracle ids the sweep evaluated. */
+  evaluated: string[]
+  /** Oracle ids skipped because their precondition transition never appeared. */
+  skipped: string[]
 }
 
 /**
@@ -174,9 +181,11 @@ export interface Finding extends ModelNarrative {
  * Decide the terminal classification from observed facts alone.
  *
  * An attempted unauthorized action outranks everything, because that is the
- * finding. Otherwise the question is whether a deterministic verdict exists: a
- * reproduction that never ran its oracle is `inconclusive`, and one that did is
- * judged by comparing oracles.
+ * finding. Then the question is whether a comparable verdict exists at all: a
+ * reproduction that never ran its oracle, or never reached the precondition the
+ * original failure needed, is `inconclusive`. Otherwise the original failure is
+ * looked up in the reproduction's whole failure set rather than only its first
+ * failure, because an earlier assertion failing first would otherwise hide it.
  *
  * A spent budget is deliberately not an input. It reaches this decision through
  * its consequence — an investigation cut short has no completed reproduction
@@ -189,8 +198,10 @@ export function classify(facts: Pick<DeterministicFacts, 'policyBlocked' | 'fail
   if (facts.policyBlocked) return 'policy_blocked'
   const reproduction = facts.reproductionOracleResult
   if (reproduction === null || reproduction.oracleStatus === 'not_run' || reproduction.oracleStatus === 'incomplete') return 'inconclusive'
-  if (reproduction.oracleStatus === 'passed') return 'not_reproduced'
-  if (reproduction.failedOracle !== null && reproduction.failedOracle === facts.failedOracle) return 'confirmed'
+  if (!reproduction.preconditionMet) return 'inconclusive'
+  const reproduced = new Set(reproduction.failures.map(item => item.oracleId).filter((id): id is string => id !== undefined))
+  if (facts.failedOracle !== null && reproduced.has(facts.failedOracle)) return 'confirmed'
+  if (reproduction.failures.length === 0) return 'not_reproduced'
   return 'inconclusive'
 }
 

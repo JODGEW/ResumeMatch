@@ -17,7 +17,11 @@ class FakeDriver implements ReproductionDriver {
   started = 0
   actions: AllowedAction[] = []
   clockMs = 0
-  oracle: ReproductionOracleResult = { oracleStatus: 'failed', failedOracle: 'P1-04_FAILURE_TITLE', failures: [] }
+  oracle: ReproductionOracleResult = {
+    oracleStatus: 'failed', failedOracle: 'P1-04_FAILURE_TITLE',
+    failures: [{ phase: 'scenario', kind: 'oracle', message: 'x', oracleId: 'P1-04_FAILURE_TITLE' }],
+    preconditionMet: true, evaluated: ['P1-04_FAILURE_TITLE'], skipped: [],
+  }
   events: NetworkEvent[] = []
   violations: SafetyViolation[] = []
   constructor(private readonly reproductionDirectory: string) {}
@@ -108,7 +112,7 @@ describe('lifecycle', () => {
   })
 
   it('classifies a passing reproduction as not reproduced', async () => {
-    driver.oracle = { oracleStatus: 'passed', failedOracle: null, failures: [] }
+    driver.oracle = { oracleStatus: 'passed', failedOracle: null, failures: [], preconditionMet: true, evaluated: ['P1-04_FAILURE_TITLE'], skipped: [] }
     await session.call('start_fresh_reproduction', {})
     await session.call('run_oracle', {})
     await session.call('submit_finding', { finding: NARRATIVE })

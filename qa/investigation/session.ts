@@ -27,7 +27,7 @@ export interface ReproductionDriver {
   captureRegionScreenshot(label: string): Promise<string>
   captureAccessibilitySnapshot(label: string): Promise<{ file: string; excerpt: string }>
   advanceClock(ms: number): Promise<void>
-  runOracle(): Promise<ReproductionOracleResult>
+  runOracle(sourceFailedOracle: string | null): Promise<ReproductionOracleResult>
   networkEvents(): NetworkEvent[]
   safetyViolations(): SafetyViolation[]
   close(): Promise<void>
@@ -355,7 +355,7 @@ export class InvestigationSession {
     this.requireReproducing('run_oracle')
     requireKnownKeys(requireObject(input, 'run_oracle'), [], 'run_oracle')
     this.spend('oracleRuns', 'run_oracle')
-    const result = await this.options.driver.runOracle()
+    const result = await this.options.driver.runOracle(this.options.manifest.failedOracle)
     this.reproductionOracleResult = result
     this.state = 'judged'
     return result
