@@ -12,7 +12,7 @@ const ADAPTER_PATH = process.env.RESUMEMATCH_QA_ADAPTER_PATH
 const FREEZE_DOCUMENT = path.join(process.cwd(), 'docs', 'qa-phase2.md')
 const ROW = /^\| `([^`]+)` \| `([0-9a-f]{64})` \|$/gm
 /** Only the current version gates; earlier tables are kept as history. */
-const CURRENT_VERSION = '### Freeze v3'
+const CURRENT_VERSION = '### Freeze v4'
 
 interface FrozenFile { reference: string; sha256: string }
 

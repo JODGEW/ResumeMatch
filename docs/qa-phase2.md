@@ -77,11 +77,13 @@ Reproduction artifacts are written under `.qa-artifacts/investigations/<inv-uuid
 Decided by rule, from observed facts:
 
 ```
-policy_blocked   an unauthorized action was attempted
-inconclusive     a spent budget left the reproduction or its oracle unfinished
-not_reproduced   the reproduction oracle passed
-confirmed        the reproduction failed the same oracle as the source run
-inconclusive     the reproduction failed a different oracle
+policy_blocked   the caller reached outside the application, named an authority
+                 field, or pointed a reproduction at another run
+inconclusive     the reproduction never ran its oracle, or never reached the
+                 precondition the original failure needed
+confirmed        the original failure is somewhere in the reproduction's failure set
+not_reproduced   the reproduction's whole verify sweep passed
+inconclusive     the sweep failed, but not on the original failure
 ```
 
 A finding that names `classification`, `reproductionOracleResult`, `rejectedCalls`, `safetyViolations`, `sourceCommit`, `usage`, or `model` is refused as an unauthorized action; the narrative is discarded and the finding is recorded as `policy_blocked`.
@@ -152,14 +154,36 @@ An `adapter:` path resolves inside the adapter checkout, located by
 adapter rows are reported as unverified and the four repository rows are still
 enforced.
 
-### Freeze v3 (2026-08-22)
+### Freeze v4 (2026-08-23)
 
-Superseding v2 after the D1 smoke test produced a valid finding. Only
-`finding.ts` moved: the classification no longer treats a spent budget as a
-penalty, and the finding records every refused call. Nothing else in the frozen
-set changed.
+Superseding v3 after the first full phase-1 sweep. Six of the eight frozen files
+moved, each for something the sweep measured rather than predicted: the sweep
+evaluates a scenario's whole verify set so a reproduction can be compared to its
+original failure, a refusal a caller could fix carries the scenario's policy
+instead of latching, the corpus declares the request bodies a seeded defect
+produces, B3's expectation matches what the product actually does with an
+absorbed fault, and the probe ceiling matches what four live runs asked for.
+`investigator.md` and `run-config.yml` did not move — the prompt and the model
+configuration are unchanged across the sweep.
 
 `freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `a8434b2ce46dac0d58659e0b7ef6e9a983965cbf4221311ae4a1f1cc453f744c` |
+| `adapter:src/qa-tools.ts` | `402ffac0d8a29c8e04028625c644fe78f15b1f40359779fae636bcc8afc28994` |
+| `adapter:cordis.yml` | `defc03624b3f0c4efe7920fcdd160e8ba02bb1f414b8548d43135d9b02a341ec` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
+| `qa/investigation/budget.ts` | `b2a5feef1fec034e3c1c3685a7762e5b45eba46a2469929e1bc8f3c88e61161d` |
+| `qa/investigation/finding.ts` | `69d0713a9a239a1f6f32780208cd5ba16c1d235469808565d1d8a3bf3067730c` |
+| `qa/investigation/evalCases.ts` | `c77174f5b01d81fa167940321049fb3f7fd62098df5182a7b7c4cc63164a9987` |
+
+### Freeze v3 (2026-08-22, superseded)
+
+Kept as the record the first full phase-1 sweep was taken under. Superseded v2
+after the D1 smoke test produced a valid finding; only `finding.ts` had moved.
+It is history, not a gate.
 
 | File | sha256 |
 | --- | --- |
@@ -217,7 +241,7 @@ a gate; `freeze.test.ts` does not verify it.
 | --- | --- |
 | ResumeMatch | `a05115ba4c9e8252a95a1c39b82b2c632337dfb5` |
 | DeepSeek Harness | `47f943859bef60e4160492346772ded9b24f765a` |
-| `resumematch-qa-tools` adapter | `5b157edf2945d8463eb03d6c7f80ab22fa4403e3` |
+| `resumematch-qa-tools` adapter | `c94f117ffa63d6bbbd2d13f7591ba0326f003fe4` |
 
 The ResumeMatch commit is the one the hashes were taken at; the commit that adds
 this section changes only this document and its test, neither of which is frozen.
