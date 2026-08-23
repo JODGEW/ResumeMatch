@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { actionHelp, allowsControlledClock, resolveRoute, validateAction, validateInspectionTarget } from './actions'
+import { allowsControlledClock, resolveRoute, validateAction, validateInspectionTarget } from './actions'
 
 describe('validateAction', () => {
   it('accepts the gold reproduction sequence for a new upload', () => {

@@ -1,4 +1,4 @@
-import { InvestigationError, invalidArguments, policyBlocked } from './errors'
+import { invalidArguments, policyBlocked } from './errors'
 import type { ArgumentHelp } from './errors'
 import type { UsageRecord } from './cost'
 import type { RunFailure, SafetyViolation, ScenarioId } from '../browser/types'

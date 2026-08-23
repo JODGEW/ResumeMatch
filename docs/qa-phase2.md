@@ -165,6 +165,12 @@ violation with no oracle id, so a reproduction had nothing to match — and keys
 that oracle and `P1-02_RESULTS_NAVIGATION` on the upload having been attempted
 rather than accepted.
 
+`finding.ts` was rehashed on 2026-08-23 after CI's lint gate rejected an unused
+`InvestigationError` import left behind when its throws moved to
+`invalidArguments`. Removing an unused import changes no behavior, so the entry
+is updated inside v5 rather than opening a v6; the record still has to move with
+the file, which is the point of the gate.
+
 `freeze.test.ts` verifies this table.
 
 | File | sha256 |
@@ -176,7 +182,7 @@ rather than accepted.
 | `qa/browser/oracleRegistry.ts` | `c7381c8987c41153cd1875cecf8324461b5752fe4664f93f16b977b941637b61` |
 | `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
 | `qa/investigation/budget.ts` | `b2a5feef1fec034e3c1c3685a7762e5b45eba46a2469929e1bc8f3c88e61161d` |
-| `qa/investigation/finding.ts` | `69d0713a9a239a1f6f32780208cd5ba16c1d235469808565d1d8a3bf3067730c` |
+| `qa/investigation/finding.ts` | `35064bd11a86885c5e7d0d0b55e88754398bd0556721ead8a5062aec51e04286` |
 | `qa/investigation/evalCases.ts` | `c77174f5b01d81fa167940321049fb3f7fd62098df5182a7b7c4cc63164a9987` |
 
 ### Freeze v4 (2026-08-23, superseded)
