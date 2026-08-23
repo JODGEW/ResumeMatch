@@ -8,7 +8,7 @@ import type { Browser, BrowserContext, Locator, Page } from '@playwright/test'
 import { redactText } from '../browser/evidence'
 import { generatedBuildResourcePaths, NetworkPolicy, QA_API_ORIGIN, QA_APP_ORIGIN, QA_S3_ORIGIN } from '../browser/networkPolicy'
 import { OracleFailure } from '../browser/oracles'
-import { oracleById, oraclesForScenario } from '../browser/oracleRegistry'
+import { oracleById, verifyOraclesForScenario } from '../browser/oracleRegistry'
 import type { OracleContext } from '../browser/oracleRegistry'
 import { StatefulContractRouter } from '../browser/contractRouter'
 import { createScenario, type ScenarioInstance } from '../browser/scenarios'
@@ -144,8 +144,9 @@ export class PlaywrightReproduction implements ReproductionDriver {
    * Phase 1 stops at its first failed observation while driving, which is right
    * for a release check but leaves a reproduction unable to say whether the
    * original failure recurred: an earlier assertion failing first hides it.
-   * Here the original `failedOracle` is evaluated first, then the rest of the
-   * scenario, and every failure is kept.
+   * Here the original `failedOracle` is evaluated first, then the scenario's
+   * verify set, and every failure is kept. Driver-stage observations belong to
+   * transient steps, so they are swept only when the original run failed one.
    *
    * An observation whose precondition transition never appeared is skipped
    * rather than failed — a reproduction that never drove the scenario is
@@ -171,7 +172,7 @@ export class PlaywrightReproduction implements ReproductionDriver {
     const source = sourceFailedOracle === null ? undefined : oracleById(this.scenarioId, sourceFailedOracle)
     const ordered = [
       ...source === undefined ? [] : [source],
-      ...oraclesForScenario(this.scenarioId).filter(oracle => oracle !== source),
+      ...verifyOraclesForScenario(this.scenarioId).filter(oracle => oracle !== source),
     ]
 
     const failures: RunFailure[] = []
