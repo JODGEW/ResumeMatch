@@ -30,7 +30,15 @@ test('evaluation case', async () => {
   if (caseId === undefined || resultPath === undefined || worktreeLabel === undefined) {
     throw new Error('evalCase requires QA_EVAL_CASE, QA_EVAL_RESULT, and QA_EVAL_WORKTREE_LABEL')
   }
-  const evalCase = await resolveEvalCase(caseId, EVAL_CASES, process.env.QA_EVAL_HELD_OUT === '1')
+  // Held-out definitions are gitignored, so an evaluation worktree — which git
+  // populates from tracked files only — does not contain them. They are read
+  // from the checkout that owns them instead.
+  const evalCase = await resolveEvalCase(
+    caseId,
+    EVAL_CASES,
+    process.env.QA_EVAL_HELD_OUT === '1',
+    process.env.QA_EVAL_HELDOUT_ROOT ?? process.cwd(),
+  )
   if (evalCase === undefined) throw new Error(`Unknown evaluation case: ${caseId}`)
 
   const evaluationIdentity: EvaluationIdentity = {

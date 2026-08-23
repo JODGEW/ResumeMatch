@@ -148,7 +148,9 @@ async function runScenario(worktree: string, caseId: string, label: string, opti
       QA_EVAL_CASE: caseId,
       QA_EVAL_RESULT: resultPath,
       QA_EVAL_WORKTREE_LABEL: label,
-      ...options.heldOut === true ? { QA_EVAL_HELD_OUT: '1' } : {},
+      ...options.heldOut === true
+        ? { QA_EVAL_HELD_OUT: '1', QA_EVAL_HELDOUT_ROOT: options.repositoryPath }
+        : {},
     },
     encoding: 'utf8',
   })

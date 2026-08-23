@@ -30,7 +30,7 @@ function sanitizedEnvironment(invocationRoot, token) {
     QA_APP_ORIGIN: 'http://127.0.0.1:4173', QA_API_ORIGIN: 'https://api.qa.invalid', QA_S3_ORIGIN: 'https://s3.qa.invalid',
     // Evaluation-case selection, forwarded explicitly rather than by spreading
     // the parent environment, so the sanitized environment stays enumerable.
-    ...Object.fromEntries(['QA_EVAL_CASE', 'QA_EVAL_RESULT', 'QA_EVAL_WORKTREE_LABEL', 'QA_EVAL_HELD_OUT']
+    ...Object.fromEntries(['QA_EVAL_CASE', 'QA_EVAL_RESULT', 'QA_EVAL_WORKTREE_LABEL', 'QA_EVAL_HELD_OUT', 'QA_EVAL_HELDOUT_ROOT']
       .filter(name => process.env[name] !== undefined)
       .map(name => [name, process.env[name]])),
     VITE_DEV_BYPASS: 'true', VITE_API_BASE_URL: 'https://api.qa.invalid', VITE_API_KEY: 'qa-synthetic-api-key-not-secret',
