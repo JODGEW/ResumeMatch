@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -924,7 +925,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
       )}
 
       {/* Resume Modal */}
-      {(resumeUrl || resumeError) && (
+      {(resumeUrl || resumeError) && createPortal(
         <div className="modal-overlay" onClick={closeModal}>
           <div
             ref={resumeModalRef}
@@ -1006,7 +1007,8 @@ export function Results({ sample = false }: { sample?: boolean }) {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
