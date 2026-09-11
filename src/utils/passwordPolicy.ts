@@ -26,11 +26,11 @@ export const PASSWORD_REQUIREMENTS_HINT =
  * set, not "any non-alphanumeric".
  */
 export const PASSWORD_RULES: ReadonlyArray<{ label: string; test: (pw: string) => boolean }> = [
-  { label: '8+ chars', test: (pw) => pw.length >= 8 },
-  { label: 'lowercase', test: (pw) => /[a-z]/.test(pw) },
-  { label: 'uppercase', test: (pw) => /[A-Z]/.test(pw) },
-  { label: 'number', test: (pw) => /\d/.test(pw) },
-  { label: 'symbol', test: (pw) => SPECIAL_CHAR_RE.test(pw) },
+  { label: '8+ characters', test: (pw) => pw.length >= 8 },
+  { label: 'Lowercase', test: (pw) => /[a-z]/.test(pw) },
+  { label: 'Uppercase', test: (pw) => /[A-Z]/.test(pw) },
+  { label: 'Number', test: (pw) => /\d/.test(pw) },
+  { label: 'Symbol (! @ # %)', test: (pw) => SPECIAL_CHAR_RE.test(pw) },
 ];
 
 function listJoin(items: string[]): string {

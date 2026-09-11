@@ -48,7 +48,7 @@ describe('PASSWORD_RULES (drives the live checklists)', () => {
   });
 
   it('symbol rule uses the Cognito special set, not any non-alphanumeric', () => {
-    const symbolRule = PASSWORD_RULES.find((rule) => rule.label === 'symbol')!;
+    const symbolRule = PASSWORD_RULES.find((rule) => rule.label === 'Symbol (! @ # %)')!;
     expect(symbolRule.test('Abcdef9!')).toBe(true);
     // é is non-alphanumeric but NOT in Cognito's special set — the checklist
     // must not show a ✓ that Cognito would reject.

@@ -29,13 +29,27 @@ function XIcon() {
   );
 }
 
-/* The requirement list mirrors the Cognito pool policy via PASSWORD_RULES;
+function ChipCheckIcon() {
+  return (
+    <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+      <polyline points="1.5,5.5 4,8 8.5,2.5" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChipXIcon() {
+  return (
+    <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M2.5 2.5l5 5M7.5 2.5l-5 5" fill="none" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/* The requirement chips mirror the Cognito pool policy via PASSWORD_RULES;
    the strength read adds a 12+ length bonus on top of the raw rule count.
-   Reveal-on-focus: the parent passes `visible` (field focused OR non-empty) so
-   the resting form stays compact and the one height change happens on focus,
-   before typing — never under the user's cursor mid-entry. */
-export function AuthPasswordMeter({ password, visible }: { password: string; visible: boolean }) {
-  if (!visible) return null;
+   Always rendered (no reveal-on-focus) so focusing or typing never shifts the
+   fields below. Chip states: untouched = dot, met = check, typed-but-unmet = x. */
+export function AuthPasswordMeter({ password }: { password: string }) {
   const hasInput = password.length > 0;
   const strength = hasInput ? getPasswordStrength(password) : null;
 
@@ -47,7 +61,7 @@ export function AuthPasswordMeter({ password, visible }: { password: string; vis
           const state = met ? ' is-met' : hasInput ? ' is-unmet' : '';
           return (
             <span key={rule.label} className={`auth-pw-req${state}`}>
-              {met ? <CheckIcon /> : <XIcon />}
+              {met ? <ChipCheckIcon /> : hasInput ? <ChipXIcon /> : <span className="auth-pw-req__dot" aria-hidden="true" />}
               {rule.label}
             </span>
           );

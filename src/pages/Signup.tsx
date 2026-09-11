@@ -5,9 +5,9 @@ import { useAuth } from '../auth/AuthContext';
 import { CodeInput } from '../components/CodeInput';
 import { useResendTimer } from '../hooks/useResendTimer';
 import { validatePassword, friendlyPasswordPolicyError } from '../utils/passwordPolicy';
-import { AuthLayout } from './auth/AuthLayout';
+import { AuthLayout, AuthSwitch, AuthCardSwitch } from './auth/AuthLayout';
 import { AuthPasswordMeter, AuthMatchNote } from './auth/AuthPasswordMeter';
-import { GoogleIcon, EyeIcon, ErrorIcon } from './auth/authIcons';
+import { GoogleIcon, EyeIcon, ErrorIcon, SuccessIcon } from './auth/authIcons';
 import './auth/Auth.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,7 +21,6 @@ export function Signup() {
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -58,6 +57,8 @@ export function Signup() {
     try {
       await signup(email, password, '');
       setStep('confirm');
+      // The countdown runs from when the code was sent, not from page load.
+      restart();
     } catch (err) {
       setError(
         friendlyPasswordPolicyError(err)
@@ -102,15 +103,31 @@ export function Signup() {
     }
   }
 
+  function handleChangeEmail() {
+    setStep('register');
+    setCode('');
+    setError('');
+    setResent(false);
+  }
+
   return (
     <AuthLayout
-      title="Create your account"
+      title={step === 'register' ? 'Create your account' : 'Check your email'}
+      step={step === 'register' ? [1, 2] : [2, 2]}
+      switcher={<AuthSwitch prompt="Have an account?" to="/login" label="Sign in" disabled={loading} />}
       subtitle={
         step === 'register' ? (
           'Start matching your resume in under a minute.'
         ) : (
           <>
-            We sent a verification code to <strong>{email}</strong>
+            We sent a verification code to{' '}
+            <span className="auth-email-row">
+              <strong>{email}</strong>{' '}
+              <button type="button" className="auth-link-btn" onClick={handleChangeEmail} disabled={loading}>
+                Change
+              </button>
+            </span>
+            <span className="auth-box__note">Codes come from AWS Cognito. Check your spam folder.</span>
           </>
         )
       }
@@ -171,8 +188,6 @@ export function Signup() {
                   className="auth-input"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
                   placeholder="Create a strong password"
                   required
                   autoComplete="new-password"
@@ -186,7 +201,7 @@ export function Signup() {
                   <EyeIcon open={!showPassword} />
                 </button>
               </div>
-              <AuthPasswordMeter password={password} visible={passwordFocused || password.length > 0} />
+              <AuthPasswordMeter password={password} />
             </div>
 
             <div className="auth-field">
@@ -233,33 +248,30 @@ export function Signup() {
               <Link to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>.
             </p>
           </form>
-
-          <div className="auth-switch">
-            Already have an account? <Link to="/login">Sign in</Link>
-          </div>
         </>
       ) : (
         <form onSubmit={handleConfirm}>
           {resent && (
-            <div className="auth-banner auth-banner--success">A new code has been sent to your email.</div>
+            <div className="auth-banner auth-banner--success" role="status">
+              <SuccessIcon />
+              <span>A new code has been sent to your email.</span>
+            </div>
           )}
 
-          <div className="auth-field auth-field--tight">
-            <label>Verification code</label>
+          <div className="auth-field">
+            <div className="auth-label-row">
+              <label>Verification code</label>
+              <button
+                type="button"
+                className="auth-resend"
+                onClick={handleResend}
+                disabled={!canResend || resending}
+              >
+                {resending ? 'Resending...' : canResend ? 'Resend code' : `Resend in ${remaining}s`}
+              </button>
+            </div>
             <CodeInput value={code} onChange={setCode} />
           </div>
-
-          <p className="auth-resend-line">
-            Didn&apos;t receive the code?{' '}
-            <button
-              type="button"
-              className="auth-resend"
-              onClick={handleResend}
-              disabled={!canResend || resending}
-            >
-              {resending ? 'Resending...' : canResend ? 'Resend code' : `Resend (${remaining}s)`}
-            </button>
-          </p>
 
           <button type="submit" className="auth-btn auth-btn--primary" disabled={loading}>
             {loading ? (
@@ -273,6 +285,8 @@ export function Signup() {
           </button>
         </form>
       )}
+
+      <AuthCardSwitch prompt="Have an account?" to="/login" label="Sign in" disabled={loading} />
     </AuthLayout>
   );
 }

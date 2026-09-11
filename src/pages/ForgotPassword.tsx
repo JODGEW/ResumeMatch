@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { CodeInput } from '../components/CodeInput';
 import { useResendTimer } from '../hooks/useResendTimer';
 import { validatePassword, friendlyPasswordPolicyError } from '../utils/passwordPolicy';
-import { AuthLayout } from './auth/AuthLayout';
+import { AuthLayout, AuthBackLink, AuthCardSwitch } from './auth/AuthLayout';
 import { AuthPasswordMeter, AuthMatchNote } from './auth/AuthPasswordMeter';
-import { EyeIcon, ErrorIcon, BackChevronIcon } from './auth/authIcons';
+import { EyeIcon, ErrorIcon, SuccessIcon } from './auth/authIcons';
 import './auth/Auth.css';
 
 export function ForgotPassword() {
@@ -17,7 +17,6 @@ export function ForgotPassword() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -57,6 +56,8 @@ export function ForgotPassword() {
     try {
       await forgotPassword(email);
       setStep('reset');
+      // The countdown runs from when the code was sent, not from page load.
+      restart();
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -91,7 +92,7 @@ export function ForgotPassword() {
     setLoading(true);
     try {
       await confirmForgotPassword(email, code, newPassword);
-      navigate('/login', { state: { resetSuccess: true } });
+      navigate('/login', { state: { resetSuccess: true, email } });
     } catch (err) {
       setError(
         friendlyPasswordPolicyError(err)
@@ -102,13 +103,32 @@ export function ForgotPassword() {
     }
   }
 
+  function handleChangeEmail() {
+    setStep('request');
+    setCode('');
+    setError('');
+    setResent(false);
+  }
+
   return (
     <AuthLayout
       title="Reset your password"
+      step={step === 'request' ? [1, 2] : [2, 2]}
+      switcher={<AuthBackLink to="/login" label="Back to sign in" />}
       subtitle={
-        step === 'request'
-          ? 'Enter your email and we’ll send you a reset code.'
-          : 'Enter the code from your email and set a new password.'
+        step === 'request' ? (
+          'Enter your email and we’ll send you a reset code.'
+        ) : (
+          <>
+            Code sent to{' '}
+            <span className="auth-email-row">
+              <strong>{email}</strong>{' '}
+              <button type="button" className="auth-link-btn" onClick={handleChangeEmail} disabled={loading}>
+                Change
+              </button>
+            </span>
+          </>
+        )
       }
     >
       {error && (
@@ -149,34 +169,27 @@ export function ForgotPassword() {
         </form>
       ) : (
         <form onSubmit={handleReset}>
-          {!error && !resending && (
-            <div className="auth-banner auth-banner--success">
-              {resent ? (
-                'A new code has been sent to your email.'
-              ) : (
-                <>
-                  We&apos;ve sent a reset code to <strong>{email}</strong>
-                </>
-              )}
+          {resent && !error && (
+            <div className="auth-banner auth-banner--success" role="status">
+              <SuccessIcon />
+              <span>A new code has been sent to your email.</span>
             </div>
           )}
 
-          <div className="auth-field auth-field--tight">
-            <label>Verification code</label>
+          <div className="auth-field">
+            <div className="auth-label-row">
+              <label>Verification code</label>
+              <button
+                type="button"
+                className="auth-resend"
+                onClick={handleResend}
+                disabled={!canResend || resending}
+              >
+                {resending ? 'Resending...' : canResend ? 'Resend code' : `Resend in ${remaining}s`}
+              </button>
+            </div>
             <CodeInput value={code} onChange={setCode} />
           </div>
-
-          <p className="auth-resend-line">
-            Didn&apos;t receive the code?{' '}
-            <button
-              type="button"
-              className="auth-resend"
-              onClick={handleResend}
-              disabled={!canResend || resending}
-            >
-              {resending ? 'Resending...' : canResend ? 'Resend code' : `Resend (${remaining}s)`}
-            </button>
-          </p>
 
           <div className="auth-field auth-field--pw">
             <label htmlFor="newPassword">New password</label>
@@ -188,8 +201,6 @@ export function ForgotPassword() {
                 className="auth-input"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
                 placeholder="Create a strong password"
                 required
                 autoComplete="new-password"
@@ -203,7 +214,7 @@ export function ForgotPassword() {
                 <EyeIcon open={!showPassword} />
               </button>
             </div>
-            <AuthPasswordMeter password={newPassword} visible={passwordFocused || newPassword.length > 0} />
+            <AuthPasswordMeter password={newPassword} />
           </div>
 
           <div className="auth-field">
@@ -245,12 +256,7 @@ export function ForgotPassword() {
         </form>
       )}
 
-      <div className="auth-back">
-        <Link to="/login">
-          <BackChevronIcon />
-          Back to log in
-        </Link>
-      </div>
+      <AuthCardSwitch to="/login" label="Back to sign in" disabled={loading} />
     </AuthLayout>
   );
 }

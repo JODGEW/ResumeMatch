@@ -3,14 +3,20 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signInWithRedirect } from 'aws-amplify/auth';
 import { useAuth } from '../auth/AuthContext';
 import { isCredentialSignInFailure } from '../utils/authErrors';
-import { AuthLayout } from './auth/AuthLayout';
-import { GoogleIcon, EyeIcon, ErrorIcon } from './auth/authIcons';
+import { AuthLayout, AuthSwitch, AuthCardSwitch } from './auth/AuthLayout';
+import { GoogleIcon, EyeIcon, ErrorIcon, SuccessIcon, ArrowRightIcon } from './auth/authIcons';
 import './auth/Auth.css';
 
 export function Login() {
   const DEMO_EMAIL = 'demo123@resumeapp.com';
   const DEMO_PASSWORD = 'ResumeApp123!?';
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  // ForgotPassword lands here with the email it just reset, so the user only
+  // has to type the new password.
+  const locationState = location.state as { resetSuccess?: boolean; email?: string } | null;
+  const resetSuccess = locationState?.resetSuccess;
+  const prefilledEmail = locationState?.email ?? '';
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -19,10 +25,6 @@ export function Login() {
   const [demoLoading, setDemoLoading] = useState(false);
   const { login, user, isLoading, authError, clearAuthError } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const locationState = location.state as { signupSuccess?: boolean; resetSuccess?: boolean } | null;
-  const signupSuccess = locationState?.signupSuccess;
-  const resetSuccess = locationState?.resetSuccess;
   const busy = loading || demoLoading;
 
   useEffect(() => {
@@ -54,14 +56,65 @@ export function Login() {
     }
   }
 
-  return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to keep matching and practicing.">
-      {signupSuccess && (
-        <div className="auth-banner auth-banner--success">Account created! Sign in with your credentials.</div>
-      )}
+  async function handleDemo() {
+    setError('');
+    setShowGoogleHint(false);
+    setDemoLoading(true);
+    try {
+      await login(DEMO_EMAIL, DEMO_PASSWORD);
+      navigate('/upload');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Demo login failed');
+    } finally {
+      setDemoLoading(false);
+    }
+  }
 
+  const googleButton = (
+    <button
+      type="button"
+      className="auth-btn auth-btn--soft"
+      disabled={busy}
+      onClick={() => {
+        signInWithRedirect({ provider: 'Google' }).catch((err) => {
+          setError(err instanceof Error ? err.message : 'Google sign-in failed');
+        });
+      }}
+    >
+      <GoogleIcon />
+      Continue with Google
+    </button>
+  );
+
+  return (
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Sign in to keep matching and practicing."
+      switcher={<AuthSwitch prompt="New here?" to="/signup" label="Create account" disabled={busy} />}
+      belowCard={
+        <button type="button" className="auth-demo" disabled={busy} onClick={handleDemo}>
+          {demoLoading ? (
+            <span>
+              <span className="loading-spinner loading-spinner--sm" /> Signing in...
+            </span>
+          ) : (
+            <span>
+              <strong>Just looking?</strong>{' '}
+              <span className="auth-demo__long">Open the demo workspace — shared, read-only, no account.</span>
+              <span className="auth-demo__short">Open the demo — shared, read-only, no account.</span>
+            </span>
+          )}
+          <ArrowRightIcon />
+        </button>
+      }
+    >
       {resetSuccess && (
-        <div className="auth-banner auth-banner--success">Password reset! Sign in with your new password.</div>
+        <div className="auth-banner auth-banner--success" role="status">
+          <SuccessIcon />
+          <span>
+            <strong>Password updated.</strong> Sign in with your new password.
+          </span>
+        </div>
       )}
 
       {(error || authError) && (
@@ -79,23 +132,13 @@ export function Login() {
         </div>
       )}
 
-      <button
-        type="button"
-        className="auth-btn auth-btn--soft"
-        disabled={busy}
-        onClick={() => {
-          signInWithRedirect({ provider: 'Google' }).catch((err) => {
-            setError(err instanceof Error ? err.message : 'Google sign-in failed');
-          });
-        }}
-      >
-        <GoogleIcon />
-        Continue with Google
-      </button>
+      {!resetSuccess && googleButton}
 
-      <div className="auth-divider">
-        <span>or sign in with email</span>
-      </div>
+      {!resetSuccess && (
+        <div className="auth-divider">
+          <span>or sign in with email</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
         <div className="auth-field">
@@ -110,7 +153,7 @@ export function Login() {
             placeholder="you@company.com"
             required
             autoComplete="email"
-            autoFocus
+            autoFocus={!prefilledEmail}
           />
         </div>
 
@@ -133,9 +176,10 @@ export function Login() {
               className="auth-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder={resetSuccess ? 'Enter your new password' : 'Enter your password'}
               required
               autoComplete="current-password"
+              autoFocus={Boolean(prefilledEmail)}
             />
             <button
               type="button"
@@ -158,42 +202,19 @@ export function Login() {
             'Sign in'
           )}
         </button>
-
-        <button
-          type="button"
-          className="auth-btn auth-btn--soft auth-btn--stacked"
-          disabled={busy}
-          onClick={async () => {
-            setError('');
-            setShowGoogleHint(false);
-            setDemoLoading(true);
-            try {
-              await login(DEMO_EMAIL, DEMO_PASSWORD);
-              navigate('/upload');
-            } catch (err) {
-              setError(err instanceof Error ? err.message : 'Demo login failed');
-            } finally {
-              setDemoLoading(false);
-            }
-          }}
-        >
-          {demoLoading ? (
-            <>
-              <span className="loading-spinner loading-spinner--sm" />
-              Signing in...
-            </>
-          ) : (
-            'Try demo — no signup required'
-          )}
-        </button>
       </form>
 
-      <div className={`auth-switch${busy ? ' is-disabled' : ''}`}>
-        Don&apos;t have an account?{' '}
-        <Link to="/signup" tabIndex={busy ? -1 : undefined}>
-          Create one
-        </Link>
-      </div>
+      {/* After a reset the email is prefilled, so the password form is the
+          primary path and Google drops below it. */}
+      {resetSuccess && (
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
+      )}
+
+      {resetSuccess && googleButton}
+
+      <AuthCardSwitch prompt="New here?" to="/signup" label="Create account" disabled={busy} />
     </AuthLayout>
   );
 }

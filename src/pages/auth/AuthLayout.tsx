@@ -1,102 +1,106 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { LogoMark } from '../../components/LogoMark';
-import { ThemeToggle } from '../../components/ThemeToggle';
+import { BackChevronIcon } from './authIcons';
 import './Auth.css';
 
-const FEATURES = [
-  'Instant match score against any job description',
-  'Targeted keyword and phrasing suggestions',
-  'Mock interviews tuned to the same role',
-];
+/* Top-right "prompt + button" switch. The prompt is dropped on phones, where
+   the button alone has to fit beside the brand. */
+export function AuthSwitch({ prompt, to, label, disabled }: {
+  prompt: string;
+  to: string;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div className={`auth-topbar__switch${disabled ? ' is-disabled' : ''}`}>
+      <span className="auth-topbar__prompt">{prompt}</span>{' '}
+      <Link to={to} tabIndex={disabled ? -1 : undefined}>{label}</Link>
+    </div>
+  );
+}
+
+/* The same switch again at the foot of the card: on wide screens the top-right
+   one sits at the viewport edge, far from where the user is looking. */
+export function AuthCardSwitch({ prompt, to, label, disabled }: {
+  prompt?: string;
+  to: string;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <p className={`auth-card-switch${disabled ? ' is-disabled' : ''}`}>
+      {/* The space is for the text content (copy, screen readers); flex gap does the visual spacing. */}
+      {prompt && <span>{prompt}</span>}{prompt && ' '}
+      <Link to={to} tabIndex={disabled ? -1 : undefined}>{label}</Link>
+    </p>
+  );
+}
+
+export function AuthBackLink({ to, label }: { to: string; label: string }) {
+  return (
+    <Link to={to} className="auth-back">
+      <BackChevronIcon />
+      {label}
+    </Link>
+  );
+}
 
 type AuthLayoutProps = {
   title: string;
   subtitle: ReactNode;
   children: ReactNode;
+  /** Top-right control: the sign-in / sign-up switch, or a back link. */
+  switcher?: ReactNode;
+  /** Two-step flows: [current, total], rendered as a progress row above the title. */
+  step?: [number, number];
+  /** Rendered under the card, outside it (e.g. the demo entry on Login). */
+  belowCard?: ReactNode;
 };
 
-export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
+export function AuthLayout({ title, subtitle, children, switcher, step, belowCard }: AuthLayoutProps) {
   return (
     <div className="auth-page">
-      <div className="auth-page__theme">
-        <ThemeToggle />
-      </div>
-
-      <aside className="auth-aside">
-        <div className="auth-aside__glow auth-aside__glow--top" aria-hidden="true" />
-        <div className="auth-aside__glow auth-aside__glow--bottom" aria-hidden="true" />
-
-        <Link to="/" className="auth-aside__brand" aria-label="ResumeMatch home">
-          <LogoMark width={30} height={30} />
+      <header className="auth-topbar">
+        <Link to="/" className="auth-topbar__brand" aria-label="ResumeMatch home">
+          <LogoMark width={24} height={24} />
           <span>ResumeMatch</span>
         </Link>
-
-        <div className="auth-aside__pitch">
-          <div className="auth-aside__eyebrow">Match • Practice • Land</div>
-          <h1>See how well your resume matches the role.</h1>
-          <div className="auth-aside__features">
-            {FEATURES.map((feature) => (
-              <div key={feature} className="auth-aside__feature">
-                <span className="auth-aside__feature-icon" aria-hidden="true">
-                  <svg width="10" height="10" viewBox="0 0 10 10">
-                    <polyline
-                      points="1.5,5.5 4,8 8.5,2.5"
-                      fill="none"
-                      className="lp-stroke-tint"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span>{feature}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="auth-aside__privacy">
-          <span className="auth-aside__privacy-icon" aria-hidden="true">
-            <svg width="19" height="19" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M10 2 4 4.2v4.3c0 3.7 2.5 7 6 8 3.5-1 6-4.3 6-8V4.2L10 2Z"
-                className="lp-stroke-tint"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M7.5 10l1.8 1.8L13 8"
-                className="lp-stroke-tint"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-          <div>
-            <div className="auth-aside__privacy-title">Your data stays yours</div>
-            <div className="auth-aside__privacy-text">
-              No data sold, no model training on your content, and you can delete everything anytime.
-            </div>
-          </div>
-        </div>
-      </aside>
+        {switcher}
+      </header>
 
       <main className="auth-main">
         <div className="auth-box">
-          <div className="auth-head">
-            <Link to="/" className="auth-head__logo" aria-label="ResumeMatch home">
-              <LogoMark />
-            </Link>
-            {/* Mobile only: the aside (which carries the brand name) is hidden there */}
-            <span className="auth-head__name">ResumeMatch</span>
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
+          <div className="auth-box__head">
+            {step && (
+              <div className="auth-progress">
+                {Array.from({ length: step[1] }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`auth-progress__bar${i < step[0] ? ' is-done' : ''}`}
+                    aria-hidden="true"
+                  />
+                ))}
+                <span className="auth-progress__label">
+                  <span className="sr-only">Step </span>
+                  {step[0]} / {step[1]}
+                </span>
+              </div>
+            )}
+            <h1 className="auth-box__title">{title}</h1>
+            <p className="auth-box__sub">{subtitle}</p>
           </div>
           {children}
         </div>
+        {belowCard}
       </main>
+
+      <footer className="auth-footer">
+        {/* TODO(phase 2): /support has no route yet — the catch-all redirects it to /. */}
+        <Link to="/support">Support</Link>
+        <Link to="/privacy">Privacy</Link>
+        <Link to="/terms">Terms</Link>
+      </footer>
     </div>
   );
 }
