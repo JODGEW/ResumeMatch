@@ -9,6 +9,7 @@ import { Signup } from './pages/Signup';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
+import { Support } from './pages/Support';
 import { Upload } from './pages/Upload';
 import { Results } from './pages/Results';
 import { History } from './pages/History';
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/support" element={<Support />} />
           {/* Public, bare (no Layout/auth): signed-out sample report, zero backend calls. */}
           <Route path="/sample" element={<main><Results sample /></main>} />
 

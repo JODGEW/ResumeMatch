@@ -96,7 +96,6 @@ export function AuthLayout({ title, subtitle, children, switcher, step, belowCar
       </main>
 
       <footer className="auth-footer">
-        {/* TODO(phase 2): /support has no route yet — the catch-all redirects it to /. */}
         <Link to="/support">Support</Link>
         <Link to="/privacy">Privacy</Link>
         <Link to="/terms">Terms</Link>

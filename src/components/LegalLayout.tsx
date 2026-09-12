@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -17,7 +17,8 @@ type LegalLayoutProps = {
   intro: string;
   chips: string[];
   toc: LegalTocItem[];
-  lastUpdated?: string;
+  /** Omit for the site default; pass null on pages that carry no revision date. */
+  lastUpdated?: string | null;
   children: ReactNode;
 };
 
@@ -26,8 +27,7 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
   const actionHref = user ? '/upload' : '/login';
   const actionLabel = user ? 'Open app' : 'Sign in';
   const [activeId, setActiveId] = useState(toc[0]?.id);
-  const [tocOpen, setTocOpen] = useState(false);
-  const activeLabel = toc.find((item) => item.id === activeId)?.label ?? toc[0]?.label;
+  const tocNavRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const sections = toc
@@ -49,6 +49,18 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
   }, [toc]);
+
+  // Below 767px the TOC is a horizontally scrolling chip row, so the active chip
+  // can sit off-screen. Only scroll when the row actually overflows — on desktop
+  // the nav is a vertical column and must not be touched.
+  useEffect(() => {
+    const nav = tocNavRef.current;
+    if (!nav || nav.scrollWidth <= nav.clientWidth + 4) return;
+    const chip = nav.querySelector<HTMLAnchorElement>('a[aria-current="true"]');
+    if (!chip) return;
+    const target = chip.offsetLeft - (nav.clientWidth - chip.offsetWidth) / 2;
+    nav.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+  }, [activeId]);
 
   return (
     <div className="legal-page">
@@ -82,45 +94,24 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
                 </span>
               ))}
             </div>
-            <div className="legal-updated">Last updated {lastUpdated ?? siteConfig.legalLastUpdated}</div>
+            {lastUpdated !== null && (
+              <div className="legal-updated">
+                Last updated {lastUpdated ?? siteConfig.legalLastUpdated}
+              </div>
+            )}
           </div>
         </header>
 
         <div className="legal-body">
-          <aside className={`legal-toc${tocOpen ? ' is-open' : ''}`}>
+          <aside className="legal-toc">
             <div className="legal-toc__label">On this page</div>
-            <button
-              type="button"
-              className="legal-toc__toggle"
-              aria-expanded={tocOpen}
-              onClick={() => setTocOpen((open) => !open)}
-            >
-              <span className="legal-toc__toggle-label">On this page</span>
-              <span className="legal-toc__toggle-current">{activeLabel}</span>
-              <svg
-                className="legal-toc__chevron"
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                aria-hidden="true"
-              >
-                <polyline
-                  points="2.5,4.5 6,8 9.5,4.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            <nav aria-label="On this page">
+            <nav aria-label="On this page" ref={tocNavRef}>
               {toc.map((item) => (
                 <a
                   key={item.id}
                   href={`#${item.id}`}
                   className={activeId === item.id ? 'is-active' : undefined}
-                  onClick={() => setTocOpen(false)}
+                  aria-current={activeId === item.id ? 'true' : undefined}
                 >
                   {item.label}
                 </a>
@@ -132,12 +123,15 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
 
         <section className="legal-cta">
           <div className="legal-cta__card">
-            <div className="legal-eyebrow legal-cta__eyebrow">Ready when you are</div>
-            <h2>See how your resume matches the role</h2>
-            <p>Analyze your resume against a real job description, then practice for the same role.</p>
-            <Link to={actionHref} className="legal-btn legal-btn--primary">
-              Analyze My Resume
-            </Link>
+            <div className="legal-cta__glow" aria-hidden="true" />
+            <div className="legal-cta__hairline" aria-hidden="true" />
+            <div className="legal-cta__content">
+              <h2>See how your resume matches the role</h2>
+              <p>Analyze your resume against a real job description, then practice for the same role.</p>
+              <Link to={actionHref} className="legal-btn legal-btn--primary">
+                Analyze My Resume
+              </Link>
+            </div>
           </div>
         </section>
       </main>

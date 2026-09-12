@@ -77,7 +77,21 @@
   height: 64px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  /* __spacer already separates brand from controls, so this gap only sets the
+     distance between the theme toggle and the action button. At 24px the row
+     overflowed a 320px viewport. */
+  gap: 12px;
+}
+
+@media (max-width: 380px) {
+  .legal-nav__inner {
+    padding: 0 16px;
+    gap: 8px;
+  }
+
+  .legal-nav__brand span {
+    font-size: 15px;
+  }
 }
 
 .legal-nav__spacer {
@@ -354,19 +368,49 @@
   padding: 0 24px clamp(56px, 8vw, 96px);
 }
 
+/* Near-black in BOTH themes. These four are deliberately component-local, not
+   :root tokens (Dark mode spec 2a/2b): the light --cta-bg is the *literal* of
+   light --text-primary, and mapping it to that token would invert to white-on-
+   white in dark; and the global --accent-glow (.18/.22) is a border glow, far
+   weaker than the glow under this panel needs. */
 .legal-cta__card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-standard);
+  --cta-bg: #111318;
+  --cta-border: transparent;
+  --cta-glow: rgba(113, 112, 255, 0.45);
+  --cta-hairline: transparent;
+  position: relative;
+  overflow: hidden;
+  background: var(--cta-bg);
+  border: 1px solid var(--cta-border);
   border-radius: 16px;
   padding: clamp(40px, 6vw, 72px) 24px;
   text-align: center;
-  box-shadow: var(--card-shadow);
 }
 
-.legal-cta__eyebrow {
-  font-weight: 510;
-  letter-spacing: 1.6px;
-  margin-bottom: 16px;
+[data-theme='dark'] .legal-cta__card {
+  --cta-bg: #0f1011;
+  --cta-border: var(--border-light);
+  --cta-glow: rgba(113, 112, 255, 0.55);
+  --cta-hairline: rgba(255, 255, 255, 0.22);
+}
+
+.legal-cta__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(60% 90% at 50% 120%, var(--cta-glow), transparent 65%);
+}
+
+.legal-cta__hairline {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--cta-hairline), transparent);
+}
+
+.legal-cta__content {
+  position: relative;
 }
 
 .legal-cta__card h2 {
@@ -375,7 +419,9 @@
   font-weight: 510;
   line-height: 1.08;
   letter-spacing: -0.022em;
-  color: var(--text-primary);
+  /* Literal, not tokens: the panel is dark in both themes, so this text must
+     stay light in both (HANDOFF §0.6). */
+  color: #f7f8f8;
   max-width: 440px;
   text-wrap: balance;
 }
@@ -385,87 +431,53 @@
   font-size: 17px;
   line-height: 1.6;
   letter-spacing: -0.165px;
-  color: var(--text-secondary);
+  color: #d0d6e0;
   max-width: 440px;
   text-wrap: pretty;
 }
 
-/* Mobile TOC: a sticky collapsed "On this page" bar under the nav that
-   expands to the section list; desktop keeps the sticky sidebar. */
-.legal-toc__toggle {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 14px;
-  background: none;
-  border: none;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.legal-toc__toggle-label {
-  font-size: 11px;
-  font-weight: 590;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-}
-
-.legal-toc__toggle-current {
-  flex: 1;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 510;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.legal-toc__chevron {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  transition: transform 0.15s;
-}
-
-.legal-toc.is-open .legal-toc__chevron {
-  transform: rotate(180deg);
-}
-
-@media (max-width: 640px) {
+/* Mobile TOC: the sidebar becomes a horizontally scrolling chip row that stays
+   sticky under the nav, so the section list never scrolls away (HANDOFF §4).
+   `top` is the real height of .legal-nav__inner (64px) — the design's 60px is
+   its own artboard header height, and §1 warns those are not specs. */
+@media (max-width: 767px) {
   .legal-toc {
     top: 64px;
-    width: 100%;
+    /* Bleed through .legal-body's 24px gutters so the opaque bar covers the
+       full viewport width; content must not show beside it while scrolling. */
+    width: calc(100% + 48px);
+    margin-inline: -24px;
+    padding: 10px 24px 8px;
     z-index: 40;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    box-shadow: var(--card-shadow);
+    background: var(--bg-root);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .legal-toc__label {
     display: none;
   }
 
-  .legal-toc__toggle {
-    display: flex;
-  }
-
   .legal-toc nav {
-    display: none;
-    padding: 0 8px 10px;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
   }
 
-  .legal-toc.is-open nav {
-    display: flex;
+  .legal-toc nav::-webkit-scrollbar {
+    display: none;
   }
 
   .legal-page .legal-toc a {
-    border-left: none;
-    border-radius: 6px;
+    white-space: nowrap;
+    border: 1px solid var(--border-light);
+    border-radius: 9999px;
+    padding: 6px 12px;
+  }
+
+  .legal-page .legal-toc a[aria-current='true'] {
+    border-color: var(--accent);
   }
 
   /* Anchor jumps must clear both the sticky nav and the sticky TOC bar */

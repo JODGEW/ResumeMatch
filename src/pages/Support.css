@@ -1,0 +1,84 @@
+/* Support page — card-per-question layout inside the shared LegalLayout
+   (Support v2.dc.html). Everything here rides the semantic tokens in index.css;
+   see the note on --support-ring for the one design value with no token. */
+
+.support-qa {
+  display: grid;
+  gap: 10px;
+}
+
+.support-qa__item {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-card);
+  padding: 18px 20px;
+}
+
+.support-qa__item h3 {
+  margin: 0 0 6px;
+  font-size: 15.5px;
+  font-weight: 590;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
+}
+
+/* Overrides .legal-section p, which is sized for running prose. */
+.legal-section .support-qa__item p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+
+/* ── Contact card ───────────────────────────────────── */
+.support-contact {
+  /* The design's --accent-soft-ring (.06 light / .1 dark) has no token: the
+     nearest, --accent-glow, is .18/.22 and reads as a halo at this size. */
+  --support-ring: rgba(94, 106, 210, 0.06);
+  display: flex;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--brand-tint-border);
+  border-radius: 12px;
+  background: var(--surface-card);
+  padding: 22px 24px;
+  box-shadow: 0 0 0 4px var(--support-ring);
+}
+
+[data-theme='dark'] .support-contact {
+  --support-ring: rgba(113, 112, 255, 0.1);
+}
+
+.support-contact__label {
+  font-size: 12px;
+  font-weight: 510;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+.legal-page a.support-contact__address {
+  display: inline-block;
+  font-size: clamp(17px, 2vw, 22px);
+  font-weight: 590;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+  /* The address is long enough to overflow a 320px viewport unbroken. */
+  overflow-wrap: anywhere;
+}
+
+.legal-page a.support-contact__address:hover {
+  color: var(--link);
+}
+
+.legal-section .support-contact__note {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: 420px;
+}

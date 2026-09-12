@@ -30,6 +30,13 @@ export function LandingFooter({ appHref, narrow }: LandingFooterProps) {
         <div className="landing-footer__side">
           <nav className="landing-footer__links" aria-label="Footer">
             <Link to={appHref}>Analyze My Resume</Link>
+            {/* Support is listed on the legal/support pages only; the landing
+                footer is rewritten in the Landing v2 pass and is left alone. */}
+            {narrow && (
+              <Link to="/support" className={currentClass('/support')}>
+                Support
+              </Link>
+            )}
             <Link to="/privacy" className={currentClass('/privacy')}>
               Privacy
             </Link>
