@@ -38,6 +38,13 @@ const SCORE_TILES = [
 export function SuggestionsCard() {
   return (
     <article className="landing-work-card">
+      <div className="landing-work-card__caption">
+        <h3>Targeted resume edits</h3>
+        <p>
+          Key missing requirements come with a suggested edit and the reason it matters for this
+          posting.
+        </p>
+      </div>
       <div className="landing-work-card__embed">
         <div className="landing-embed-title">Suggestions</div>
         <div className="landing-embed-subtitle">Recommended additions to improve your match score</div>
@@ -54,10 +61,6 @@ export function SuggestionsCard() {
           ))}
         </div>
       </div>
-      <div className="landing-work-card__caption">
-        <h3>Targeted resume edits</h3>
-        <p>Move from scoring into concrete suggestions that strengthen the resume for that job description.</p>
-      </div>
     </article>
   );
 }
@@ -65,6 +68,13 @@ export function SuggestionsCard() {
 export function InterviewCard() {
   return (
     <article className="landing-work-card">
+      <div className="landing-work-card__caption">
+        <h3>Role-based mock interview</h3>
+        <p>
+          Answer out loud. A behavioral run is scored on structure, STAR usage, specificity,
+          relevance, and self-awareness — and shows which one costs you most.
+        </p>
+      </div>
       <div className="landing-work-card__embed">
         <div className="landing-session__head">
           <div className="landing-session__role">Full-Stack Software Development Engineer — Bramble Commerce</div>
@@ -190,10 +200,6 @@ export function InterviewCard() {
             </div>
           ))}
         </div>
-      </div>
-      <div className="landing-work-card__caption">
-        <h3>Role-based mock interview</h3>
-        <p>Carry the same role into interview practice and review how the answers hold up.</p>
       </div>
     </article>
   );

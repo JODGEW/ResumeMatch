@@ -3,17 +3,16 @@ import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { LogoMark } from '../components/LogoMark';
 import { useAuth } from '../auth/AuthContext';
-import { HeroCards } from './landing/HeroCards';
-import { SampleAnalysisPanel } from './landing/SampleAnalysisPanel';
+import { ProductPreview } from './landing/ProductPreview';
 import { SuggestionsCard, InterviewCard } from './landing/WorkflowCards';
 import { LandingFooter } from './landing/LandingFooter';
-import { TrustCheckIcon, ListCheckIcon } from './landing/icons';
+import { ArrowRightIcon, ListCheckIcon, TrustCheckIcon } from './landing/icons';
+import { siteConfig } from '../config/site';
 import './Landing.css';
 
-const navLinks = [
-  { href: '#why', label: 'Why ResumeMatch' },
+const sectionLinks = [
   { href: '#how', label: 'How it works' },
-  { href: '#features', label: 'Features' },
+  { href: '#workflow', label: 'After the score' },
   { href: '#pricing', label: 'Pricing' },
   { href: '#faq', label: 'FAQ' },
 ];
@@ -22,85 +21,66 @@ const steps = [
   {
     number: '01',
     title: 'Upload your resume',
-    body: 'Start with the resume you already have.',
+    body: 'PDF in. Returning users reuse their last one in a click.',
   },
   {
     number: '02',
     title: 'Paste the job description',
-    body: 'Get feedback tied to the role you want, not generic resume advice.',
+    body: 'The real posting, not a job title. Every result is tied to it.',
   },
   {
     number: '03',
-    title: 'Improve your resume',
-    body: 'See where you match, what is missing, and what to change before you apply.',
+    title: 'Fix what matters',
+    body: 'Match score, ranked missing keywords, and rewritten bullets, downloadable as Word where the posting supports it.',
   },
   {
     number: '04',
     title: 'Practice the interview',
-    body: 'Use the same role to practice once the application is stronger.',
+    body: 'Voice mock interview built from the same posting, scored across five dimensions.',
   },
 ];
 
-const features = [
-  {
-    title: 'Resume Match',
-    body: 'See how your resume lines up with the role before you apply.',
-  },
-  {
-    title: 'Missing Keywords & Gaps',
-    body: 'Identify the requirements and language your resume is not communicating clearly enough.',
-  },
-  {
-    title: 'Targeted Resume Edits',
-    body: 'Get practical suggestions to strengthen the application for the role you want.',
-  },
-  {
-    title: 'Role-Based Mock Interview',
-    body: 'Practice with interview questions built from the same role once the resume is stronger.',
-  },
-];
-
-const freePlanFeatures = [
+const betaFeatures = [
   '10 resume analyses per day',
   '5 mock interview sessions per day',
-  'Complete resume analysis',
-  'Keyword and alignment breakdown',
-  'Targeted improvement suggestions',
-  'Mock interview access',
-  'Saved history and session review',
+  'Limits reset daily at 00:00 UTC',
+  'Match score and keyword gaps',
+  'Rewritten resume (.docx) when safe edits are found',
+  'Interview reports and transcripts',
+  'Application tracker and saved history',
 ];
 
-const proPlanFeatures = ['Expanded limits', 'Future premium benefits', 'Pricing and details to be announced.'];
+const trustChips = ['No data sold', 'Not used to train models', 'Delete everything in one email'];
 
 const faqs = [
   {
     question: 'Do I need to rewrite my entire resume?',
     answer:
-      'No. ResumeMatch is built to help you find the changes that matter most for a specific role so you can focus the revision where it will count.',
+      'No. The point is to find the few changes that matter for one specific role and focus the revision there.',
   },
   {
     question: 'How is this different from a generic resume checker?',
     answer:
-      'Generic resume checkers judge the document in isolation. ResumeMatch compares your resume to a specific job description, shows the gaps that matter for that role, and carries that same context into interview practice.',
+      'Generic checkers judge the document in isolation. ResumeMatch compares it to a real job description, ranks the gaps that matter for that role, and carries the same context into interview practice.',
   },
   {
     question: 'Is the mock interview based on the same role?',
     answer:
-      'Yes. The interview step uses the same role context, so your practice stays relevant to the application you are preparing.',
+      'Yes. Questions are generated from the same posting and your analysis, so practice stays relevant to the application you are preparing.',
   },
   {
-    question: 'Is ResumeMatch free right now?',
+    question: 'How much can I use in a day?',
     answer:
-      'Yes. ResumeMatch is currently free during beta. You can use the full workflow today, with daily limits on analyses and mock interview sessions.',
+      'During beta, 10 resume analyses and 5 mock interview sessions per day, per account. Limits reset at 00:00 UTC.',
   },
   {
     question: 'What happens to my resume and my data?',
-    answer: null, // rendered inline — contains a mailto link
+    answer: null, // rendered inline — contains mailto links
   },
   {
     question: 'Who is this for?',
     answer:
-      'ResumeMatch is for job seekers who want a more targeted way to improve applications and prepare for interviews.',
+      'Job seekers who would rather send five well-targeted applications than fifty generic ones.',
   },
 ];
 
@@ -108,8 +88,6 @@ export function Landing() {
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const appHref = user ? '/upload' : '/login';
-  const primaryLabel = user ? 'Open App' : 'Analyze My Resume';
-  const finalCtaLabel = user ? 'Go to Upload' : 'Analyze My Resume';
 
   return (
     <div className="landing-page">
@@ -122,29 +100,25 @@ export function Landing() {
           </Link>
 
           <nav className="landing-nav__links" aria-label="Landing page">
-            {navLinks.map((link) => (
+            {sectionLinks.map((link) => (
               <a key={link.href} href={link.href}>
                 {link.label}
               </a>
             ))}
+            <Link to="/support">Support</Link>
           </nav>
 
           <div className="landing-nav__actions">
+            <Link
+              to={user ? '/upload' : '/login'}
+              className="landing-btn landing-btn--ghost landing-btn--nav landing-nav__signin"
+            >
+              {user ? 'Open app' : 'Sign in'}
+            </Link>
+            <Link to={appHref} className="landing-btn landing-btn--solid landing-btn--nav">
+              Analyze my resume
+            </Link>
             <ThemeToggle />
-            {user ? (
-              <Link to="/upload" className="landing-btn landing-btn--ghost landing-btn--nav">
-                Open app
-              </Link>
-            ) : (
-              <>
-                <Link to="/login" className="landing-btn landing-btn--ghost landing-btn--nav landing-nav__signin">
-                  Sign in
-                </Link>
-                <Link to="/signup" className="landing-btn landing-btn--primary landing-btn--sm">
-                  Create account
-                </Link>
-              </>
-            )}
             <button
               type="button"
               className="landing-nav__menu-btn"
@@ -162,78 +136,76 @@ export function Landing() {
 
         {menuOpen && (
           <nav id="landing-mobile-nav" className="landing-nav__mobile" aria-label="Landing page sections">
-            {navLinks.map((link) => (
+            {sectionLinks.map((link) => (
               <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
                 {link.label}
               </a>
             ))}
-            {!user && (
-              <Link to="/login" className="landing-nav__mobile-signin" onClick={() => setMenuOpen(false)}>
-                Sign in
-              </Link>
-            )}
+            <Link to="/support" onClick={() => setMenuOpen(false)}>
+              Support
+            </Link>
+            <Link
+              to={user ? '/upload' : '/login'}
+              className="landing-nav__mobile-signin"
+              onClick={() => setMenuOpen(false)}
+            >
+              {user ? 'Open app' : 'Sign in'}
+            </Link>
           </nav>
         )}
       </header>
 
       <main id="main-content" tabIndex={-1}>
-        <header className="landing-hero" id="top">
-          <div className="landing-hero__row">
-            <div className="landing-hero__content">
-              <div className="landing-eyebrow landing-hero__eyebrow">For real job applications</div>
-              <h1>Get the interview. Then pass it.</h1>
-              <p className="landing-hero__lede">
-                Match your resume to a real job description, improve the application before you send it, and practice
-                for the interview for that same role.
-              </p>
-              <div className="landing-hero__actions">
-                <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--md">
-                  {primaryLabel}
-                </Link>
-                {!user && (
-                  <Link to="/sample" className="landing-btn landing-btn--ghost landing-btn--md">
-                    See a sample analysis
-                  </Link>
-                )}
-                <a href="#how" className="landing-btn landing-btn--ghost landing-btn--md">
-                  See how it works
-                </a>
-              </div>
-              <div className="landing-hero__trust" aria-label="Privacy assurances">
-                <span className="landing-chip">
-                  <TrustCheckIcon />
-                  No data sold
-                </span>
-                <span className="landing-chip">
-                  <TrustCheckIcon />
-                  No model training on your content
-                </span>
-              </div>
+        <section className="landing-hero" id="top">
+          <div className="landing-hero__glow" aria-hidden="true" />
+          <div className="landing-hero__content">
+            <div className="landing-hero__badge">
+              <span className="landing-hero__badge-dot" aria-hidden="true" />
+              Free during beta · no credit card
             </div>
-            <HeroCards />
+            <h1>Know your match before you apply.</h1>
+            <p className="landing-hero__lede">
+              Paste a job description. ResumeMatch scores your resume against it, shows the exact
+              keywords you are missing, rewrites the weak bullets, and then interviews you for that
+              same role.
+            </p>
+            <div className="landing-hero__actions">
+              <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--md">
+                Analyze my resume
+                <ArrowRightIcon />
+              </Link>
+              <Link to="/sample" className="landing-btn landing-btn--ghost landing-btn--md">
+                See a sample analysis
+              </Link>
+            </div>
+            <div className="landing-hero__trust" aria-label="Privacy assurances">
+              {trustChips.map((chip) => (
+                <span key={chip} className="landing-chip">
+                  <TrustCheckIcon />
+                  {chip}
+                </span>
+              ))}
+            </div>
           </div>
-        </header>
 
-        <section className="landing-sample" aria-label="Sample analysis">
-          <SampleAnalysisPanel />
-        </section>
-
-        <section className="landing-section landing-section--center" id="why">
-          <div className="landing-eyebrow">Why ResumeMatch</div>
-          <h2 className="landing-h2 landing-h2--center">More than a resume score</h2>
-          <p className="landing-lede landing-lede--center landing-lede--why">
-            Start with a real job description. See how your resume aligns, fix the gaps that matter, and carry that
-            same role into interview practice. One role, one workflow, from application to interview prep.
-          </p>
+          <ProductPreview />
         </section>
 
         <section className="landing-section" id="how">
-          <div className="landing-eyebrow">How it works</div>
-          <h2 className="landing-h2 landing-h2--gap-lg">From resume check to interview prep</h2>
-          <div className="landing-grid landing-grid--quads" role="list">
+          <div className="landing-section__head">
+            <div>
+              <div className="landing-eyebrow">How it works</div>
+              <h2 className="landing-h2">One role, start to finish.</h2>
+            </div>
+            <p className="landing-section__aside">
+              Generic checkers grade your resume in a vacuum. ResumeMatch grades it against the job
+              you actually want — then keeps that context all the way to the interview.
+            </p>
+          </div>
+          <div className="landing-steps" role="list">
             {steps.map((step) => (
-              <article key={step.number} className="landing-card" role="listitem">
-                <div className="landing-step-num">{step.number}</div>
+              <article key={step.number} className="landing-step" role="listitem">
+                <div className="landing-step__num">{step.number}</div>
                 <h3>{step.title}</h3>
                 <p>{step.body}</p>
               </article>
@@ -241,51 +213,38 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="landing-section" aria-label="See the workflow in action">
-          <div className="landing-eyebrow">See the workflow in action</div>
-          <h2 className="landing-h2 landing-h2--gap-sm">What happens after the analysis</h2>
-          <p className="landing-lede landing-lede--intro">
-            Below: the concrete resume edits ResumeMatch suggests for the role, and the mock interview it builds from
-            that same posting.
-          </p>
+        <section className="landing-section" id="workflow">
+          <div className="landing-eyebrow">After the score</div>
+          <h2 className="landing-h2 landing-h2--gap-lg">
+            A number is not a plan. This is what you actually get.
+          </h2>
           <div className="landing-grid landing-grid--pair">
             <SuggestionsCard />
             <InterviewCard />
           </div>
         </section>
 
-        <section className="landing-section" id="features">
-          <div className="landing-eyebrow">Core features</div>
-          <h2 className="landing-h2 landing-h2--gap-lg">The tools that move one application forward</h2>
-          <div className="landing-grid landing-grid--quads" role="list">
-            {features.map((feature) => (
-              <article key={feature.title} className="landing-card" role="listitem">
-                <h3>{feature.title}</h3>
-                <p>{feature.body}</p>
-              </article>
-            ))}
-          </div>
-          <p className="landing-lede landing-section__afterword">
-            Paste a job description to see your match, the gaps that matter, and the edits that close them.
-          </p>
-        </section>
-
-        <section className="landing-section" id="pricing">
-          <div className="landing-eyebrow">Pricing</div>
-          <h2 className="landing-h2 landing-h2--gap-sm">Start free. Everything is included right now.</h2>
-          <p className="landing-lede landing-lede--intro">
-            ResumeMatch is currently free during beta. You can use the full workflow today, with daily limits on
-            analyses and mock interviews. Pro pricing and added benefits will come later.
-          </p>
-          <div className="landing-pricing" role="list">
-            <article className="landing-plan landing-plan--free" role="listitem">
+        <section className="landing-pricing-band" id="pricing">
+          <div className="landing-pricing">
+            <div>
+              <div className="landing-eyebrow">Beta</div>
+              <h2 className="landing-h2 landing-h2--gap-sm">Free while we&apos;re in beta.</h2>
+              <p className="landing-lede landing-lede--pricing">
+                The whole workflow is included during beta, with daily limits. Pricing isn&apos;t set
+                yet. If that changes, we&apos;ll say so before it does.
+              </p>
+              <p className="landing-pricing__note">
+                No credit card. Delete your account and data any time by email.
+              </p>
+            </div>
+            <article className="landing-plan">
               <div className="landing-plan__title">
-                <h3>Free during beta</h3>
-                <span className="landing-plan__badge">Available now</span>
+                <h3>Beta access</h3>
+                <span className="landing-plan__badge">Beta</span>
               </div>
-              <p className="landing-plan__body">Use the full ResumeMatch workflow today.</p>
+              <div className="landing-plan__price">$0</div>
               <ul className="landing-plan__features">
-                {freePlanFeatures.map((feature) => (
+                {betaFeatures.map((feature) => (
                   <li key={feature}>
                     <ListCheckIcon />
                     {feature}
@@ -293,33 +252,19 @@ export function Landing() {
                 ))}
               </ul>
               <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--plan landing-plan__cta">
-                Start Free
+                Start free
               </Link>
-            </article>
-            <article className="landing-plan" role="listitem">
-              <div className="landing-plan__title">
-                <h3>Pro</h3>
-              </div>
-              <p className="landing-plan__body landing-plan__body--muted">Coming soon.</p>
-              <ul className="landing-plan__features landing-plan__features--muted">
-                {proPlanFeatures.map((feature) => (
-                  <li key={feature}>
-                    <span className="landing-plan__dash" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <button type="button" className="landing-btn landing-btn--disabled landing-btn--plan landing-plan__cta" disabled aria-disabled="true">
-                Coming Soon
-              </button>
             </article>
           </div>
         </section>
 
-        <section className="landing-section" id="faq">
+        <section className="landing-section landing-faq-section" id="faq">
           <div className="landing-faq__header">
-            <div className="landing-eyebrow">Frequently asked questions</div>
-            <h2 className="landing-h2 landing-h2--center">Questions before you start</h2>
+            <div className="landing-eyebrow">FAQ</div>
+            <h2 className="landing-h2 landing-h2--gap-sm">Questions before you start</h2>
+            <p className="landing-faq__contact">
+              Anything else? <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a>
+            </p>
           </div>
           <div className="landing-faq" role="list">
             {faqs.map((faq) => (
@@ -329,15 +274,14 @@ export function Landing() {
                   <p>{faq.answer}</p>
                 ) : (
                   <p>
-                    Your resume (the file and its extracted text), your job descriptions, analyses, and interview
-                    transcripts are stored privately in your account so you can come back to them. Interview audio
-                    streams to our transcription provider (Deepgram) for live speech-to-text. We never store it, we opt
-                    out of Deepgram&apos;s model-improvement program on every request, and per Deepgram&apos;s policy,
-                    opted-out audio is retained only long enough to process the request. We never sell your data, and
-                    nothing you upload is used to train AI models: analyses run on AWS Bedrock, which does not use
-                    customer inputs for training. Want everything gone? Email{' '}
-                    <a href="mailto:support@resumematchapp.com">support@resumematchapp.com</a> and your account and all
-                    stored data are deleted within 7 days.
+                    Your resume, job descriptions, analyses, and transcripts are stored privately in
+                    your account. Interview audio streams to Deepgram for live transcription and is
+                    never stored; we opt out of their model-improvement program on every request.
+                    Analyses run on Amazon Bedrock, which does not use customer inputs to train its
+                    models. We never sell your data. Email{' '}
+                    <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a> and
+                    your content is deleted within 7 days; system logs age out separately within 90
+                    days.
                   </p>
                 )}
               </article>
@@ -345,17 +289,19 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="landing-section landing-section--center landing-section--cta">
-          <div className="landing-eyebrow">Start with your resume</div>
-          <h2 className="landing-h2 landing-h2--center landing-h2--cta">
-            Analyze your resume against a real job description
-          </h2>
-          <p className="landing-lede landing-lede--center landing-lede--cta">
-            See where you match, what to improve, and what to practice next for the same role.
-          </p>
-          <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--lg">
-            {finalCtaLabel}
-          </Link>
+        <section className="landing-cta">
+          <div className="landing-cta__card">
+            <div className="landing-cta__glow" aria-hidden="true" />
+            <div className="landing-cta__hairline" aria-hidden="true" />
+            <div className="landing-cta__content">
+              <h2>Your next application, checked against the real posting.</h2>
+              <p>Upload once, paste the job description, and see where you stand before you apply.</p>
+              <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--lg">
+                Analyze my resume
+                <ArrowRightIcon />
+              </Link>
+            </div>
+          </div>
         </section>
       </main>
 

@@ -90,6 +90,82 @@ export function DownloadIcon() {
   );
 }
 
+export function ArrowRightIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+export function LockIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
+      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.3" fill="none" />
+    </svg>
+  );
+}
+
+/* App-shell tab glyphs. These mirror the real nav in Layout.tsx; they take their
+   colour from the tab, so no stroke literals (HANDOFF §0.6). */
+const tabIcon = {
+  width: 14,
+  height: 14,
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.5,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+  'aria-hidden': true,
+};
+
+export function TabUploadIcon() {
+  return (
+    <svg {...tabIcon} viewBox="0 0 15 15">
+      <path d="M7.5 10V3m0 0L4.5 6m3-3 3 3" />
+      <path d="M2.5 10.5v1.5a1 1 0 001 1h8a1 1 0 001-1v-1.5" />
+    </svg>
+  );
+}
+
+export function TabHistoryIcon() {
+  return (
+    <svg {...tabIcon} viewBox="0 0 24 24" strokeWidth={2}>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+
+export function TabInterviewsIcon() {
+  return (
+    <svg {...tabIcon} viewBox="0 0 15 15">
+      <rect x="5" y="1.75" width="5" height="7.5" rx="2.5" />
+      <path d="M3.25 7.25c0 2.35 1.9 4.25 4.25 4.25s4.25-1.9 4.25-4.25" />
+      <path d="M7.5 11.5v1.75" />
+      <path d="M5.5 13.25h4" />
+    </svg>
+  );
+}
+
+export function TabTrackerIcon() {
+  return (
+    <svg {...tabIcon} viewBox="0 0 15 15">
+      <rect x="2" y="2" width="11" height="11" rx="2" />
+      <path d="M5 7.5l2 2 3-4" />
+    </svg>
+  );
+}
+
 export function ChevronRightIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
