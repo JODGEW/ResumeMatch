@@ -24,8 +24,12 @@ type LegalLayoutProps = {
 
 export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, children }: LegalLayoutProps) {
   const { user } = useAuth();
+  // The nav button is this page's "Sign in" equivalent, so it stays on /login.
   const actionHref = user ? '/upload' : '/login';
   const actionLabel = user ? 'Open app' : 'Sign in';
+  // The closing CTA is a "start using it" entry point: a signed-out visitor has
+  // no account yet, so it opens signup, matching Landing and the shared footer.
+  const ctaHref = user ? '/upload' : '/signup';
   const [activeId, setActiveId] = useState(toc[0]?.id);
   const tocNavRef = useRef<HTMLElement>(null);
 
@@ -128,15 +132,15 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
             <div className="legal-cta__content">
               <h2>See how your resume matches the role</h2>
               <p>Analyze your resume against a real job description, then practice for the same role.</p>
-              <Link to={actionHref} className="legal-btn legal-btn--primary">
-                Analyze My Resume
+              <Link to={ctaHref} className="legal-btn legal-btn--primary">
+                Analyze my resume
               </Link>
             </div>
           </div>
         </section>
       </main>
 
-      <LandingFooter appHref={actionHref} narrow />
+      <LandingFooter narrow />
     </div>
   );
 }

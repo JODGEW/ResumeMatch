@@ -88,6 +88,12 @@ export function Landing() {
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const appHref = user ? '/upload' : '/login';
+  // A signed-out visitor has no account yet, so every primary action — the three
+  // "Analyze my resume" buttons and the "Start free" pricing CTA — opens signup
+  // rather than a sign-in form. Only the nav "Sign in" link stays on /login.
+  // Deliberate departure from Landing v2, which dropped the signup entry from
+  // the nav entirely.
+  const ctaHref = user ? '/upload' : '/signup';
 
   return (
     <div className="landing-page">
@@ -110,12 +116,12 @@ export function Landing() {
 
           <div className="landing-nav__actions">
             <Link
-              to={user ? '/upload' : '/login'}
+              to={appHref}
               className="landing-btn landing-btn--ghost landing-btn--nav landing-nav__signin"
             >
               {user ? 'Open app' : 'Sign in'}
             </Link>
-            <Link to={appHref} className="landing-btn landing-btn--solid landing-btn--nav">
+            <Link to={ctaHref} className="landing-btn landing-btn--solid landing-btn--nav">
               Analyze my resume
             </Link>
             <ThemeToggle />
@@ -145,7 +151,7 @@ export function Landing() {
               Support
             </Link>
             <Link
-              to={user ? '/upload' : '/login'}
+              to={appHref}
               className="landing-nav__mobile-signin"
               onClick={() => setMenuOpen(false)}
             >
@@ -170,7 +176,7 @@ export function Landing() {
               same role.
             </p>
             <div className="landing-hero__actions">
-              <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--md">
+              <Link to={ctaHref} className="landing-btn landing-btn--primary landing-btn--md">
                 Analyze my resume
                 <ArrowRightIcon />
               </Link>
@@ -251,7 +257,7 @@ export function Landing() {
                   </li>
                 ))}
               </ul>
-              <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--plan landing-plan__cta">
+              <Link to={ctaHref} className="landing-btn landing-btn--primary landing-btn--plan landing-plan__cta">
                 Start free
               </Link>
             </article>
@@ -296,7 +302,7 @@ export function Landing() {
             <div className="landing-cta__content">
               <h2>Your next application, checked against the real posting.</h2>
               <p>Upload once, paste the job description, and see where you stand before you apply.</p>
-              <Link to={appHref} className="landing-btn landing-btn--primary landing-btn--lg">
+              <Link to={ctaHref} className="landing-btn landing-btn--primary landing-btn--lg">
                 Analyze my resume
                 <ArrowRightIcon />
               </Link>
@@ -305,7 +311,7 @@ export function Landing() {
         </section>
       </main>
 
-      <LandingFooter appHref={appHref} />
+      <LandingFooter />
     </div>
   );
 }

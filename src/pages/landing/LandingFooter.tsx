@@ -1,17 +1,23 @@
 import { Link, useLocation } from 'react-router-dom';
 import { LogoMark } from '../../components/LogoMark';
 import { siteConfig } from '../../config/site';
+import { useAuth } from '../../auth/AuthContext';
 
 type LandingFooterProps = {
-  appHref: string;
   /* Legal pages use the bundle's 1120px container instead of the landing 1200px */
   narrow?: boolean;
 };
 
-export function LandingFooter({ appHref, narrow }: LandingFooterProps) {
+export function LandingFooter({ narrow }: LandingFooterProps) {
   const year = new Date().getFullYear();
   const { pathname } = useLocation();
+  const { user } = useAuth();
   const currentClass = (path: string) => (pathname === path ? 'is-current' : undefined);
+  // Derived here rather than passed in: the destination depends on auth state,
+  // not on which page renders the footer, and a signed-out visitor has no
+  // account to sign in with. Every page that shows this footer sends them to
+  // signup.
+  const ctaHref = user ? '/upload' : '/signup';
 
   return (
     <footer className="landing-footer">
@@ -29,7 +35,7 @@ export function LandingFooter({ appHref, narrow }: LandingFooterProps) {
         </div>
         <div className="landing-footer__side">
           <nav className="landing-footer__links" aria-label="Footer">
-            <Link to={appHref}>Analyze my resume</Link>
+            <Link to={ctaHref}>Analyze my resume</Link>
             <Link to="/support" className={currentClass('/support')}>
               Support
             </Link>

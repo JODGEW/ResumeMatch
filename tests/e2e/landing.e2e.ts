@@ -34,7 +34,7 @@ const PRICING_STRINGS = [
  * is a purely local state reset with no network call — then navigate back to
  * `/` through the History API. A full reload would re-seed the dev user.
  */
-async function openLanding(page: Page, theme: string, width: number): Promise<void> {
+async function openSignedOut(page: Page, path: string, theme: string, width: number): Promise<void> {
   await page.addInitScript(value => {
     window.localStorage.setItem('theme', value)
   }, theme)
@@ -53,13 +53,17 @@ async function openLanding(page: Page, theme: string, width: number): Promise<vo
   }
 
   await page.setViewportSize({ width, height: 800 })
-  await page.evaluate(() => {
-    window.history.pushState({}, '', '/')
+  await page.evaluate(target => {
+    window.history.pushState({}, '', target)
     window.dispatchEvent(new PopStateEvent('popstate'))
-  })
+  }, path)
 
-  await expect(page.locator('.landing-page')).toBeVisible()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+}
+
+async function openLanding(page: Page, theme: string, width: number): Promise<void> {
+  await openSignedOut(page, '/', theme, width)
+  await expect(page.locator('.landing-page')).toBeVisible()
 }
 
 for (const theme of THEMES) {
@@ -113,6 +117,54 @@ test('FAQ states the daily limits and the UTC reset', async ({ page }) => {
     ),
   ).toBeVisible()
 })
+
+test('signed-out primary CTAs open signup, and Sign in stays on /login', async ({ page }) => {
+  await openLanding(page, 'light', 1280)
+
+  // A visitor with no account must not be sent to a sign-in form by any primary
+  // action: the three "Analyze my resume" buttons, the footer link, or "Start free".
+  const primaryCtas = page.getByRole('link', { name: 'Analyze my resume' })
+  await expect(primaryCtas).toHaveCount(4) // nav + hero + closing CTA + footer
+  for (const cta of await primaryCtas.all()) {
+    await expect(cta).toHaveAttribute('href', '/signup')
+  }
+
+  await expect(page.getByRole('link', { name: 'Start free' })).toHaveAttribute('href', '/signup')
+
+  // The one deliberate exception.
+  await expect(page.locator('.landing-nav__signin')).toHaveAttribute('href', '/login')
+})
+
+for (const path of ['/privacy', '/terms', '/support'] as const) {
+  test(`legal closing CTA opens signup when signed out on ${path}`, async ({ page }) => {
+    await openSignedOut(page, path, 'light', 1280)
+
+    const cta = page.locator('.legal-cta').getByRole('link', { name: 'Analyze my resume' })
+    await expect(cta).toHaveCount(1)
+    await expect(cta).toHaveAttribute('href', '/signup')
+
+    // The nav button is this page's "Sign in" equivalent and stays on /login.
+    await expect(page.locator('.legal-nav .legal-btn--ghost')).toHaveAttribute('href', '/login')
+
+    // Sentence case everywhere: no title-case variant survives.
+    await expect(page.getByText('Analyze My Resume', { exact: true })).toHaveCount(0)
+  })
+}
+
+for (const path of ['/', '/privacy', '/terms', '/support'] as const) {
+  test(`footer "Analyze my resume" opens signup when signed out on ${path}`, async ({ page }) => {
+    await openSignedOut(page, path, 'light', 1280)
+
+    const footerCta = page.locator('.landing-footer').getByRole('link', { name: 'Analyze my resume' })
+    await expect(footerCta).toHaveCount(1)
+    await expect(footerCta).toHaveAttribute('href', '/signup')
+
+    // Every other footer link is unchanged.
+    await expect(page.locator('.landing-footer a[href="/support"]')).toHaveCount(1)
+    await expect(page.locator('.landing-footer a[href="/privacy"]')).toHaveCount(1)
+    await expect(page.locator('.landing-footer a[href="/terms"]')).toHaveCount(1)
+  })
+}
 
 test('closing CTA uses the approved body copy', async ({ page }) => {
   await openLanding(page, 'light', 1280)
