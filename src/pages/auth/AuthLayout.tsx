@@ -54,11 +54,13 @@ type AuthLayoutProps = {
   switcher?: ReactNode;
   /** Two-step flows: [current, total], rendered as a progress row above the title. */
   step?: [number, number];
+  /** One short name per step, shown under its bar in place of the "1 / 2" label. */
+  stepLabels?: string[];
   /** Rendered under the card, outside it (e.g. the demo entry on Login). */
   belowCard?: ReactNode;
 };
 
-export function AuthLayout({ title, subtitle, children, switcher, step, belowCard }: AuthLayoutProps) {
+export function AuthLayout({ title, subtitle, children, switcher, step, stepLabels, belowCard }: AuthLayoutProps) {
   return (
     <div className="auth-page">
       <header className="auth-topbar">
@@ -72,7 +74,27 @@ export function AuthLayout({ title, subtitle, children, switcher, step, belowCar
       <main className="auth-main">
         <div className="auth-box">
           <div className="auth-box__head">
-            {step && (
+            {step && stepLabels && (
+              <ol className="auth-steps">
+                {stepLabels.map((label, i) => (
+                  <li
+                    key={label}
+                    className={`auth-steps__item${i + 1 === step[0] ? ' is-current' : ''}`}
+                    aria-current={i + 1 === step[0] ? 'step' : undefined}
+                  >
+                    <span
+                      className={`auth-progress__bar${i < step[0] ? ' is-done' : ''}`}
+                      aria-hidden="true"
+                    />
+                    <span className="auth-steps__label">
+                      <span className="sr-only">Step {i + 1} of {stepLabels.length}: </span>
+                      {label}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {step && !stepLabels && (
               <div className="auth-progress">
                 {Array.from({ length: step[1] }, (_, i) => (
                   <span

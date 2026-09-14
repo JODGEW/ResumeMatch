@@ -114,6 +114,7 @@ export function Signup() {
     <AuthLayout
       title={step === 'register' ? 'Create your account' : 'Check your email'}
       step={step === 'register' ? [1, 2] : [2, 2]}
+      stepLabels={['Account', 'Verify email']}
       switcher={<AuthSwitch prompt="Have an account?" to="/login" label="Sign in" disabled={loading} />}
       subtitle={
         step === 'register' ? (
