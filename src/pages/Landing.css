@@ -715,6 +715,7 @@
 
 .landing-preview__body {
   padding: clamp(20px, 3vw, 32px);
+  container: landing-preview-body / inline-size;
 }
 
 .landing-preview__head {
@@ -897,6 +898,35 @@
 
 .landing-kwcard--missing {
   align-self: start;
+}
+
+/* Preview-only crop. Side by side, 20 matched vs 13 missing keywords leaves the
+   Missing card ~150px short with blank space under it, and the Matched card
+   ends on a lone "OAuth2" row. contain: size drops the Matched card out of the
+   row's height, so the row is as tall as the Missing card and the Matched card
+   is clipped to it; the fade then cuts both columns mid-content so neither card
+   bottom shows. The real Results page keeps both lists in full.
+
+   The Matched card depends on .landing-keywords keeping the default
+   align-items: stretch, and on the .landing-kwcard base class carrying no
+   align-self. Either change collapses the Matched card to its 48px of padding.
+
+   The fade is a mask, not an overlay painted in --surface-card: in dark mode
+   that token is translucent (white at 3%), so an overlay hides nothing and adds
+   a visible band of its own.
+
+   704px is where the auto-fit grid above goes two-up: 2 × 340px + 24px gap.
+   Stacked, there is no height mismatch and nothing is cropped. */
+@container landing-preview-body (min-width: 704px) {
+  .landing-keywords {
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent 100%);
+    mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent 100%);
+  }
+
+  .landing-kwcard:not(.landing-kwcard--missing) {
+    contain: size;
+    overflow: hidden;
+  }
 }
 
 /* ── Workflow cards ─────────────────────────────────── */

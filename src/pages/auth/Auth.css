@@ -210,6 +210,39 @@
   color: var(--text-tertiary);
 }
 
+/* Labelled variant: one name under each bar, so the user can see what the
+   next step is before reaching it. Same bars as .auth-progress. */
+.auth-steps {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.auth-steps__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* .auth-progress__bar grows along a row; in this column it must not grow tall. */
+.auth-steps__item .auth-progress__bar {
+  flex: none;
+}
+
+.auth-steps__label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.auth-steps__item.is-current .auth-steps__label {
+  font-weight: 590;
+  color: var(--text-primary);
+}
+
 /* ── Buttons ────────────────────────────────────────── */
 .auth-btn {
   width: 100%;
