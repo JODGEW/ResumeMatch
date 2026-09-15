@@ -40,6 +40,16 @@
   transform: translateY(-4px);
 }
 
+/* First use only (no saved resume): the mascot replaces the icon, and its
+   idle → success swap replaces the icon lift. Mascot handoff, Integration 3. */
+.dropzone__mascot {
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
 .dropzone__title {
   font-size: 15px;
   font-weight: 590;

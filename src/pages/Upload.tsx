@@ -320,7 +320,7 @@ export function Upload() {
                     </button>
                   </p>
                 )}
-                <FileDropzone onFileSelect={setFile} />
+                <FileDropzone onFileSelect={setFile} showMascot={!lastResume} />
               </div>
             )}
 
