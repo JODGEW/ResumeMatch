@@ -517,6 +517,12 @@
   padding: 4rem 1rem;
 }
 
+.history-empty__mascot {
+  width: 112px;
+  height: 112px;
+  margin-bottom: 4px;
+}
+
 .history-no-match {
   text-align: center;
   padding: 60px 20px;

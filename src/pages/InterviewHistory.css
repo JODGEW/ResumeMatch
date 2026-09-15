@@ -130,6 +130,12 @@
   box-shadow: var(--card-shadow);
 }
 
+.ih-empty__mascot {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 10px;
+}
+
 .ih-empty__title {
   margin: 0 0 6px;
   font-size: 16px;

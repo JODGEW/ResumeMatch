@@ -11,6 +11,7 @@ import { clearAnalysisNew, getNewAnalysisIds, markAnalysisNew } from '../utils/n
 import type { Analysis } from '../types';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { RecurringGaps } from '../components/RecurringGaps';
+import { Mascot } from '../components/Mascot';
 import { DEMO_ANALYSES } from '../types/demoAnalyses';
 import './History.css';
 
@@ -352,10 +353,9 @@ export function History() {
 
       {!loading && !error && analyses.length === 0 && (
         <div className="history-empty animate-in">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <rect x="12" y="8" width="40" height="48" rx="6" stroke="var(--border-light)" strokeWidth="2" />
-            <path d="M22 22h20M22 30h14M22 38h17" stroke="var(--border-light)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <div className="history-empty__mascot" aria-hidden="true">
+            <Mascot state="idle" size={112} />
+          </div>
           <h3>No analyses yet</h3>
           <p className="text-secondary">Upload your first resume to get started</p>
           <Link to="/upload" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>

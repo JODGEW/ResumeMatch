@@ -9,6 +9,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { KanbanView } from '../components/KanbanView';
 import { OutreachQueue } from '../components/OutreachQueue';
 import { SignupPromptModal } from '../components/SignupPromptModal';
+import { Mascot } from '../components/Mascot';
 import './Tracker.css';
 
 type Filter = 'all' | 'worth' | 'follow_up' | 'awaiting' | 'completed' | 'rejected';
@@ -1854,10 +1855,19 @@ export function Tracker() {
         />
       ) : sorted.length === 0 ? (
         <div className="tracker-empty animate-in">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <rect x="12" y="8" width="40" height="48" rx="6" stroke="var(--border-light)" strokeWidth="2" />
-            <path d="M22 22h20M22 30h14M22 38h17" stroke="var(--border-light)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          {/* Mascot only for a truly empty tracker. A filter with no matches is a
+              search miss, not first use — keep the plain icon so it reads as a
+              prompt to change the filter. */}
+          {filter === 'all' ? (
+            <div className="tracker-empty__graphic tracker-empty__graphic--mascot" aria-hidden="true">
+              <Mascot state="idle" size={96} />
+            </div>
+          ) : (
+            <svg className="tracker-empty__graphic" width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <rect x="12" y="8" width="40" height="48" rx="6" stroke="var(--border-light)" strokeWidth="2" />
+              <path d="M22 22h20M22 30h14M22 38h17" stroke="var(--border-light)" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          )}
           <h2>{filter === 'all' ? 'No applications yet' : 'No matching applications'}</h2>
           <p className="text-secondary">
             {filter === 'all' ? 'Add your first application to get started' : 'Try a different filter'}

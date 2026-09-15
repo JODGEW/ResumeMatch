@@ -267,6 +267,12 @@
 }
 
 /* ── Empty / Loading States ─────────────────────────── */
+/* No extra margin: the container's 0.75rem gap already spaces it from the heading. */
+.results-empty__mascot {
+  width: 112px;
+  height: 112px;
+}
+
 .results-empty,
 .results-loading {
   display: flex;
