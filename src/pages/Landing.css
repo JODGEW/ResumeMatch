@@ -440,6 +440,17 @@
   text-align: center;
 }
 
+/* The page's one mascot (Mascot handoff bundle, Integration 2). Keep it to this
+   spot — logo, preview, step cards and the dark CTA card stay mascot-free. */
+.landing-hero__mascot {
+  width: 168px;
+  height: 168px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
 .landing-hero__badge {
   display: inline-flex;
   align-items: center;

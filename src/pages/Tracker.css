@@ -712,8 +712,16 @@
   color: var(--text-muted);
 }
 
-.tracker-empty svg {
+/* Scoped to the graphic's own class: a bare `.tracker-empty svg` would also
+   match the mascot's SVG. */
+.tracker-empty__graphic {
   margin-bottom: 12px;
+}
+
+.tracker-empty__graphic--mascot {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 12px;
 }
 
 .tracker-empty h2 {

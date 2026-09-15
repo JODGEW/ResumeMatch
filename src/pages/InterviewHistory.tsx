@@ -4,6 +4,7 @@ import { getSession, listSessions, type SessionSummary } from '../api/interview'
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { resolveSessionIdentity } from '../utils/sessionIdentity';
 import { useAuth } from '../auth/AuthContext';
+import { Mascot } from '../components/Mascot';
 import { getScoreBand } from '../utils/scoreBands';
 import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SUMMARY } from '../types/sampleInterviewSession';
 import './InterviewHistory.css';
@@ -254,6 +255,9 @@ export function InterviewHistory() {
 
       {!loading && sessions.length === 0 && !error ? (
         <div className="ih-empty animate-in stagger-1">
+          <div className="ih-empty__mascot" aria-hidden="true">
+            <Mascot state="idle" size={96} />
+          </div>
           <p className="ih-empty__title">No interview sessions yet.</p>
           <p className="ih-empty__body">Start your first mock interview from a job analysis.</p>
           <Link to="/history" className="ih-empty__cta">

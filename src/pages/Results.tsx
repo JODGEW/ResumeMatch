@@ -12,6 +12,7 @@ import { getScoreBand, getScoreColor, type ScoreTier } from '../utils/scoreBands
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
 import { AnalysisProgressCard, COMPLETION_BEAT_MS } from '../components/AnalysisProgressCard';
 import { SignupPromptModal } from '../components/SignupPromptModal';
+import { Mascot } from '../components/Mascot';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getResumeUrl } from '../api/upload';
 import { getSession, isMissingInterviewSessionError, listSessions } from '../api/interview';
@@ -401,6 +402,9 @@ export function Results({ sample = false }: { sample?: boolean }) {
     return (
       <div className="page-container">
         <div className="results-empty">
+          <div className="results-empty__mascot" aria-hidden="true">
+            <Mascot state="error" size={112} />
+          </div>
           <h2>Something went wrong</h2>
           <p className="text-secondary">{error}</p>
           <Link to="/upload" className="btn btn-primary" style={{ marginTop: '1rem' }}>

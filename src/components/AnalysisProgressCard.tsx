@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { NormalizedAnalysisStatus } from '../hooks/usePolling';
 import { markAnalysisNew } from '../utils/newAnalyses';
+import { Mascot } from './Mascot';
 import './AnalysisProgressCard.css';
 
 export type AnalysisProgressMode = 'active' | 'finalizing' | 'complete' | 'timeout' | 'failed';
@@ -163,12 +164,9 @@ export function AnalysisProgressCard({
     const isLimit = errorMessage?.toLowerCase().includes('limit');
     return (
       <section className="analysis-progress-card" role="alert">
-        <span className="analysis-progress-card__status-icon analysis-progress-card__status-icon--danger" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M8 5v3.5M8 10.75v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </span>
+        <div className="analysis-progress-card__mascot" aria-hidden="true">
+          <Mascot state="error" size={112} />
+        </div>
         <h2>Analysis could not be completed</h2>
         <p className="analysis-progress-card__desc">
           {errorMessage || 'We couldn\'t process this resume. Please upload the file again or try a different PDF export.'}
@@ -193,12 +191,9 @@ export function AnalysisProgressCard({
   if (mode === 'timeout') {
     return (
       <section className="analysis-progress-card" role="status">
-        <span className="analysis-progress-card__status-icon analysis-progress-card__status-icon--warn" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M8 4.75V8.25l2 1.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
+        <div className="analysis-progress-card__mascot" aria-hidden="true">
+          <Mascot state="timeout" size={112} />
+        </div>
         <h2>This is taking longer than it should</h2>
         <p className="analysis-progress-card__desc">
           We checked for two minutes and it hasn't finished. We can't tell from here whether it's
@@ -244,25 +239,9 @@ export function AnalysisProgressCard({
       aria-live="polite"
     >
       <div className="apc__head">
-        {isComplete ? (
-          <div className="apc__badge apc__badge--done" aria-hidden="true">
-            <span className="apc__badge-face">
-              <svg width="26" height="26" viewBox="0 0 26 26">
-                <polyline points="7,13.5 11.5,18 19,8.5" fill="none" stroke="var(--success-alt)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          </div>
-        ) : (
-          <div className="apc__badge" aria-hidden="true">
-            <span className="apc__badge-pulse" />
-            <span className="apc__badge-face">
-              <svg className="apc-spin" width="26" height="26" viewBox="0 0 26 26">
-                <circle cx="13" cy="13" r="9.5" stroke="var(--accent-border)" strokeWidth="2.4" fill="none" opacity="0.4" />
-                <path d="M13 3.5a9.5 9.5 0 0 1 9.5 9.5" stroke="var(--accent-hover)" strokeWidth="2.4" strokeLinecap="round" fill="none" />
-              </svg>
-            </span>
-          </div>
-        )}
+        <div className="apc__badge" aria-hidden="true">
+          <Mascot state={isComplete ? 'success' : 'analyzing'} size={104} />
+        </div>
         <h1 className="apc__title">{title}</h1>
         <p className="apc__subtitle">{subtitle}</p>
       </div>

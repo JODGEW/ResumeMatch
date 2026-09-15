@@ -5,7 +5,8 @@
 
    The bundle only models the running and complete states. The timeout and
    failed states have no mock and keep their existing centered-card styling
-   at the bottom of this file, unchanged. */
+   at the bottom of this file. The status badges in all five modes are the
+   Mascot component (Mascot handoff bundle, Integration 1). */
 
 .analysis-progress-hero {
   display: flex;
@@ -29,39 +30,14 @@
   text-align: center;
 }
 
+/* Mascot slot (Mascot handoff bundle) — analyzing while running, success on complete. */
 .apc__badge {
-  position: relative;
-  width: 58px;
-  height: 58px;
-  margin-bottom: 22px;
-}
-
-.apc__badge--done {
-  animation: apcPopIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.apc__badge-pulse {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--brand-tint-bg);
-  animation: apcPulseRing 1.8s ease-out infinite;
-}
-
-.apc__badge-face {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--brand-tint-bg);
-  border: 1px solid var(--brand-tint-border);
+  width: 104px;
+  height: 104px;
+  margin-bottom: 14px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-}
-
-.apc__badge--done .apc__badge-face {
-  background: var(--pill-success-bg);
-  border-color: var(--pill-success-border);
 }
 
 .apc__title {
@@ -334,18 +310,6 @@
   animation-duration: 0.9s;
 }
 
-@keyframes apcPulseRing {
-  0% { transform: scale(0.9); opacity: 0.55; }
-  70% { transform: scale(1.5); opacity: 0; }
-  100% { opacity: 0; }
-}
-
-@keyframes apcPopIn {
-  0% { transform: scale(0.5); opacity: 0; }
-  60% { transform: scale(1.08); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
 @keyframes apcBarGlow {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
@@ -353,8 +317,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .apc-spin,
-  .apc__badge-pulse,
-  .apc__badge--done,
   .apc__bar-fill {
     animation: none;
   }
@@ -410,25 +372,12 @@
   margin: 0 auto;
 }
 
-.analysis-progress-card__status-icon {
-  width: 40px;
-  height: 40px;
-  margin: 0 auto 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-}
-
-.analysis-progress-card__status-icon--danger {
-  background: var(--danger-dim);
-  color: var(--danger);
-}
-
-/* Timeout is not a failure — we simply stopped looking. Amber, not red. */
-.analysis-progress-card__status-icon--warn {
-  background: var(--warning-dim);
-  color: var(--warning);
+/* Mascot slot: error pose for failed, amber-clock timeout pose for timeout.
+   Timeout is not a failure — we simply stopped looking — so neither uses red. */
+.analysis-progress-card__mascot {
+  width: 112px;
+  height: 112px;
+  margin: 0 auto 0.75rem;
 }
 
 .analysis-progress-card__notice {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { LogoMark } from '../components/LogoMark';
+import { Mascot } from '../components/Mascot';
 import { useAuth } from '../auth/AuthContext';
 import { ProductPreview } from './landing/ProductPreview';
 import { SuggestionsCard, InterviewCard } from './landing/WorkflowCards';
@@ -87,6 +88,10 @@ const faqs = [
 export function Landing() {
   const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Hero mascot celebrates while the hero's primary CTA is hovered or
+  // keyboard-focused.
+  const [ctaHovered, setCtaHovered] = useState(false);
+  const [ctaFocused, setCtaFocused] = useState(false);
   const appHref = user ? '/upload' : '/login';
   // A signed-out visitor has no account yet, so every primary action — the three
   // "Analyze my resume" buttons and the "Start free" pricing CTA — opens signup
@@ -165,6 +170,9 @@ export function Landing() {
         <section className="landing-hero" id="top">
           <div className="landing-hero__glow" aria-hidden="true" />
           <div className="landing-hero__content">
+            <div className="landing-hero__mascot" aria-hidden="true">
+              <Mascot state={ctaHovered || ctaFocused ? 'success' : 'idle'} size={168} />
+            </div>
             <div className="landing-hero__badge">
               <span className="landing-hero__badge-dot" aria-hidden="true" />
               Free during beta · no credit card
@@ -176,7 +184,14 @@ export function Landing() {
               same role.
             </p>
             <div className="landing-hero__actions">
-              <Link to={ctaHref} className="landing-btn landing-btn--primary landing-btn--md">
+              <Link
+                to={ctaHref}
+                className="landing-btn landing-btn--primary landing-btn--md"
+                onPointerEnter={() => setCtaHovered(true)}
+                onPointerLeave={() => setCtaHovered(false)}
+                onFocus={(e) => setCtaFocused(e.currentTarget.matches(':focus-visible'))}
+                onBlur={() => setCtaFocused(false)}
+              >
                 Analyze my resume
                 <ArrowRightIcon />
               </Link>
