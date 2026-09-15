@@ -15,6 +15,7 @@ export function LogoMark({ width = 28, height = 28, className }: LogoMarkProps) 
       className={className}
     >
       <rect x="2" y="2" width="24" height="24" rx="6" stroke="var(--accent)" strokeWidth="2" />
+      {/* Long / short / medium lines — Mascot's belly lines repeat this rhythm. Change both together. */}
       <path d="M8 9h12M8 14h8M8 19h10" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );

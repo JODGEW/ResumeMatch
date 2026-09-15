@@ -1,0 +1,126 @@
+/* ResumeMatch mascot ("Doc") — implementation of the Claude Design handoff
+   (design_handoff_resumematch_mascot/Mascot.dc.html). Keyframes are copied
+   verbatim from the bundle.
+
+   Outline, paper, eye highlight and sweat drop are deliberate literals: they are
+   artwork and must not invert with the theme. Only the tinted fills and the
+   ground shadow swap for dark surfaces. Accent and clock rim use --accent and
+   --warn from index.css. */
+
+.mascot {
+  --mascot-tint: #d3d6f0;
+  --mascot-shadow: rgba(46, 51, 84, 0.07);
+  display: block;
+  overflow: visible; /* error hands reach x≈2 and x≈200, the timeout clock x≈191 */
+}
+
+:root:not([data-theme="light"]) .mascot,
+.mascot.mascot--on-dark {
+  --mascot-tint: #c7cbf0;
+  --mascot-shadow: rgba(255, 255, 255, 0.07);
+}
+
+:root:not([data-theme="light"]) .mascot.mascot--on-light {
+  --mascot-tint: #d3d6f0;
+  --mascot-shadow: rgba(46, 51, 84, 0.07);
+}
+
+.mascot__tint {
+  fill: var(--mascot-tint);
+}
+
+.mascot__shadow {
+  fill: var(--mascot-shadow);
+}
+
+.mascot__clock {
+  stroke: var(--warn);
+}
+
+@keyframes mm-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes mm-blink { 0%, 90%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.08); } }
+@keyframes mm-wave {
+  0%, 72%, 100% { transform: rotate(0); }
+  78% { transform: rotate(-16deg); }
+  84% { transform: rotate(10deg); }
+  90% { transform: rotate(-14deg); }
+  96% { transform: rotate(4deg); }
+}
+@keyframes mm-think {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50% { transform: rotate(-2deg) translateY(-2px); }
+}
+@keyframes mm-scan { 0%, 100% { transform: translateX(-5px); } 50% { transform: translateX(5px); } }
+@keyframes mm-scanbar {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.9; }
+  90% { opacity: 0.9; }
+  100% { transform: translateY(46px); opacity: 0; }
+}
+@keyframes mm-linepulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@keyframes mm-tap { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes mm-celebrate {
+  0% { transform: translateY(0) scale(1, 1); }
+  10% { transform: translateY(-16px) scale(0.96, 1.05); }
+  20% { transform: translateY(0) scale(1.04, 0.96); }
+  30% { transform: translateY(-10px) scale(0.98, 1.03); }
+  40%, 100% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes mm-cheerL {
+  0%, 40%, 100% { transform: rotate(0); }
+  10%, 30% { transform: rotate(-14deg); }
+  20% { transform: rotate(6deg); }
+}
+@keyframes mm-cheerR {
+  0%, 40%, 100% { transform: rotate(0); }
+  10%, 30% { transform: rotate(14deg); }
+  20% { transform: rotate(-6deg); }
+}
+@keyframes mm-sparkle {
+  0%, 55%, 100% { transform: scale(0); opacity: 0; }
+  65% { transform: scale(1.15); opacity: 1; }
+  80% { transform: scale(1); opacity: 1; }
+  92% { transform: scale(0); opacity: 0; }
+}
+@keyframes mm-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes mm-sag {
+  0%, 100% { transform: rotate(0) translateY(0); }
+  50% { transform: rotate(3deg) translateY(2px); }
+}
+@keyframes mm-drop {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: 1; }
+  70% { transform: translateY(18px); opacity: 1; }
+  100% { transform: translateY(24px); opacity: 0; }
+}
+@keyframes mm-shrug { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-6deg); } }
+@keyframes mm-shrugR { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(6deg); } }
+
+/* Timeout beat — played once, resolves upright, looking at the user, brow lifted. */
+@keyframes mm-peek {
+  0% { transform: rotate(0) translateY(0); }
+  20%, 52% { transform: rotate(4deg) translateY(1px); }
+  78%, 100% { transform: rotate(0) translateY(0); }
+}
+@keyframes mm-gaze {
+  0% { transform: translate(0, 0); }
+  18%, 50% { transform: translate(5px, 4px); }
+  74%, 100% { transform: translate(0, 0); }
+}
+@keyframes mm-brow {
+  0%, 55% { transform: translateY(0); }
+  80%, 100% { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  svg[aria-label="ResumeMatch mascot"],
+  svg[aria-label="ResumeMatch mascot"] * {
+    animation: none !important;
+  }
+}
