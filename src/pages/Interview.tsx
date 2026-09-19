@@ -4,6 +4,7 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useMicrophoneCheck } from '../hooks/useMicrophoneCheck';
 import { useMicrophoneLevel } from '../hooks/useMicrophoneLevel';
 import { LogoMark } from '../components/LogoMark';
+import { Mascot, type MascotState } from '../components/Mascot';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { extractApiErrorMessage } from '../api/errors';
 import {
@@ -888,6 +889,15 @@ export function Interview() {
   // Best-effort: closingKind only arrives with the backend's next turn, so the
   // last question is inferred from the counter. Falls back to the generic label.
   const isLastQuestion = totalQuestions > 0 && questionNumber >= totalQuestions;
+  const mascotState: MascotState = currentPromptIsClosing
+    ? 'success'
+    : activeError
+      ? /timed?\s*out|timeout/i.test(activeError)
+        ? 'timeout'
+        : 'error'
+      : isAdvancing
+        ? 'analyzing'
+        : 'idle';
 
   // --- Render ---
 
@@ -1258,75 +1268,75 @@ export function Interview() {
         </div>
 
       <div className={`interview-question animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}${questionKindClass}`}>
-        <div className="interview-question__head">
-          <span className="interview-question__who">
-            <span className="interview-question__avatar">
-              {interviewState === 'speaking' ? (
-                <div className="interview-speaking-bars">
-                  <span /><span /><span /><span />
-                </div>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="6.5" r="3" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M4 15a5 5 0 0 1 10 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              )}
-            </span>
-            Interviewer
-          </span>
-          <span className="interview-question__audio">
-            <button
-              type="button"
-              className="interview-question__btn"
-              onClick={() => speakQuestion(currentQuestion, true)}
-              disabled={interviewState === 'speaking' || interviewState === 'thinking' || !currentQuestion}
-              title="Replay question audio"
-            >
-              {interviewState === 'speaking' ? (
-                <>
-                  <span className="loading-spinner interview-question__spinner" />
-                  Playing…
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M3 6v4h2.5L9 13V3L5.5 6H3Z" fill="currentColor" />
-                    <path d="M11 6a2.5 2.5 0 0 1 0 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                  </svg>
-                  Replay
-                </>
-              )}
-            </button>
-          </span>
+        <div className="interview-question__layout">
+          <div className="interview-question__mascot" aria-hidden="true">
+            <Mascot state={mascotState} size={76} />
+          </div>
+          <div className="interview-question__content">
+            <div className="interview-question__head">
+              <span className="interview-question__who">
+                {interviewState === 'speaking' && (
+                  <span className="interview-question__voice" aria-hidden="true">
+                    <span /><span /><span /><span />
+                  </span>
+                )}
+                AI interviewer
+              </span>
+              <span className="interview-question__audio">
+                <button
+                  type="button"
+                  className="interview-question__btn"
+                  onClick={() => speakQuestion(currentQuestion, true)}
+                  disabled={interviewState === 'speaking' || interviewState === 'thinking' || !currentQuestion}
+                  title="Replay question audio"
+                >
+                  {interviewState === 'speaking' ? (
+                    <>
+                      <span className="loading-spinner interview-question__spinner" />
+                      Playing…
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M3 6v4h2.5L9 13V3L5.5 6H3Z" fill="currentColor" />
+                        <path d="M11 6a2.5 2.5 0 0 1 0 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                      </svg>
+                      Replay
+                    </>
+                  )}
+                </button>
+              </span>
+            </div>
+            {interviewState === 'thinking' ? (
+              <div className="interview-thinking">
+                <span className="interview-thinking__dot" />
+                <span className="interview-thinking__dot" />
+                <span className="interview-thinking__dot" />
+              </div>
+            ) : (
+              <div className="interview-question__body">
+                {currentQuestionKind === 'followup' && (
+                  <span className="interview-question__tag interview-question__tag--followup">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                      <path d="M2 4h6a3 3 0 013 3v3M8.5 7.5L11 10l-2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Follow-up — going deeper on your last answer
+                  </span>
+                )}
+                {currentQuestionKind === 'clarification' && (
+                  <span className="interview-question__tag interview-question__tag--clarification">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                      <path d="M7 1.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z" stroke="currentColor" strokeWidth="1.3" />
+                      <path d="M5.5 5.2a1.5 1.5 0 012.9.5c0 1-1.4 1.3-1.4 2.1M7 10.2h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    The transcription couldn&apos;t make out your last answer — please say it again
+                  </span>
+                )}
+                <p className="interview-question__text">{currentQuestion}</p>
+              </div>
+            )}
+          </div>
         </div>
-        {interviewState === 'thinking' ? (
-          <div className="interview-thinking">
-            <span className="interview-thinking__dot" />
-            <span className="interview-thinking__dot" />
-            <span className="interview-thinking__dot" />
-          </div>
-        ) : (
-          <div className="interview-question__body">
-            {currentQuestionKind === 'followup' && (
-              <span className="interview-question__tag interview-question__tag--followup">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path d="M2 4h6a3 3 0 013 3v3M8.5 7.5L11 10l-2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Follow-up — going deeper on your last answer
-              </span>
-            )}
-            {currentQuestionKind === 'clarification' && (
-              <span className="interview-question__tag interview-question__tag--clarification">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path d="M7 1.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z" stroke="currentColor" strokeWidth="1.3" />
-                  <path d="M5.5 5.2a1.5 1.5 0 012.9.5c0 1-1.4 1.3-1.4 2.1M7 10.2h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                The transcription couldn&apos;t make out your last answer — please say it again
-              </span>
-            )}
-            <p className="interview-question__text">{currentQuestion}</p>
-          </div>
-        )}
       </div>
 
       {currentFeedback && (
