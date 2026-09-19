@@ -4,6 +4,7 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useMicrophoneCheck } from '../hooks/useMicrophoneCheck';
 import { useMicrophoneLevel } from '../hooks/useMicrophoneLevel';
 import { LogoMark } from '../components/LogoMark';
+import { Mascot, type MascotState } from '../components/Mascot';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { extractApiErrorMessage } from '../api/errors';
 import {
@@ -888,6 +889,15 @@ export function Interview() {
   // Best-effort: closingKind only arrives with the backend's next turn, so the
   // last question is inferred from the counter. Falls back to the generic label.
   const isLastQuestion = totalQuestions > 0 && questionNumber >= totalQuestions;
+  const mascotState: MascotState = currentPromptIsClosing
+    ? 'success'
+    : activeError
+      ? /timed?\s*out|timeout/i.test(activeError)
+        ? 'timeout'
+        : 'error'
+      : isAdvancing
+        ? 'analyzing'
+        : 'idle';
 
   // --- Render ---
 
@@ -1260,19 +1270,15 @@ export function Interview() {
       <div className={`interview-question animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}${questionKindClass}`}>
         <div className="interview-question__head">
           <span className="interview-question__who">
-            <span className="interview-question__avatar">
-              {interviewState === 'speaking' ? (
-                <div className="interview-speaking-bars">
-                  <span /><span /><span /><span />
-                </div>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-                  <circle cx="9" cy="6.5" r="3" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M4 15a5 5 0 0 1 10 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              )}
+            <span className="interview-question__mascot" aria-hidden="true">
+              <Mascot state={mascotState} size={52} />
             </span>
-            Interviewer
+            {interviewState === 'speaking' && (
+              <span className="interview-question__voice" aria-hidden="true">
+                <span /><span /><span /><span />
+              </span>
+            )}
+            AI interviewer
           </span>
           <span className="interview-question__audio">
             <button
