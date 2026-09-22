@@ -39,13 +39,23 @@ All six scenarios always run. The relevance map decides only the "Covers change?
 
 | Scenario | Drives | Label YES when the change set touches |
 |---|---|---|
-| P1-01 | `/sample` → `Results sample`, signup dialog | `src/pages/Results.tsx`, `src/pages/Results.css`, score/keyword components, `ProgressRing`, `src/utils/scoreBands.ts` |
-| P1-02 | `Upload`, presigned URL + S3 POST, `usePolling`, completed `Results` | `src/pages/Upload.*`, `src/api/upload.ts`, `src/api/client.ts`, `src/api/analysis.ts`, `src/hooks/usePolling.ts`, `src/pages/Results.*` |
+| P1-01 | `/sample` → `Results sample`, signup dialog | `src/pages/Results.tsx`, `src/pages/Results.css`, `src/components/ProgressRing.*`, `src/components/Badge.*`, `src/components/SignupPromptModal.*`, `src/utils/scoreBands.ts` |
+| P1-02 | `Upload`, presigned URL + S3 POST, `usePolling`, completed `Results` | `src/pages/Upload.*`, `src/api/upload.ts`, `src/api/client.ts`, `src/api/analysis.ts`, `src/hooks/usePolling.ts`, `src/pages/Results.*`, `src/components/AnalysisProgressCard.tsx`, `src/components/ProgressRing.*`, `src/components/Badge.*` |
 | P1-03 | Reuse path (`last-resume`, `requestUploadWithReuse`, no S3) | same as P1-02 |
-| P1-04 | `processing → failed` terminal UI | `src/hooks/usePolling.ts` (includes `normalizeAnalysisStatus`), `src/pages/Results.*` |
-| P1-05 | 3s polling, 2-minute timeout, polling stops | `src/hooks/usePolling.ts`, `src/pages/Results.*` |
+| P1-04 | `processing → failed` terminal UI | `src/hooks/usePolling.ts` (includes `normalizeAnalysisStatus`), `src/pages/Results.*`, `src/components/AnalysisProgressCard.tsx` |
+| P1-05 | 3s polling, 2-minute timeout, polling stops | `src/hooks/usePolling.ts`, `src/pages/Results.*`, `src/components/AnalysisProgressCard.tsx` |
 | P1-06 | no product code; self-test of `qa/browser/networkPolicy.ts` | `qa/browser/**` only; otherwise label `n/a` |
 | P1-02..P1-05 | app shell | `src/App.tsx`, `src/main.tsx`, `src/index.css`, `src/components/Layout.*`, `src/auth/**` |
+
+`AnalysisProgressCard.tsx` is on P1-02..P1-05 because each of them renders it from `Results.tsx`: P1-02 and P1-03 in `active` then `complete` mode (fixture `pending_upload → processing → completed`), P1-04 in `active` then `failed`, P1-05 in `active` then `timeout`. P1-01 does not: `/sample` renders completed canned data with no polling, so the card never mounts.
+
+**Labels.** A changed file is mapped when it matches any entry in the third column; a changed file under a trigger path that matches no entry is unmapped. For each scenario:
+
+- `YES` when any changed file maps to that scenario.
+- Otherwise `unmapped` when any changed file is unmapped. This replaces `no` and `n/a` for every scenario.
+- Otherwise `no` (or `n/a` for P1-06). `no` is allowed only when every changed file is mapped and none maps to that scenario.
+
+Every unmapped file is listed by path under the scenario table in the report.
 
 ## 2. Repo checks
 
@@ -141,7 +151,11 @@ Rules for reading that output:
 
 ## 5. Visual read
 
-Only for scenarios labelled "Covers change? YES": open the final screenshot with the Read tool and write one line, prefixed exactly `Visual read, not an automated check:`. It never changes the Result column or the overall verdict. For scenarios labelled `no` or `n/a`, do not do a visual read.
+For scenarios labelled "Covers change? YES": open the final screenshot with the Read tool and write one line, prefixed exactly `Visual read, not an automated check:`. For scenarios labelled `no`, `unmapped`, or `n/a`, do not read the final screenshot.
+
+For every scenario whose Result is `FAIL`, whatever its label: also open its failure screenshot (`failure.png`, the `failure screenshot:` line in step 4) and write one line with the same prefix, naming it as the failure screenshot. If the bundle has no failure screenshot, say so. `PASS (expected failure)` is not `FAIL`.
+
+A visual read never changes the Result column or the overall verdict.
 
 ## 6. Additional specs (after evidence collection only)
 
@@ -183,15 +197,18 @@ Release run: npm run qa:test -- tests/e2e/release-check.e2e.ts tests/e2e/network
 
 | Scenario | Result | Covers change? | Final screenshot |
 |---|---|---|---|
-| P1-01 | <PASS|FAIL|NOT RUN> | <YES|no> | <path> |
+| P1-01 | <PASS|FAIL|NOT RUN> | <YES|no|unmapped> | <path> |
 | ... one row per bundle found, plus NOT RUN rows for missing scenarios ...
+
+Unmapped files:
+  <one path per line, or "none">
 
 Manifests:
   <every manifest path printed in step 4>
 
-Visual reads (scenarios labelled YES only):
+Visual reads (final screenshot for YES labels; failure.png for every FAIL):
   P1-0x  Visual read, not an automated check: <one line>
-  (or: none, no scenario covers this change)
+  (or: none, no scenario labelled YES and none failed)
 
 Failures: <failure lines, screenshots, traces, console/page errors; or "none">
 
