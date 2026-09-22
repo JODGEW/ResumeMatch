@@ -24,7 +24,9 @@ local-run/mcp-config.json
 # Claude Code per-project state (permission grants, session settings). The
 # global git ignore only hides the exact name settings.local.json — conflict
 # copies like "settings.local 2.json" would otherwise get swept into commits.
-.claude/
+# Project skills under .claude/skills/ are the exception and are versioned.
+.claude/*
+!.claude/skills/
 .env
 .env.*
 !.env.example
