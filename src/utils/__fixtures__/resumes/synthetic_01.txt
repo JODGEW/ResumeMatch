@@ -1,0 +1,38 @@
+Morgan Ellis
+Full-Stack Software Engineer
+Denver, CO | morgan.ellis@example.com | example.com/morgan | example.org/in/morgan-ellis
+
+Summary
+Full-stack engineer with five years building customer-facing web products in TypeScript, React, and Node.js. Comfortable owning features end to end, from schema design to release, and pairing with design on accessible interfaces.
+
+Work Experience
+
+Software Engineer — Northwind Media | Mar 2022 - Present
+- Rebuilt the subscriber dashboard in React and TypeScript, cutting median page load from 3.1s to 1.2s.
+- Designed a PostgreSQL schema for billing events and wrote the migration that moved 40M rows without downtime.
+- Added contract tests between the web client and four backend services, catching breaking changes before release.
+- Mentored two junior engineers through their first on-call rotations.
+
+Associate Software Engineer — Contoso Health | Jun 2019 - Feb 2022
+- Built appointment-booking flows used by 120 clinics, with keyboard and screen-reader support.
+- Replaced a nightly batch export with an event-driven pipeline on AWS Lambda and SQS.
+- Wrote the team's first end-to-end test suite in Playwright.
+
+Projects
+
+Trailhead Planner | React, Node.js, PostgreSQL, Mapbox
+- Built a trip planner that suggests hiking routes from elevation and weather data.
+- Cached route tiles in the browser so the app keeps working offline on the trail.
+
+Budget Buddy | TypeScript, Express, SQLite
+- Wrote a small expense tracker with CSV import and monthly category reports.
+
+Skills
+Languages: TypeScript, JavaScript, Python, SQL
+Frontend: React, Next.js, CSS, Accessibility
+Backend: Node.js, Express, PostgreSQL, Redis
+Cloud: AWS Lambda, SQS, S3, Docker
+Testing: Playwright, Vitest, Jest
+
+Education
+B.S. Computer Science — University of Northern Colorado | 2015 - 2019

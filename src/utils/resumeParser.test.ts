@@ -4,8 +4,26 @@ import { join } from 'node:path';
 import { parseResume, sanitizeFilename } from './resumeParser';
 
 const CASES_DIR = join(__dirname, '../../eval/cases');
+const SYNTHETIC_DIR = join(__dirname, '__fixtures__/resumes');
 
-function loadRealResumes(): { id: string; text: string; firstLine: string }[] {
+type ResumeCase = { id: string; text: string; firstLine: string };
+
+// Committed, fictional resumes written to the same shape as eval/cases (name,
+// title, "City, ST | email | links", then Summary / Work Experience / Projects /
+// Skills or Technical Skills / Education). They run everywhere, CI included;
+// the real corpus stays gitignored because it is real people's resumes (RM-13).
+// Contact details use the reserved example.com/.net/.org domains only.
+function loadSyntheticResumes(): ResumeCase[] {
+  return readdirSync(SYNTHETIC_DIR)
+    .filter((f) => f.endsWith('.txt'))
+    .sort()
+    .map((f) => {
+      const text = readFileSync(join(SYNTHETIC_DIR, f), 'utf-8');
+      return { id: f.replace(/\.txt$/, ''), text, firstLine: text.split('\n')[0].trim() };
+    });
+}
+
+function loadRealResumes(): ResumeCase[] {
   let dirs: string[];
   try {
     dirs = readdirSync(CASES_DIR);
@@ -70,14 +88,15 @@ function toFlatBlob(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+const SYNTHETIC = loadSyntheticResumes();
 const REAL = loadRealResumes();
 const HAS_CORPUS = REAL.length > 0;
 
 if (!HAS_CORPUS) {
   console.warn(
     '\n[resumeParser.test] eval/cases corpus not found (gitignored, so absent in a ' +
-      'fresh clone / CI). SKIPPING the real-resume invariant + case_01 snapshot ' +
-      'suites; the synthetic-input suites below still run.\n',
+      'fresh clone / CI). The invariants run on the committed synthetic resumes only; ' +
+      'the real-resume cases and the case_01 snapshot are skipped.\n',
   );
 
   // Surface the skip in the run summary too — a console.warn can scroll past in a
@@ -85,15 +104,15 @@ if (!HAS_CORPUS) {
   // skipped and why, so `vitest` prints a visible "skipped" line, not silence.
   describe('parseResume — real-resume corpus (eval/cases)', () => {
     it.skip(
-      'eval/cases is gitignored and absent here — real-resume invariants + ' +
-        'case_01 snapshot did not run; synthetic-input suites below still cover the parser',
+      'eval/cases is gitignored and absent here — real-resume cases + case_01 ' +
+        'snapshot did not run; the synthetic resumes still cover the invariants',
       () => {},
     );
   });
 }
 
-describe.runIf(HAS_CORPUS)('parseResume — invariants across all real resumes', () => {
-  describe.each(REAL)('$id', ({ text, firstLine }) => {
+describe('parseResume — invariants across all resumes (synthetic, plus eval/cases when present)', () => {
+  describe.each([...SYNTHETIC, ...REAL])('$id', ({ text, firstLine }) => {
     it('Pattern A (newline-separated): extracts name and sections', () => {
       const result = parseResume(text);
       expect(result.name).toBe(firstLine);
@@ -121,6 +140,48 @@ describe.runIf(HAS_CORPUS)('parseResume — invariants across all real resumes',
       // At minimum we expect Work Experience/Skills/Education to be recovered.
       expect(headers.length).toBeGreaterThanOrEqual(2);
     });
+  });
+});
+
+describe('parseResume — locked structure for synthetic_01', () => {
+  const s01 = SYNTHETIC.find((r) => r.id === 'synthetic_01')!;
+
+  it('snapshot: Pattern A structure', () => {
+    const r = parseResume(s01.text);
+    const summary = {
+      name: r.name,
+      sectionCount: r.sections.length,
+      headers: r.sections.map((s) => s.header),
+      preambleIsContact: r.sections.find((s) => s.header === null)?.isContact ?? false,
+    };
+    expect(summary).toMatchInlineSnapshot(`
+      {
+        "headers": [
+          null,
+          "Summary",
+          "Work Experience",
+          "Projects",
+          "Skills",
+          "Education",
+        ],
+        "name": "Morgan Ellis",
+        "preambleIsContact": true,
+        "sectionCount": 6,
+      }
+    `);
+  });
+
+  it('escaped \\n input is decoded', () => {
+    const escaped = s01.text.replace(/\n/g, '\\n');
+    const r = parseResume(escaped);
+    expect(r.name).toBe('Morgan Ellis');
+    expect(r.sections.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('quoted (DynamoDB CSV) wrapping is stripped', () => {
+    const wrapped = `"${s01.text.replace(/\n/g, '\\n')}"`;
+    const r = parseResume(wrapped);
+    expect(r.name).toBe('Morgan Ellis');
   });
 });
 

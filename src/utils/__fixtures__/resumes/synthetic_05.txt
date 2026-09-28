@@ -1,0 +1,33 @@
+Avery Nakamura
+Machine Learning Engineer
+Seattle, WA | avery.nakamura@example.com | example.com/avery | example.net/avery-ml
+
+Summary
+Machine learning engineer who ships models to production, not just notebooks. Three years building ranking and retrieval systems with a focus on evaluation and monitoring.
+
+Work Experience
+
+Machine Learning Engineer — Relecloud | May 2023 - Present
+- Built a retrieval pipeline over 2M support articles with hybrid BM25 and embedding search.
+- Designed an offline evaluation harness that blocked two regressions before they reached users.
+- Cut inference cost 45% by distilling a ranking model and batching requests on GPU.
+
+Data Scientist — Wide World Importers | Sep 2021 - Apr 2023
+- Trained a demand-forecasting model that reduced stockouts 18% across 300 stores.
+- Wrote feature pipelines in PySpark and scheduled them with Airflow.
+- Presented model results to operations leads every month.
+
+Projects
+
+Paper Scout | Python, FastAPI, pgvector
+- Built a search tool over conference papers with citation-aware ranking.
+- Added a feedback loop so saved results boost similar papers.
+
+Skills
+Languages: Python, SQL, Rust
+ML: PyTorch, scikit-learn, Hugging Face, XGBoost
+Data: PySpark, Airflow, pgvector, Snowflake
+Serving: FastAPI, Docker, Triton
+
+Education
+M.S. Computer Science — Puget Sound Institute of Technology | 2019 - 2021

@@ -341,9 +341,36 @@
   border-top-color: var(--surface-panel);
 }
 
-.results-score__hover-wrap:hover .results-score__tooltip {
+/* The ring is a button so keyboard and touch can open the tooltip (RM-12).
+   Reset to look exactly like the bare ring; Layout.css supplies the
+   :focus-visible outline, and the radius keeps it round. */
+.results-score__trigger {
+  display: flex;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Open state is owned by ScoreRingWithAdvice (hover, focus, tap; Escape closes). */
+.results-score__tooltip--open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
+}
+
+/* Invisible bridge over the 8px gap so the pointer can move onto the tooltip
+   without it closing (WCAG 1.4.13). */
+.results-score__tooltip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
 }
 
 .results-score__tooltip-action {

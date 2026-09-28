@@ -1,0 +1,26 @@
+Sam Delacroix
+Junior Frontend Developer
+Austin, TX | sam.delacroix@example.org | example.org/sam
+
+Summary
+Frontend developer one year out of a bootcamp, building responsive interfaces in React. Eager to grow in testing and design systems.
+
+Work Experience
+
+Frontend Developer — Coho Winery | Feb 2024 - Present
+- Built the online reservation form in React with client-side validation and clear error messages.
+- Fixed 35 accessibility issues found in an audit, including focus order and color contrast.
+
+Projects
+
+Recipe Box | React, Vite, CSS Modules
+- Built a recipe app with search, favorites, and a printable shopping list.
+- Wrote component tests for every form with Vitest and Testing Library.
+
+Skills
+Languages: JavaScript, TypeScript, HTML, CSS
+Frameworks: React, Vite
+Tools: Git, Figma, Vitest
+
+Education
+Certificate in Web Development, Hill Country Coding Bootcamp

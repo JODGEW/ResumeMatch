@@ -558,22 +558,18 @@ Before a fresh-clone check: `nvm use 20` (or otherwise switch to Node 20), then
 
 ---
 
-## Known coverage gap: parser has no CI coverage yet (TODO)
+## Parser CI coverage (closed 2026-09-28, RM-13)
 
-`src/utils/resumeParser.test.ts` skips its real-resume suites when `eval/cases`
-is absent — which is **always** the case in CI (the corpus is gitignored). The
-synthetic bullet-reassembly and `sanitizeFilename` suites still run, but the
-parser's core name/section extraction across the three input shapes (newline /
-paragraph blob / flat blob) is **not exercised in CI at all**. The parser is a
-core path, so this shouldn't stay a permanent gap.
-
-**Plan (hybrid, ~30–60 min, no parser or test-logic changes):** commit a small
-set of **synthetic** resume fixtures to a *non-ignored* path (e.g.
-`src/utils/__fixtures__/resumes/`) and point a CI-runnable suite at them as a
-regression net, while the real `eval/` corpus stays local for fidelity. The whole
-cost is authoring 3–5 believable-but-fake fixtures that exercise the real
-pathologies (multi-section structure, contact preamble, soft-wrap rejoining) and
-regenerating the `case_01` inline snapshot against a synthetic fixture.
+`src/utils/resumeParser.test.ts` used to skip its core name/section extraction
+checks in CI, because they read only the gitignored `eval/cases` corpus. Five
+**synthetic** resumes now live at `src/utils/__fixtures__/resumes/` (fictional
+people, reserved `example.com/.net/.org` contact domains), written to the same
+shape as the corpus. The three-shape invariants (newline / paragraph blob / flat
+blob) run on them everywhere, plus the real corpus when `eval/cases` is present;
+`synthetic_01` carries the locked structure snapshot and the escaped-`\n` and
+quoted-CSV checks. Without the corpus (CI): 31 passed, 4 skipped (the notice and
+the three `case_01` tests). Mutation-checked: breaking contact detection or
+`unflattenBlob` fails the synthetic suites.
 
 **Limitation to record:** synthetic fixtures give CI a net for *known* behaviours
 only — they will **not** surface *new* real-world pathologies the way the real

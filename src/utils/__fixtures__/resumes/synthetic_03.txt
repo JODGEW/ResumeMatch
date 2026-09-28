@@ -1,0 +1,36 @@
+Casey Lindqvist
+Site Reliability Engineer
+Portland, OR | casey.l@example.com | example.com/casey-sre | example.org/casey
+
+Summary
+Site reliability engineer with six years running Kubernetes platforms at scale. Known for turning noisy alerting into actionable SLOs and for calm incident command.
+
+Work Experience
+
+Senior Site Reliability Engineer — Adventure Works | Apr 2023 - Present
+- Defined SLOs for 22 services and replaced 300 threshold alerts with 40 burn-rate alerts.
+- Led the migration of three EKS clusters to a GitOps workflow with Argo CD.
+- Ran incident command for eleven SEV-1 incidents and wrote blameless postmortems for each.
+
+Site Reliability Engineer — Woodgrove Bank | Jul 2020 - Mar 2023
+- Automated certificate rotation across 1,200 hosts, ending a recurring expiry outage.
+- Built Grafana dashboards that cut mean time to detect from 18 minutes to 4.
+- Hardened the CI pipeline with signed images and admission policies.
+
+Systems Administrator — Litware Inc | Jun 2018 - Jun 2020
+- Managed a fleet of 400 Linux servers with Ansible and wrote the patching runbook.
+- Moved backups to object storage and tested restores quarterly.
+
+Projects
+
+Pager Lint | Go, Prometheus
+- Wrote a linter that flags alert rules with no runbook link or no owner label.
+
+Skills
+Platforms: Kubernetes, EKS, Linux, Terraform
+Observability: Prometheus, Grafana, OpenTelemetry
+Languages: Go, Python, Bash
+Practices: SLOs, Incident Command, GitOps
+
+Education
+B.S. Information Technology — Cascade State University | 2014 - 2018

@@ -1,0 +1,28 @@
+Riley Okafor
+Data Engineer
+Columbus, OH | riley.okafor@example.net | example.net/riley
+
+Summary
+Data engineer focused on reliable batch and streaming pipelines. Four years moving analytics workloads from ad hoc scripts to tested, observable jobs that analysts trust.
+
+Work Experience
+
+Data Engineer — Fabrikam Logistics | Jan 2022 - Present
+- Migrated 60 cron-driven Python scripts to Airflow DAGs with retries, alerting, and lineage.
+- Built a Kafka consumer that lands shipment events in Snowflake within two minutes of creation.
+- Introduced dbt tests that flagged 14 silent data-quality regressions in the first quarter.
+
+Analytics Engineer — Tailspin Toys | Aug 2020 - Dec 2021
+- Modeled sales and inventory data in dbt, replacing twelve hand-maintained spreadsheets.
+- Cut warehouse spend 30% by clustering the three largest tables and pruning unused views.
+- Documented every model so finance could self-serve weekly reports.
+
+Technical Skills
+Languages: Python, SQL, Scala
+Orchestration: Airflow, dbt, Dagster
+Streaming: Kafka, Kinesis
+Warehouses: Snowflake, BigQuery, Redshift
+Tools: Git, Docker, Terraform
+
+Education
+B.S. Statistics, Ohio Valley University

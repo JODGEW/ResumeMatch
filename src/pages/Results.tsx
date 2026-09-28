@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
+import { useState, useEffect, useCallback, useId, useMemo, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
@@ -238,6 +238,89 @@ const SCORE_ACTIONS: Record<ScoreTier, string> = {
 function getScoreInterpretation(score: number) {
   const band = getScoreBand(score);
   return { label: band.label, color: band.color, action: SCORE_ACTIONS[band.tier] };
+}
+
+/**
+ * The score ring with its recommended action in a tooltip (RM-12). The tooltip
+ * opens on hover, keyboard focus, or a tap (which pins it; tapping again or
+ * anywhere else unpins), closes on Escape, and stays open while the pointer
+ * moves onto it (WCAG 1.4.13). aria-describedby makes screen readers announce
+ * the action when the ring is focused.
+ */
+function ScoreRingWithAdvice({ score, label, action }: { score: number; label: string; action: string }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const tooltipId = useId();
+  const open = (hovered || focused || pinned) && !dismissed;
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDismissed(true);
+        setPinned(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!pinned) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setPinned(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [pinned]);
+
+  return (
+    <div
+      ref={wrapRef}
+      className="results-score__hover-wrap"
+      onMouseEnter={() => {
+        setHovered(true);
+        setDismissed(false);
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+        setDismissed(false);
+      }}
+    >
+      <button
+        type="button"
+        className="results-score__trigger"
+        aria-describedby={tooltipId}
+        onFocus={(e) => {
+          // Keyboard focus only. A click or tap also focuses the button in
+          // Chrome, and counting that would stop a second tap from closing it;
+          // taps are handled by the pinned toggle instead.
+          setFocused(e.currentTarget.matches(':focus-visible'));
+          setDismissed(false);
+        }}
+        onBlur={() => {
+          setFocused(false);
+          setDismissed(false);
+        }}
+        onClick={() => {
+          setPinned((p) => !p);
+          setDismissed(false);
+        }}
+      >
+        <ProgressRing score={score} label={label} />
+      </button>
+      <div
+        id={tooltipId}
+        role="tooltip"
+        className={`results-score__tooltip${open ? ' results-score__tooltip--open' : ''}`}
+      >
+        <p className="results-score__tooltip-action">{action}</p>
+      </div>
+    </div>
+  );
 }
 
 function ProgressPage({ children }: { children: React.ReactNode }) {
@@ -661,12 +744,11 @@ export function Results({ sample = false }: { sample?: boolean }) {
           {(() => {
             const interp = getScoreInterpretation(Number(analysis.matchScore));
             return (
-              <div className="results-score__hover-wrap">
-                <ProgressRing score={Number(analysis.matchScore)} label={interp.label} />
-                <div className="results-score__tooltip">
-                  <p className="results-score__tooltip-action">{interp.action}</p>
-                </div>
-              </div>
+              <ScoreRingWithAdvice
+                score={Number(analysis.matchScore)}
+                label={interp.label}
+                action={interp.action}
+              />
             );
           })()}
         </div>
