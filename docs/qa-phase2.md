@@ -171,13 +171,19 @@ rather than accepted.
 is updated inside v5 rather than opening a v6; the record still has to move with
 the file, which is the point of the gate.
 
+`cordis.yml` was rehashed on 2026-09-28 after the ResumeMatch repo moved from
+`~/Desktop/resume-jd-match` to `~/code/resume-jd-match`: the `repositoryPath`
+fallback default (used when `RESUMEMATCH_QA_REPOSITORY` is unset) was updated to
+the new path. This changes no behavior when the env var is set, so the entry is
+updated inside v5 rather than opening a v6.
+
 `freeze.test.ts` verifies this table.
 
 | File | sha256 |
 | --- | --- |
 | `adapter:prompts/investigator.md` | `a8434b2ce46dac0d58659e0b7ef6e9a983965cbf4221311ae4a1f1cc453f744c` |
 | `adapter:src/qa-tools.ts` | `402ffac0d8a29c8e04028625c644fe78f15b1f40359779fae636bcc8afc28994` |
-| `adapter:cordis.yml` | `defc03624b3f0c4efe7920fcdd160e8ba02bb1f414b8548d43135d9b02a341ec` |
+| `adapter:cordis.yml` | `0fe064eb867d7620d1f2e1e8575967d73d286d6190c787811fdde0b3a74ef714` |
 | `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
 | `qa/browser/oracleRegistry.ts` | `c7381c8987c41153cd1875cecf8324461b5752fe4664f93f16b977b941637b61` |
 | `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
