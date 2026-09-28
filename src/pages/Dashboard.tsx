@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { getAnalysisHistory } from '../api/analysis';
+import { extractApiErrorMessage } from '../api/errors';
 import { getScoreBand } from '../utils/scoreBands';
 import type { Analysis } from '../types';
 import './Dashboard.css';
@@ -83,7 +84,7 @@ export function Dashboard() {
         const data = await getAnalysisHistory();
         if (!cancelled) setAnalyses(data);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load data');
+        if (!cancelled) setError(extractApiErrorMessage(err, 'Failed to load data'));
       } finally {
         if (!cancelled) setLoading(false);
       }

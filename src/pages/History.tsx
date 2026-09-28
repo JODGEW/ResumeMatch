@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getAnalysisHistory, getAnalysis } from '../api/analysis';
+import { extractApiErrorMessage } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { parseResume } from '../utils/resumeParser';
 import { downloadOptimizedResume } from '../utils/docxGenerator';
@@ -223,7 +224,7 @@ export function History() {
         }
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load history');
+        setError(extractApiErrorMessage(err, 'Failed to load history'));
         setLoading(false);
       }
     }

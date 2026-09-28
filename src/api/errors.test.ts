@@ -1,13 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
+import { AxiosError } from 'axios';
 import { extractApiErrorMessage } from './errors';
 
-function axios429(data: Record<string, string> | undefined): Error {
-  const err = new Error('Request failed with status code 429');
+function httpError(status: number, data: Record<string, string> | undefined): Error {
+  const err = new Error(`Request failed with status code ${status}`);
   (err as Error & { response?: { status: number; data?: Record<string, string> } }).response = {
-    status: 429,
+    status,
     data,
   };
   return err;
+}
+
+function axios429(data: Record<string, string> | undefined): Error {
+  return httpError(429, data);
 }
 
 describe('extractApiErrorMessage', () => {
@@ -22,8 +27,32 @@ describe('extractApiErrorMessage', () => {
     expect(extractApiErrorMessage(axios429({ message: 'm' }), 'f')).toBe('m');
   });
 
-  it('falls back to err.message when the body has no copy', () => {
-    expect(extractApiErrorMessage(axios429(undefined), 'f')).toBe('Request failed with status code 429');
+  it('uses the fallback, never axios status text, when an HTTP error body has no copy', () => {
+    expect(extractApiErrorMessage(axios429(undefined), 'f')).toBe('f');
+    expect(extractApiErrorMessage(axios429({}), 'f')).toBe('f');
+  });
+
+  it('uses the fallback for any 5xx, whatever its body says', () => {
+    // Bodies the backend and API Gateway really send on 5xx.
+    const bodies: Record<string, string>[] = [
+      { error: 'failed to mint token' },
+      { error: 'Internal server error' },
+      { message: 'Endpoint request timed out' },
+    ];
+    for (const data of bodies) {
+      expect(extractApiErrorMessage(httpError(502, data), 'Failed to start recording'))
+        .toBe('Failed to start recording');
+    }
+  });
+
+  it('uses the fallback when there was no response at all', () => {
+    const network = new AxiosError('Network Error', 'ERR_NETWORK');
+    const timeout = new AxiosError('timeout of 10000ms exceeded', 'ECONNABORTED');
+    expect(extractApiErrorMessage(network, 'Failed to load history')).toBe('Failed to load history');
+    expect(extractApiErrorMessage(timeout, 'Failed to load history')).toBe('Failed to load history');
+  });
+
+  it('keeps the message of a non-HTTP error', () => {
     expect(extractApiErrorMessage(new Error('boom'), 'f')).toBe('boom');
   });
 

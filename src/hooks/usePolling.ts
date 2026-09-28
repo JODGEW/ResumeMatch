@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { getAnalysis } from '../api/analysis';
+import { extractApiErrorMessage } from '../api/errors';
 import type { Analysis } from '../types';
+
+const LOAD_FAILED = "We couldn't load this analysis. Please refresh the page.";
 
 const POLL_TIMEOUT_MS = 120_000; // 2 minutes
 
@@ -66,7 +69,7 @@ export function usePolling(analysisId: string | null, intervalMs = 3000) {
         }
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Polling failed');
+        setError(extractApiErrorMessage(err, LOAD_FAILED));
         setLoading(false);
         clearInterval(timerRef.current);
         clearTimeout(timeoutRef.current);
@@ -89,7 +92,7 @@ export function usePolling(analysisId: string | null, intervalMs = 3000) {
         }
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Polling failed');
+        setError(extractApiErrorMessage(err, LOAD_FAILED));
         setLoading(false);
       }
     })();

@@ -2,9 +2,13 @@ import axios from 'axios';
 import client from './client';
 import type { Application } from '../types/tracker';
 
-/** Surface the backend's validation message ({errors:[]} / {error}) instead of axios's opaque "status code 400". */
+/**
+ * Surface the backend's validation message ({errors:[]} / {error}) instead of axios's opaque "status code 400".
+ * 4xx only: a 5xx body is exception text ("Internal server error"), so the axios error is passed through for
+ * extractApiErrorMessage to replace with the caller's copy.
+ */
 function apiError(err: unknown, fallback: string): Error {
-  if (axios.isAxiosError(err)) {
+  if (axios.isAxiosError(err) && (err.response?.status ?? 500) < 500) {
     const data = err.response?.data as { error?: string; errors?: string[] } | undefined;
     const message = data?.errors?.join(', ') || data?.error;
     if (message) return new Error(message);

@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 /**
  * Backend `error` fields are not consistent: the analysis 429 puts a finished
  * sentence there, while interviewStart puts a machine code and (for the quota
@@ -31,8 +33,16 @@ const LOOKS_LIKE_CODE = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/;
  */
 export function extractApiErrorMessage(err: unknown, fallback: string): string {
   const axiosErr = err as {
-    response?: { data?: { error?: string; errorMessage?: string; message?: string } };
+    response?: { status?: number; data?: { error?: string; errorMessage?: string; message?: string } };
   };
+
+  // A 5xx body is never user copy: it is exception text ("Internal server
+  // error"), a gateway message ("Endpoint request timed out") or a terse
+  // internal note ("failed to mint token"). The caller's fallback says the
+  // same thing in words written for the user.
+  const status = axiosErr?.response?.status;
+  if (typeof status === 'number' && status >= 500) return fallback;
+
   const data = axiosErr?.response?.data;
   const picked = data?.error || data?.errorMessage || data?.message || '';
 
@@ -54,6 +64,12 @@ export function extractApiErrorMessage(err: unknown, fallback: string): string {
     }
     return picked;
   }
+
+  // An HTTP failure with no copy in its body — or no response at all ("Network
+  // Error", a timeout) — has only axios's own message, which is never user copy
+  // ("Request failed with status code 502"). Non-HTTP errors (our own throws,
+  // browser media errors) keep their message.
+  if (axiosErr?.response || axios.isAxiosError(err)) return fallback;
 
   return (err instanceof Error ? err.message : '') || fallback;
 }

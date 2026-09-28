@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { DeepgramClient } from '@deepgram/sdk';
 import { getDeepgramToken, transcribeFinal } from '../api/deepgram';
+import { extractApiErrorMessage } from '../api/errors';
 import { getTranscriptionAudioStream } from '../utils/audioStream';
 import { applyNonsenseAliases } from '../utils/transcriptCorrection';
 
@@ -389,7 +390,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       } catch (err) {
         if (!attempt.cancelled) {
           console.error('startListening failed:', err);
-          const message = err instanceof Error ? err.message : 'Failed to start recording';
+          const message = extractApiErrorMessage(err, 'Failed to start recording');
           setError(message);
         }
         if (currentAttemptRef.current?.id === attempt.id) {

@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { Application } from '../types/tracker';
 import { SAMPLE_DATA, calculateOutreachScore } from '../types/tracker';
 import * as api from '../api/applications';
+import { extractApiErrorMessage } from '../api/errors';
 
 const STORAGE_KEY = 'resumematch_tracker_applications';
 
@@ -55,7 +56,7 @@ export function useApplications() {
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load applications');
+        setError(extractApiErrorMessage(err, 'Failed to load applications'));
       } finally {
         setIsLoading(false);
       }
@@ -72,7 +73,7 @@ export function useApplications() {
       created.outreachWorth = calculateOutreachScore(created).worth;
       setApplications(prev => [created, ...prev]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add application');
+      setError(extractApiErrorMessage(err, 'Failed to add application'));
       throw err;
     }
   }, []);
@@ -109,7 +110,7 @@ export function useApplications() {
       await api.updateApplication(id, resolvedEnriched);
     } catch (err) {
       // Revert on failure — re-fetch from server
-      setError(err instanceof Error ? err.message : 'Failed to update application');
+      setError(extractApiErrorMessage(err, 'Failed to update application'));
       try {
         const remote = await api.getApplications();
         setApplications(remote);
@@ -129,7 +130,7 @@ export function useApplications() {
     } catch (err) {
       // Revert on failure
       setApplications(prev);
-      setError(err instanceof Error ? err.message : 'Failed to delete application');
+      setError(extractApiErrorMessage(err, 'Failed to delete application'));
     }
   }, [applications]);
 
