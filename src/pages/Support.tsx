@@ -24,6 +24,7 @@ export function Support() {
       chips={CHIPS}
       toc={TOC}
       lastUpdated={null}
+      ctaTitle="Still stuck? Email us. Or go see where your resume stands."
     >
       <LegalSection id="s1" num="01" title="Contact us">
         <div className="support-contact">
@@ -88,7 +89,7 @@ export function Support() {
           <div className="support-qa__item">
             <h3>My analysis is stuck or failed</h3>
             <p>
-              Most analyses finish in about 30 seconds. The results page keeps checking for two
+              Analyses normally finish within a couple of minutes. The results page keeps checking for two
               minutes and then tells you it can no longer see the status — a report that does finish
               still saves to your History. If nothing appears there, run the analysis again; if it
               happens twice, email us with the role title and rough time.

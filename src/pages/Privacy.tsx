@@ -13,7 +13,7 @@ const TOC: LegalTocItem[] = [
   { id: 's7', label: 'Contact' },
 ];
 
-const CHIPS = ['No interview audio stored', 'No model training on your data', 'Delete your data anytime'];
+const CHIPS = ['No interview audio stored', 'No model training on your data', 'Deleted within 7 days on request'];
 
 export function Privacy() {
   return (
@@ -24,6 +24,7 @@ export function Privacy() {
       chips={CHIPS}
       toc={TOC}
       lastUpdated="July 20, 2026"
+      ctaTitle="Your data stays yours. Your match score is one upload away."
     >
       <LegalSection id="s1" num="01" title="What we store">
         <p>When you use ResumeMatch we store, privately in your account:</p>

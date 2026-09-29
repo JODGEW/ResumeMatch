@@ -19,10 +19,12 @@ type LegalLayoutProps = {
   toc: LegalTocItem[];
   /** Omit for the site default; pass null on pages that carry no revision date. */
   lastUpdated?: string | null;
+  /** Heading of the closing CTA card; each page has its own (Claude Design v2). */
+  ctaTitle: string;
   children: ReactNode;
 };
 
-export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, children }: LegalLayoutProps) {
+export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ctaTitle, children }: LegalLayoutProps) {
   const { user } = useAuth();
   // The nav button is this page's "Sign in" equivalent, so it stays on /login.
   const actionHref = user ? '/upload' : '/login';
@@ -130,7 +132,7 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
             <div className="legal-cta__glow" aria-hidden="true" />
             <div className="legal-cta__hairline" aria-hidden="true" />
             <div className="legal-cta__content">
-              <h2>See how your resume matches the role</h2>
+              <h2>{ctaTitle}</h2>
               <p>Analyze your resume against a real job description, then practice for the same role.</p>
               <Link to={ctaHref} className="legal-btn legal-btn--primary">
                 Analyze my resume

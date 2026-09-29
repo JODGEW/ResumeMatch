@@ -26,6 +26,7 @@ export function Terms() {
       intro="Simple terms for using ResumeMatch responsibly."
       chips={CHIPS}
       toc={TOC}
+      ctaTitle="Read the terms? Good. Now see how your resume matches the role."
     >
       <LegalSection id="s1" num="01" title="Using ResumeMatch">
         <p>
