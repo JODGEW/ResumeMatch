@@ -1357,10 +1357,7 @@
 }
 
 .landing-tile__value--high {
-  /* Deliberately NOT --score-high here. This mock tile sits on --surface-inset,
-     where --score-high (= --success #178753) is 4.26:1. The real Results tiles
-     sit on white and still use the score band. */
-  color: var(--pill-success-text);
+  color: var(--score-high);
 }
 
 .landing-tile__label {
