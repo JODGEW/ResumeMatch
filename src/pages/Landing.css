@@ -1676,10 +1676,6 @@
   flex-wrap: wrap;
 }
 
-.landing-footer__inner--narrow {
-  max-width: 1120px;
-}
-
 .landing-footer__brand {
   max-width: 380px;
 }

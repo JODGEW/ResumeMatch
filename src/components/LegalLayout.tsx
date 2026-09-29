@@ -140,7 +140,7 @@ export function LegalLayout({ eyebrow, title, intro, chips, toc, lastUpdated, ch
         </section>
       </main>
 
-      <LandingFooter narrow />
+      <LandingFooter />
     </div>
   );
 }

@@ -3,12 +3,7 @@ import { LogoMark } from '../../components/LogoMark';
 import { siteConfig } from '../../config/site';
 import { useAuth } from '../../auth/AuthContext';
 
-type LandingFooterProps = {
-  /* Legal pages use the bundle's 1120px container instead of the landing 1200px */
-  narrow?: boolean;
-};
-
-export function LandingFooter({ narrow }: LandingFooterProps) {
+export function LandingFooter() {
   const year = new Date().getFullYear();
   const { pathname } = useLocation();
   const { user } = useAuth();
@@ -21,7 +16,7 @@ export function LandingFooter({ narrow }: LandingFooterProps) {
 
   return (
     <footer className="landing-footer">
-      <div className={`landing-footer__inner${narrow ? ' landing-footer__inner--narrow' : ''}`}>
+      <div className="landing-footer__inner">
         <div className="landing-footer__brand">
           <div className="landing-footer__logo">
             <LogoMark />
