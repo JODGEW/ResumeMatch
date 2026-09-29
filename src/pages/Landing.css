@@ -1347,14 +1347,6 @@
   border-color: var(--pill-danger-border);
 }
 
-.landing-tile--focus .landing-tile__weight {
-  /* Same reason as --value--high below. These tiles already sit on --surface-inset,
-     so the focus tint stacks a second layer and drops --text-tertiary to 4.45:1 in
-     light theme. --text-muted holds 4.65:1 there and 5.3:1 in dark. The real
-     Results tiles sit on the panel and keep --text-tertiary at 4.73:1. */
-  color: var(--text-muted);
-}
-
 .landing-tile__value {
   font-size: 12px;
   font-weight: 590;
@@ -1380,7 +1372,7 @@
 
 .landing-tile__weight {
   font-size: 8.5px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin-top: 2px;
 }
 

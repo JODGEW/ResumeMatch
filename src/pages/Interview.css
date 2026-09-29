@@ -422,6 +422,12 @@
   border-color: var(--accent-border);
 }
 
+/* Light only (RM-17): --accent on --accent-dim is 4.15:1 over white. Must stay
+   after the rule above (same specificity). */
+:where([data-theme="light"]) .interview-status__badge--followup {
+  color: var(--brand-tint-text);
+}
+
 .interview-status__badge--clarification {
   background: var(--warning-dim);
   color: var(--warning);

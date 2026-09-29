@@ -518,7 +518,7 @@
 
 .ir-cat__weight {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   margin-top: 3px;
 }
 

@@ -413,7 +413,9 @@
 }
 
 .tracker-filter--active .tracker-filter__count {
-  background: rgba(255, 255, 255, 0.2);
+  /* Darkens the accent instead of lightening it (RM-17): white on a 20% white
+     wash over --accent was 3.27:1; this is 6.19:1. Both themes share --accent. */
+  background: rgba(0, 0, 0, 0.16);
   color: #fff;
 }
 
@@ -928,16 +930,30 @@
   border-color: var(--danger);
 }
 
+/* Light only (RM-17): white on --success-alt was 3.76:1 and on --warn 4.22:1.
+   The pill text tokens give 5.00 and 5.53. Must stay after the rules above
+   (same specificity). */
+:where([data-theme="light"]) .tracker-quick-btn--primary.tracker-quick-btn--success {
+  background: var(--pill-success-text);
+  border-color: var(--pill-success-text);
+}
+
+:where([data-theme="light"]) .tracker-quick-btn--primary.tracker-quick-btn--warning {
+  background: var(--pill-warn-text);
+  border-color: var(--pill-warn-text);
+}
+
+/* Hover darkens rather than brightens: brightening pulled white text below
+   4.5:1 (RM-17). */
 .tracker-quick-btn--primary.tracker-quick-btn--success:hover,
 .tracker-quick-btn--primary.tracker-quick-btn--warning:hover,
 .tracker-quick-btn--primary.tracker-quick-btn--danger:hover {
-  filter: brightness(1.1);
+  filter: brightness(0.9);
 }
 
 .tracker-quick-btn__hint {
   font-size: 11px;
   font-weight: 510;
-  opacity: 0.8;
   padding-left: 7px;
   border-left: 1px solid rgba(255, 255, 255, 0.28);
 }

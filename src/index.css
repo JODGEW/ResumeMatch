@@ -192,15 +192,20 @@
   --accent-glow: rgba(94, 106, 210, 0.18);
   --accent-border: rgba(94, 106, 210, 0.3);
 
-  --success: #178753;
+  /* --success, --danger, --warning and --score-low darkened 2026-09-29 (RM-17).
+     Their text sat on their own -dim tints (status badges, History match bands)
+     below 4.5:1. The -dim values are deliberately unchanged. Worst case now, on
+     the tint over --surface-inset: success 4.63, danger 4.60, warning 4.60,
+     score-low 4.64. */
+  --success: #147749;
   --success-dim: rgba(23, 135, 83, 0.1);
   --success-border: rgba(23, 135, 83, 0.22);
 
-  --danger: #c53434;
+  --danger: #c23333;
   --danger-dim: rgba(197, 52, 52, 0.08);
   --danger-border: rgba(197, 52, 52, 0.18);
 
-  --warning: #9a6a00;
+  --warning: #8c6000;
   --warning-dim: rgba(154, 106, 0, 0.1);
   --warning-border: rgba(154, 106, 0, 0.22);
 
@@ -216,7 +221,7 @@
   --score-good-dim: var(--info-dim);
   --score-mid: var(--warning);
   --score-mid-dim: var(--warning-dim);
-  --score-low: #b84d15;
+  --score-low: #ad4814;
   --score-low-dim: rgba(184, 77, 21, 0.1);
   --score-low-border: rgba(184, 77, 21, 0.22);
   --score-poor: var(--danger);
@@ -621,6 +626,12 @@ label {
   background: var(--accent-dim);
   color: var(--accent);
   border-color: var(--accent-border);
+}
+
+/* Light only (RM-17): --accent on --accent-dim is 4.15:1 over white. Dark keeps
+   --accent. Same specificity as the rule above, so it must stay after it. */
+:where([data-theme="light"]) .status-badge--processing {
+  color: var(--brand-tint-text);
 }
 
 .status-badge--completed {
