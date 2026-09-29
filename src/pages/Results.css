@@ -130,6 +130,12 @@
   border-color: var(--border-standard);
 }
 
+/* Light only (RM-17): --surface-hover put the metadata at 4.00:1. Hover lifts to
+   white instead of darkening. Must stay after the rule above. */
+:where([data-theme="light"]) .results-last-interview:hover {
+  background: var(--bg-primary);
+}
+
 .results-last-interview__score {
   display: inline-flex;
   align-items: center;

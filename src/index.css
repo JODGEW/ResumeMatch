@@ -622,6 +622,12 @@ label {
   border-color: var(--border-subtle);
 }
 
+/* Light only (RM-17): --text-muted on --surface-raised #ebecef is 4.42:1; on
+   --bg-secondary it is 4.74. Must stay after the rule above (same specificity). */
+:where([data-theme="light"]) .status-badge--pending {
+  background: var(--bg-secondary);
+}
+
 .status-badge--processing {
   background: var(--accent-dim);
   color: var(--accent);

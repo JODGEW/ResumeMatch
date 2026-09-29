@@ -143,6 +143,14 @@
   color: inherit;
 }
 
+/* Light only (RM-17): the grey hover surface pulled the match bands and pills
+   under 4.5:1 (4.29-4.49). Hover keeps the resting background and signals with
+   the border above plus a shadow. Must stay after the rule above. */
+:where([data-theme="light"]) .history-card:hover {
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-md);
+}
+
 /* ── Processing card (job in flight) ────────────────── */
 .history-card--processing {
   border-color: var(--brand-tint-border);

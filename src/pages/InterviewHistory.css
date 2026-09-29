@@ -228,6 +228,14 @@
   color: inherit;
 }
 
+/* Light only (RM-17): --surface-hover #e4e6ea pulled chips and metadata to
+   3.80-4.18. Hover keeps the resting background and signals with the border
+   above plus a shadow. Must stay after the rule above. */
+:where([data-theme="light"]) .ih-card:hover {
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-md);
+}
+
 .ih-card__top {
   display: flex;
   align-items: flex-start;
