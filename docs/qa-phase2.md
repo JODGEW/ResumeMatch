@@ -353,7 +353,7 @@ configuration; the agent row, its workspace context, and every budget come from
 | Prompt caching | `cacheRetention: none`; no `cache_control` is sent, so no cache reads or writes are reported | `run-config.anthropic.yml` |
 | Effort | No control. No effort levels are declared, so no thinking parameter is sent and the model runs at its default effort, `high`; the DeepSeek run used `max` | `run-config.anthropic.yml` |
 | Input rate | $2.00 / 1M tokens | `run-config.anthropic.yml` |
-| Cache-hit rate | $0.10 / 1M tokens; never applied while caching is off, and below Anthropic's listed $0.20 cache-read rate | `run-config.anthropic.yml` |
+| Cache-hit rate | $0.10 / 1M tokens, Anthropic's listed cache-hit rate for `claude-sonnet-5-5`; never applied while caching is off | `run-config.anthropic.yml` |
 | Output rate | $10.00 / 1M tokens | `run-config.anthropic.yml` |
 | Peak bands | none; every request is labelled peak | `run-config.anthropic.yml` |
 | Investigation ceiling | $1.00, passed as `--cost-limit` and honoured by `serverMain.ts` over the $0.25 default | `run-config.anthropic.yml` |
