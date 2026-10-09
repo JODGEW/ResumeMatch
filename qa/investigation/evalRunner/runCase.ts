@@ -199,6 +199,7 @@ async function runInvestigation(
         // receives it straight from this process's environment. Nothing writes
         // it to disk, and no other spawn below forwards it.
         ...process.env.DEEPSEEK_API_KEY === undefined ? {} : { DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY },
+        ...process.env.ANTHROPIC_API_KEY === undefined ? {} : { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
       },
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,

@@ -332,6 +332,45 @@ the closing turn, and the runner prices that log at the peak rates.
 | Playwright | 1.57.0 |
 | Vite | 5.4.21 |
 
+### Anthropic cross-model run (unfrozen)
+
+A second live configuration runs the same thirteen cases on Anthropic's API. It
+is **not covered by Freeze v5**: its overlay, `adapter:run-config.anthropic.yml`,
+is not a row in the v5 table, so a result taken under it is attributable to the
+frozen prompt, tools, grammar, budgets, schema, and corpus, but not to a frozen
+composition. The overlay changes only the model adapter and the pricing
+configuration; the agent row, its workspace context, and every budget come from
+`cordis.yml` and `qa/investigation/budget.ts` unchanged.
+
+| Setting | Value | Source |
+| --- | --- | --- |
+| Model adapter | `@deepseek-ai/dsh-llm-pi-ai` (pi-ai 0.82.1) | `run-config.anthropic.yml` |
+| Provider route | `anthropic` | live run environment |
+| Model id | `claude-sonnet-5-5`, declared by hand; pi-ai's installed catalog does not ship it | `run-config.anthropic.yml` |
+| Credential reference | `ANTHROPIC_API_KEY`, forwarded only to the harness child | `run-config.anthropic.yml`, `runCase.ts` |
+| Context window | 128000, matching the DeepSeek run | `run-config.anthropic.yml` |
+| Output cap | 32768, pi-ai's fallback for a model whose entry sets none | `llm-pi-ai` default |
+| Prompt caching | `cacheRetention: none`; no `cache_control` is sent, so no cache reads or writes are reported | `run-config.anthropic.yml` |
+| Effort | No control. No effort levels are declared, so no thinking parameter is sent and the model runs at its default effort, `high`; the DeepSeek run used `max` | `run-config.anthropic.yml` |
+| Input rate | $2.00 / 1M tokens | `run-config.anthropic.yml` |
+| Cache-hit rate | $0.10 / 1M tokens; never applied while caching is off, and below Anthropic's listed $0.20 cache-read rate | `run-config.anthropic.yml` |
+| Output rate | $10.00 / 1M tokens | `run-config.anthropic.yml` |
+| Peak bands | none; every request is labelled peak | `run-config.anthropic.yml` |
+| Investigation ceiling | $1.00, passed as `--cost-limit` and honoured by `serverMain.ts` over the $0.25 default | `run-config.anthropic.yml` |
+| Sweep ceiling | $5.00 | `qa/investigation/cost.ts` |
+| Harness HEAD | `015fa1305085bdf7fbac6e738eaf39207ad9b73a` | written against |
+| Adapter HEAD | `d8f507e7b7822c817c55eab9560fad45527d3803`; the overlay lands in a later commit | written against |
+
+The runner's sweep rates default to the DeepSeek peak rates, so an Anthropic
+sweep passes its own on the command line; otherwise the $5.00 ceiling is
+enforced against an understated spend:
+
+```bash
+node qa/browser/qaCommand.mjs evaluate <caseId...> --harness-node <path> --harness-path <path> --adapter-path <path> \
+  --config <adapter-path>/run-config.anthropic.yml --provider anthropic --model claude-sonnet-5-5 \
+  --input-rate 2 --output-rate 10 --cache-hit-rate 0.10
+```
+
 ## Evaluation identity
 
 A run that belongs to the evaluation corpus carries `evaluationIdentity` in its manifest; a release check carries `null`. It records the case id, the mutation applied, the transient faults configured, a source digest, a build digest, and a worktree label. The label is deliberately not a path: an absolute temp path would carry the operator's home directory into evidence.
