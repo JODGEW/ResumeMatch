@@ -359,7 +359,7 @@ configuration; the agent row, its workspace context, and every budget come from
 | Investigation ceiling | $1.00, passed as `--cost-limit` and honoured by `serverMain.ts` over the $0.25 default | `run-config.anthropic.yml` |
 | Sweep ceiling | $5.00 | `qa/investigation/cost.ts` |
 | Harness HEAD | `015fa1305085bdf7fbac6e738eaf39207ad9b73a` | written against |
-| Adapter HEAD | `d8f507e7b7822c817c55eab9560fad45527d3803`; the overlay lands in a later commit | written against |
+| Adapter HEAD | `fdc62693c2d95356d72da89e7dcbe950ab626e98`, the commit that contains `run-config.anthropic.yml` | adapter repository |
 
 The runner's sweep rates default to the DeepSeek peak rates, so an Anthropic
 sweep passes its own on the command line; otherwise the $5.00 ceiling is
@@ -370,6 +370,57 @@ node qa/browser/qaCommand.mjs evaluate <caseId...> --harness-node <path> --harne
   --config <adapter-path>/run-config.anthropic.yml --provider anthropic --model claude-sonnet-5-5 \
   --input-rate 2 --output-rate 10 --cache-hit-rate 0.10
 ```
+
+#### Results (2026-10-08)
+
+One full sweep of all thirteen cases with `--held-out`, at ResumeMatch
+`9c5e6d7`, as printed by `qaCommand evaluate`:
+
+```
+D5 seeded_defect investigate y 10 0 confirmed y read_failure_manifest - - - $0.2496
+D6 seeded_defect investigate y 10 0 confirmed y read_failure_manifest - - - $0.2470
+B4 benign_transient artifact_rejected y 0 0 - y - - - - $0.0000
+C1 clean expected y 0 0 - y - - - - $0.0000
+C2 clean expected y 0 0 - y - - - - $0.0000
+C3 clean expected y 0 0 - y - - - - $0.0000
+D1 seeded_defect investigate y 8 0 confirmed y read_failure_manifest n n y $0.1634
+D2 seeded_defect investigate y 10 0 confirmed y read_failure_manifest n n y $0.2362
+D3 seeded_defect investigate y 11 0 confirmed y read_failure_manifest n n n $0.2558
+D4 seeded_defect investigate y 11 0 confirmed y read_failure_manifest n y y $0.2842
+B1 benign_transient investigate y 12 0 not_reproduced y read_failure_manifest n n y $0.2905
+B2 benign_transient investigate y 10 0 not_reproduced y read_failure_manifest - - - $0.2440
+B3 benign_transient expected y 0 0 - y - - - - $0.0000
+Total $1.9707 of the $5.00 sweep ceiling.
+```
+
+Columns: case, kind, triage, ok, requests, rejected, classification, ok, first
+probe, gold, gold3, gold4x, cost.
+
+- Triage and classification matched on 13 of 13 cases.
+- All 6 seeded defects were `confirmed`, including held-out D5 and D6.
+- None of the 4 benign transient cases was `confirmed`.
+- The five zero-call cases (C1, C2, C3, B3, B4) made 0 model calls.
+- Over the five cases with a gold probe (D1–D4, B1): gold 0/5, gold3 1/5,
+  gold4x 4/5. The strict metric and the orientation-discounted one are reported
+  together; neither is read alone.
+- Every case that called the model opened with `read_failure_manifest`.
+
+Run history, same evening:
+
+- A single-case D1 smoke run: `confirmed`, 8 requests, gold n / gold3 y /
+  gold4x y, $0.1646. Its gold3 differs from the sweep's D1 while its
+  classification does not.
+- A first full sweep aborted at D5, because held-out cases require
+  `--held-out`. It had spent $1.0767 on C1–D4 and printed no table; its results
+  are not used.
+
+Limits:
+
+- Not covered by Freeze v5.
+- Effort is the model's default, `high`; the DeepSeek run used `max`.
+- Prompt caching is off.
+- Context window 128000.
+- A single sweep (n=1).
 
 ## Evaluation identity
 
