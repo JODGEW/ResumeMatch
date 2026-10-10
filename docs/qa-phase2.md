@@ -421,6 +421,9 @@ Limits:
 - Prompt caching is off.
 - Context window 128000.
 - A single sweep (n=1).
+- Pre-fix: measured with the evaluation identity visible to the investigator,
+  so only the classifications compare with post-fix runs; see
+  [Investigator-view leak and fix](#investigator-view-leak-and-fix-2026-10-10).
 
 ## Evaluation identity
 
@@ -428,7 +431,108 @@ A run that belongs to the evaluation corpus carries `evaluationIdentity` in its 
 
 It does two things. `releaseGrade` is false whenever it is present, no matter how clean the worktree is, and artifact validation asserts both directions — an evaluation bundle can never be release grade, and a release-grade bundle can never carry one. And it is the only thing that widens the synthetic allowlist: with `null`, `canonicalApiResponseHashes` and `validNetworkEvent` are byte-for-byte the Phase 1 sets, so a bundle recording a transient failure body or a transient S3 status without having declared that fault is rejected as `INVALID_ARTIFACT_SCHEMA`. A manifest that fails its own schema is judged under the strict release set, so a malformed manifest cannot widen anything.
 
-No model-reachable surface can produce one. The runner, the mutation applier, and worktree creation are not tools; `evaluationIdentity` is an authority field a submitted finding may not name.
+No model-reachable surface can produce one. The runner, the mutation applier, and worktree creation are not tools; `evaluationIdentity` is an authority field a submitted finding may not name. That covers producing an identity, not reading one: until 2026-10-10 the investigator could read it verbatim, see [Investigator-view leak and fix](#investigator-view-leak-and-fix-2026-10-10).
+
+### Investigator-view leak and fix (2026-10-10)
+
+**What leaked.** Three surfaces gave the investigator the answer before it read
+any evidence:
+
+- `read_failure_manifest` returned the manifest verbatim
+  (`qa/investigation/session.ts`, via `readManifest`), including
+  `evaluationIdentity`: `caseId`, `mutationApplied` (the case id itself, never a
+  description), `transientFaults`, and `worktreeLabel` (which ends in the
+  lower-case case id, such as `700e0c69bbe7-d3`).
+- `sourceIdentity.worktreeDirty` and `exactCommittedSource` in the same manifest
+  separated the cases: `true`/`false` for every seeded defect, whose copy carries
+  a mutation, and `false`/`true` for every benign case.
+- The transition log named the injected fault: `qa/browser/scenarios.ts`
+  recorded `transient-fault:<name>`, such as `transient-fault:upload_503_once`.
+
+**Present in every model run to date.** It was verified from the transcripts and
+the code.
+
+- Every transcript that called `read_failure_manifest` received a populated
+  `evaluationIdentity`: 106 of 106.
+  - DeepSeek `deepseek-v4-flash` 12: the 2026-08-22/23 runs in
+    `.qa-artifacts/phase1/`, `phase1-v4/` and `phase1-v5-d2/`, at `d5ccabc`,
+    `2647925` and `2d65cfb`.
+  - Haiku 40, Sonnet 40 and Opus 14: the 2026-10-08/09 sweeps.
+  - The other 26 Opus transcripts ended on the provider's usage-limit 400
+    before any tool call.
+- The transition log carried `transient-fault:<name>` in every B1 and B2
+  transcript that read it.
+- The code path did not change between those runs.
+  - `git diff --stat 2647925 700e0c6` is empty for `qa/browser/evidence.ts`,
+    `scenarios.ts`, `contractRouter.ts`, `qa/investigation/session.ts`,
+    `evidenceReader.ts` and `serverMain.ts`.
+  - The adapter's `src/` is unchanged since `c94f117`.
+- Findings repeated the identity. A finding's text named the case id in 34 of
+  40 Sonnet findings, 14 of 14 Opus, 20 of 40 Haiku, and 4 of the 12 DeepSeek
+  transcripts.
+
+**Fix: `f1e5aff`.** Only the investigator's view changed.
+
+- `read_failure_manifest` now returns an evaluation run exactly as a clean,
+  committed release run records itself:
+  - `evaluationIdentity: null`;
+  - `sourceIdentity` with `worktreeDirty: false`, `exactCommittedSource: true`
+    and `releaseGrade: false`, with `headCommit` unchanged.
+  - `releaseGrade` is false for every investigated run anyway. Triage only
+    investigates an unmet expectation, and only a met one is release eligible.
+- A release run, whose identity is `null`, is returned as recorded.
+- The manifest on disk keeps the real values, as do the drift check in
+  `serverMain.ts`, the finding's deterministic facts, and artifact validation.
+- A transient fault now records what the browser observed:
+  - `upload-response:503`
+  - `s3-response:500`
+  - `analysis-response:aborted`
+  - `last-resume-response:aborted`
+- The frozen `oracleRegistry.ts` keys on none of the old or new strings, and
+  artifact validation checks only the transition's shape.
+- The upload 503 body text never reaches a model-visible surface, so it is
+  unchanged. The page shows its own fallback for any 5xx
+  (`src/api/errors.ts`), and network events carry no bodies.
+
+Measured after the fix:
+
+- A scripted `evaluate C1 D1 D3 B1 B2` at `f1e5aff` had zero hits in every tool
+  result. The scan looked for case ids (case-insensitive, including inside
+  worktree labels), `mutation`, `seeded`, `evaluationIdentity`,
+  `transient-fault`, `transient`, and the four fault names.
+- That script calls neither `read_failure_manifest` nor
+  `read_scenario_transition_log`, so those two surfaces were checked
+  separately:
+  - The real D1, D3, B1 and B2 manifests, replayed through the committed view,
+    return `evaluationIdentity: null` and identical `sourceIdentity` values for
+    all four, with zero hits.
+  - The six evaluation bundles written by the QA suite on 2026-10-10 hold zero
+    hits in their transition logs.
+- In that scripted run, D1 was `inconclusive` rather than `confirmed`; the
+  other four cases matched. D1 is also `inconclusive` from the same script at
+  the pre-fix commit `700e0c6`, so the fix did not cause it.
+
+**What it means for recorded results.**
+
+- **Classification results remain valid.** The reproduction oracle decides
+  them, never the model (`qa/investigation/finding.ts:200-209`).
+- **Probe and wording results do not carry over.** gold, gold3, gold4x, first
+  probe, and finding text recorded before the fix were measured with the
+  identity visible. They must not be compared with post-fix runs.
+- **Pre-fix runs still compare with each other.** DeepSeek, Haiku, Sonnet and
+  Opus all ran with the same surfaces exposed.
+
+**Known gaps, not fixed:**
+
+- The authority-field check in `finding.ts` rejects a narrative that supplies a
+  key such as `evaluationIdentity`. It does not inspect free text, so a finding
+  can still write a case id in prose.
+- After the fix, only benign cases produce a `*-response:5xx` or
+  `*-response:aborted` transition. That marks a benign transient case as a
+  shortcut in case design, not a leak.
+- A provider 400, such as a usage-limit refusal, is turned into an ordinary
+  finish. The table reports it only as `no finding was submitted`; the error
+  text survives only in the transcript.
 
 ### Evaluation copies
 
@@ -454,6 +558,7 @@ response while the upload itself succeeded, so the page lets polling decide.
 Measured 2026-08-23: the fault fires (`transient-fault:s3_response_500_once` is
 in the transition log, the S3 request is recorded once with status 500), the
 analysis polls to `completed`, and every oracle passes.
+Since `f1e5aff` the same firing records `s3-response:500` instead; see [Investigator-view leak and fix](#investigator-view-leak-and-fix-2026-10-10).
 
 So B3 reaches no investigator, and its expectation is `expected` with zero model
 requests. It still earns its place: it is the corpus's only case proving that an
