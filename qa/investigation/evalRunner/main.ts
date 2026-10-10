@@ -4,7 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { EVALUATION_COST_LIMIT_USD } from '../cost'
-import { runEvalCase, summaryTable, sweepCostUsd } from './runCase'
+import { runEvalCase, stopsSweep, summaryTable, sweepCostUsd, USAGE_NOT_RECORDED } from './runCase'
 import type { EvalCaseResult, EvalRunnerOptions } from './runCase'
 
 function argumentValue(flag: string, fallback?: string): string {
@@ -55,6 +55,10 @@ async function main(): Promise<number> {
     const result = await runEvalCase(caseId, { ...options, spentUsd })
     results.push(result)
     await writeFile(path.join(options.outputDirectory, `${caseId}.json`), `${JSON.stringify(result, null, 2)}\n`, 'utf8')
+    if (stopsSweep(result)) {
+      process.stderr.write(`stopping the sweep after ${caseId}: ${USAGE_NOT_RECORDED}\n`)
+      break
+    }
   }
   await writeFile(path.join(options.outputDirectory, 'summary.json'), `${JSON.stringify(results, null, 2)}\n`, 'utf8')
   process.stdout.write(`${summaryTable(results)}\n`)

@@ -247,7 +247,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
 
   // Created for every case, investigated or not, so a zero is a reading of the
   // provider's own counter rather than the absence of an observation.
-  const requestLog = path.join(options.outputDirectory, `${caseId}.model-requests.log`)
+  const { requestLog, transcript: transcriptPath } = caseArtifactPaths(options.outputDirectory, caseId)
   await writeFile(requestLog, '', 'utf8')
 
   const worktree = await createEvaluationWorktree(options.repositoryPath, options.commit, caseId)
@@ -271,7 +271,6 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
 
     if (result.triage === 'investigate') {
       result.harnessLaunched = true
-      const transcriptPath = path.join(options.outputDirectory, `${caseId}.transcript.jsonl`)
       result.transcript = path.basename(transcriptPath)
       errors.push(...(await runInvestigation(worktree.directory, result.runId, requestLog, transcriptPath, evalCase.scenarioId, options)).errors)
       const finding = await findFinding(worktree.directory)
@@ -310,6 +309,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     result.modelRequests = totals.requests
     result.providerTokens = totals
     result.costUsd = providerLogCostUsd(logged, options.rates)
+    if (result.harnessLaunched) guardRecordedUsage(result, transcriptUsageEvents(await readFile(transcriptPath, 'utf8')))
     try {
       await removeEvaluationWorktree(options.repositoryPath, worktree)
       result.worktreeRemoved = true
@@ -318,6 +318,69 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     }
     execFileSync('git', ['worktree', 'prune'], { cwd: options.repositoryPath, env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' } })
   }
+}
+
+/**
+ * Where a case's provider log and transcript live.
+ *
+ * Absolute, because the harness child that appends to the log runs in its own
+ * scratch directory: a relative `--output` resolved there names a directory
+ * that does not exist, the append fails, and the runner reads its own empty file.
+ * @param outputDirectory - the sweep's output directory, as given.
+ * @param caseId - corpus case id.
+ * @returns both paths, resolved against the runner's working directory.
+ */
+export function caseArtifactPaths(outputDirectory: string, caseId: string): { requestLog: string; transcript: string } {
+  const directory = path.resolve(outputDirectory)
+  return {
+    requestLog: path.join(directory, `${caseId}.model-requests.log`),
+    transcript: path.join(directory, `${caseId}.transcript.jsonl`),
+  }
+}
+
+/** Recorded when the model spent tokens that neither the log nor the finding saw. */
+export const USAGE_NOT_RECORDED = 'model usage not recorded; cost ceilings were not enforced'
+
+/**
+ * Count the assistant steps that reported usage, which is exactly the set the
+ * adapter writes one log line for.
+ * @param transcript - the case transcript: JSONL session events, then stderr.
+ * @returns the number of `assistant/message` events carrying usage.
+ */
+export function transcriptUsageEvents(transcript: string): number {
+  let count = 0
+  for (const line of transcript.split('\n')) {
+    let record: { event?: { type?: string; data?: { usage?: unknown } } } | null
+    try {
+      record = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (record?.event?.type === 'assistant/message' && record.event.data?.usage !== undefined) count += 1
+  }
+  return count
+}
+
+/**
+ * Fail a case whose model spent tokens the runner never saw.
+ *
+ * The per-investigation ledger and the sweep ceiling are both fed from that
+ * accounting, so a case that lost it ran with neither enforced, and any case
+ * after it would be gated on an understated spend.
+ * @param result - the case result, after the provider log was read.
+ * @param usageEvents - assistant steps with usage, from the transcript.
+ */
+export function guardRecordedUsage(result: EvalCaseResult, usageEvents: number): void {
+  if (!result.harnessLaunched || usageEvents === 0) return
+  const ledgerEmpty = result.usage !== undefined && result.usage.requests.length === 0
+  if (result.modelRequests > 0 && !ledgerEmpty) return
+  result.errors.push(USAGE_NOT_RECORDED)
+  result.classificationMatched = false
+}
+
+/** Whether a case result must end the sweep before another case starts. */
+export function stopsSweep(result: EvalCaseResult): boolean {
+  return result.errors.includes(USAGE_NOT_RECORDED)
 }
 
 /** Total spend across a sweep's completed cases. */
