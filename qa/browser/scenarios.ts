@@ -4,6 +4,8 @@ import {
   SYNTHETIC_BACKEND_ERROR,
   SYNTHETIC_EXISTING_FILE_NAME,
   SYNTHETIC_FILE_NAME,
+  TRANSIENT_S3_FAILURE_STATUS,
+  TRANSIENT_UPLOAD_FAILURE_STATUS,
 } from '../fixtures/data'
 
 import type { Analysis } from '../../src/types'
@@ -41,6 +43,18 @@ export interface ScenarioInstance {
    * @returns whether this call owns the single firing.
    */
   consumeTransientFault(fault: TransientFault): boolean
+}
+
+/**
+ * The transition each transient fault records: what the browser observed, not
+ * which fault caused it. A real release failure would show the outcome and never
+ * a label for its cause, so the fault's name stays out of evidence.
+ */
+const TRANSIENT_FAULT_OUTCOMES: Record<TransientFault, string> = {
+  upload_503_once: `upload-response:${TRANSIENT_UPLOAD_FAILURE_STATUS}`,
+  analysis_interrupted_once: 'analysis-response:aborted',
+  s3_response_500_once: `s3-response:${TRANSIENT_S3_FAILURE_STATUS}`,
+  last_resume_interrupted_once: 'last-resume-response:aborted',
 }
 
 /** Scenario construction options. Evaluation-only; release checks pass none. */
@@ -118,7 +132,7 @@ export function createScenario(scenarioId: ScenarioId, options: ScenarioOptions 
     },
     consumeTransientFault(fault) {
       if (!pendingTransientFaults.delete(fault)) return false
-      this.recordTransition(`transient-fault:${fault}`)
+      this.recordTransition(TRANSIENT_FAULT_OUTCOMES[fault])
       return true
     },
   }

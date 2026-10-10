@@ -70,7 +70,7 @@ describe('B1: one transient upload failure', () => {
     expect(response.status).toBe(TRANSIENT_UPLOAD_FAILURE_STATUS)
     expect(JSON.parse(response.body)).toEqual({ message: 'qa-synthetic transient upload failure' })
     expect(scenario.contractViolations).toEqual([])
-    expect(scenario.transitions.map(item => item.event)).toContain('transient-fault:upload_503_once')
+    expect(scenario.transitions.map(item => item.event)).toContain(`upload-response:${TRANSIENT_UPLOAD_FAILURE_STATUS}`)
   })
 
   it('fires at most once per scenario instance', () => {
@@ -89,7 +89,7 @@ describe('B2: one interrupted analysis poll', () => {
     expect(await poll()).toBeNull()
     expect(JSON.parse((await poll() as ContractResponse).body).status).toBe('completed')
     expect(scenario.contractViolations).toEqual([])
-    expect(scenario.transitions.map(item => item.event)).toContain('transient-fault:analysis_interrupted_once')
+    expect(scenario.transitions.map(item => item.event)).toContain('analysis-response:aborted')
   })
 })
 
@@ -107,7 +107,7 @@ describe('B3: S3 accepts the object but its response fails', () => {
     expect(scenario.contractViolations).toEqual([])
     const events = scenario.transitions.map(item => item.event)
     expect(events).toContain('s3-contract:accepted-multipart')
-    expect(events).toContain('transient-fault:s3_response_500_once')
+    expect(events).toContain(`s3-response:${TRANSIENT_S3_FAILURE_STATUS}`)
   })
 })
 
@@ -118,7 +118,7 @@ describe('B4: one interrupted last-resume lookup', () => {
     expect(await router.handle(request({ url: 'https://api.qa.invalid/user/last-resume' }))).toBeNull()
     expect(scenario.contractViolations).toEqual([])
     const events = scenario.transitions.map(item => item.event)
-    expect(events).toContain('transient-fault:last_resume_interrupted_once')
+    expect(events).toContain('last-resume-response:aborted')
     expect(events.some(event => event.startsWith('last-resume:'))).toBe(false)
   })
 
@@ -128,5 +128,19 @@ describe('B4: one interrupted last-resume lookup', () => {
     const response = await router.handle(request({ url: 'https://api.qa.invalid/user/last-resume' })) as ContractResponse
     expect(JSON.parse(response.body).lastResume.analysisId).toBe('qa-existing-source-1')
     expect(scenario.transitions.map(item => item.event)).toContain('last-resume:existing')
+  })
+})
+
+describe('transition evidence names outcomes, never faults', () => {
+  const FAULTS: TransientFault[] = ['upload_503_once', 'analysis_interrupted_once', 's3_response_500_once', 'last_resume_interrupted_once']
+
+  it.each(FAULTS)('records %s by what it did', fault => {
+    const scenario = createScenario('P1-02', { transientFaults: [fault] })
+    expect(scenario.consumeTransientFault(fault)).toBe(true)
+    for (const { event } of scenario.transitions) {
+      expect(event).not.toMatch(/transient/i)
+      for (const name of FAULTS) expect(event).not.toContain(name)
+    }
+    expect(scenario.transitions).toHaveLength(1)
   })
 })

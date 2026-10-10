@@ -228,7 +228,7 @@ export class InvestigationSession {
     switch (tool) {
       case 'read_failure_manifest':
         requireKnownKeys(args, [], tool)
-        return await readManifest(directory)
+        return investigatorManifestView(await readManifest(directory))
       case 'read_failed_assertion':
         requireKnownKeys(args, [], tool)
         return failedAssertion(await readManifest(directory))
@@ -434,6 +434,27 @@ export class InvestigationSession {
 
   private reference(absolutePath: string): string {
     return evidenceReference(this.options.directories.approvedRoot, absolutePath)
+  }
+}
+
+/**
+ * The manifest as the investigator sees it.
+ *
+ * An evaluation run is shown exactly as a clean, committed release run records
+ * itself. Left in, its identity names the case, the mutation, and the fault, and
+ * its dirty worktree sets every seeded defect apart from every benign case: the
+ * answer, handed over before any evidence is read. `releaseGrade` is false for
+ * every run that reaches a model, because only an unmet expectation is
+ * investigated and only a met one is release eligible. A release run is
+ * returned as recorded. The manifest on disk, and every check that reads it,
+ * keeps the real values.
+ */
+function investigatorManifestView(manifest: EvidenceManifest): EvidenceManifest {
+  if (!manifest.evaluationIdentity) return manifest
+  return {
+    ...manifest,
+    sourceIdentity: { ...manifest.sourceIdentity, worktreeDirty: false, exactCommittedSource: true, releaseGrade: false },
+    evaluationIdentity: null,
   }
 }
 

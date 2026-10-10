@@ -11,7 +11,7 @@ import { INVESTIGATION_BUDGET, InvestigationSession, type ReproductionDriver } f
 import { createInvestigationDirectory, newInvestigationId } from './paths'
 import type { AllowedAction } from './actions'
 import type { ReproductionOracleResult } from './finding'
-import type { EvidenceManifest, NetworkEvent, SafetyViolation } from '../browser/types'
+import type { EvaluationIdentity, EvidenceManifest, NetworkEvent, SafetyViolation } from '../browser/types'
 
 class FakeDriver implements ReproductionDriver {
   started = 0
@@ -248,6 +248,52 @@ describe('evidence containment', () => {
     expect((await readdir(runDirectory)).sort()).toEqual([
       'console-events.json', 'manifest.json', 'network-events.json', 'page-errors.json', 'safety-violations.json',
     ])
+  })
+})
+
+describe('manifest view', () => {
+  const CLEAN = { headCommit: 'a'.repeat(40), worktreeDirty: false, exactCommittedSource: true, releaseGrade: false }
+  const DIRTY = { headCommit: 'a'.repeat(40), worktreeDirty: true, exactCommittedSource: false, releaseGrade: false }
+
+  function identity(caseId: string, seeded: boolean): EvaluationIdentity {
+    return {
+      caseId,
+      mutationApplied: seeded ? caseId : null,
+      transientFaults: seeded ? [] : ['upload_503_once'],
+      sourceDigest: 'e'.repeat(64),
+      buildDigest: 'f'.repeat(64),
+      worktreeLabel: `${'a'.repeat(12)}-${caseId.toLowerCase()}`,
+      approvedRequestHashes: [],
+    }
+  }
+
+  async function view(onDisk: EvidenceManifest): Promise<Record<string, unknown>> {
+    await writeFile(path.join(runDirectory, 'manifest.json'), JSON.stringify(onDisk))
+    return await session.call('read_failure_manifest', {}) as Record<string, unknown>
+  }
+
+  it('shows a seeded and a benign evaluation run identically, as a clean committed release run', async () => {
+    const seeded = await view({ ...manifest(), sourceIdentity: DIRTY, evaluationIdentity: identity('D1', true) })
+    const benign = await view({ ...manifest(), sourceIdentity: CLEAN, evaluationIdentity: identity('B1', false) })
+    expect(seeded.evaluationIdentity).toBeNull()
+    expect(benign.evaluationIdentity).toBeNull()
+    expect(seeded.sourceIdentity).toEqual(CLEAN)
+    expect(seeded).toEqual(benign)
+    expect(JSON.stringify(seeded)).not.toMatch(/\bD1\b|-d1\b|mutation|upload_503_once/i)
+  })
+
+  it('leaves the real identity on disk', async () => {
+    await view({ ...manifest(), sourceIdentity: DIRTY, evaluationIdentity: identity('D1', true) })
+    const persisted = JSON.parse(await readFile(path.join(runDirectory, 'manifest.json'), 'utf8')) as EvidenceManifest
+    expect(persisted.evaluationIdentity?.caseId).toBe('D1')
+    expect(persisted.sourceIdentity).toEqual(DIRTY)
+  })
+
+  it('returns a release run unchanged, dirty worktree included', async () => {
+    const clean = { ...manifest(), sourceIdentity: CLEAN, evaluationIdentity: null }
+    const dirty = { ...manifest(), sourceIdentity: DIRTY, evaluationIdentity: null }
+    expect(await view(clean)).toEqual(clean)
+    expect(await view(dirty)).toEqual(dirty)
   })
 })
 
