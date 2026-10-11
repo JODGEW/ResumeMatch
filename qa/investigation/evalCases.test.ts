@@ -1,8 +1,15 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { EVAL_CASES, verifyMutationAnchors } from './evalCases'
 import { HELD_OUT_CASES, HELD_OUT_CASE_IDS } from './evalCases.heldout'
+import { MINIMAL_NARRATIVE_EXAMPLE } from './finding'
+import { goldEvidenceProbes } from './goldEvidence'
 import { heldOutDefinitionDirectory, loadHeldOutDefinition, resolveEvalCase } from './heldoutDefinitions'
+import { goldRootCause } from './rootCauseGold'
 
 describe('evaluation corpus', () => {
   // Thirteen, not the original twelve: B4 replaces B2 in the held-out slot while
@@ -135,5 +142,71 @@ describe('case resolution across both halves', () => {
       expect(mutation?.replace).not.toBe(mutation?.find)
       expect(`${mutation?.find}${mutation?.replace}`).not.toMatch(/last-resume|lastResume/i)
     }
+  })
+})
+
+describe('held-out answers', () => {
+  // Fixtures are written under a temporary root, never in the repository's
+  // heldout/ directory, and use only a held-out id, not any held-out content.
+  const ID = HELD_OUT_CASE_IDS[0]
+  const ANSWER = { attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' }
+
+  async function withDefinition(definition: Record<string, unknown>, run: (root: string) => Promise<void>): Promise<void> {
+    const root = await mkdtemp(path.join(tmpdir(), 'qa-heldout-fixture-'))
+    try {
+      await mkdir(heldOutDefinitionDirectory(root), { recursive: true })
+      await writeFile(path.join(heldOutDefinitionDirectory(root), `${ID}.json`), JSON.stringify({ caseId: ID, ...definition }), 'utf8')
+      await run(root)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+
+  it('grades a held-out case from the answer and evidence set in its definition', async () => {
+    await withDefinition({ rootCause: ANSWER, goldEvidenceProbes: ['read_network_events'] }, async root => {
+      const definition = await loadHeldOutDefinition(ID, true, root)
+      expect(goldRootCause(ID, definition)).toEqual(ANSWER)
+      expect(goldEvidenceProbes(ID, definition)).toEqual(['read_network_events'])
+    })
+  })
+
+  it('leaves a held-out case ungraded when its definition carries no answers, or none is given', async () => {
+    await withDefinition({}, async root => {
+      const definition = await loadHeldOutDefinition(ID, true, root)
+      expect([goldRootCause(ID, definition), goldEvidenceProbes(ID, definition), goldRootCause(ID), goldEvidenceProbes(ID)])
+        .toEqual([null, null, null, null])
+    })
+  })
+
+  it('never lets a held-out definition answer for a public case', async () => {
+    await withDefinition({ rootCause: ANSWER, goldEvidenceProbes: ['read_network_events'] }, async root => {
+      const definition = await loadHeldOutDefinition(ID, true, root)
+      expect(goldRootCause('C1', definition)).toBeNull()
+      expect(goldRootCause('D1', definition)).toEqual(goldRootCause('D1'))
+      expect(goldEvidenceProbes('B2', definition)).toBeNull()
+    })
+  })
+
+  it('refuses a gold answer or evidence set the grader could not use', async () => {
+    const refused: Array<Record<string, unknown>> = [
+      { rootCause: { attribution: 'undetermined', routeTemplate: null, failureMode: null } },
+      { rootCause: { ...ANSWER, routeTemplate: '/sample' } },
+      { rootCause: { ...ANSWER, failureMode: 'slow_response' } },
+      { rootCause: { ...ANSWER, routeTemplate: null } },
+      { rootCause: { ...ANSWER, note: 'extra' } },
+      { goldEvidenceProbes: [] },
+      { goldEvidenceProbes: ['read_network_events', 3] },
+    ]
+    for (const definition of refused) {
+      await withDefinition(definition, async root => {
+        await expect(loadHeldOutDefinition(ID, true, root)).rejects.toThrow(/Held-out definition for .+ has an invalid (rootCause|goldEvidenceProbes)/)
+      })
+    }
+  })
+
+  it("refuses a gold answer equal to the example narrative's, which every rejected submission returns", async () => {
+    await withDefinition({ rootCause: MINIMAL_NARRATIVE_EXAMPLE.rootCause }, async root => {
+      await expect(loadHeldOutDefinition(ID, true, root)).rejects.toThrow(/matches the example narrative/)
+    })
   })
 })

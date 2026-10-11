@@ -1,3 +1,5 @@
+import type { HeldOutDefinition } from './heldoutDefinitions'
+
 /**
  * The evidence tools whose output carries each public case's signature.
  *
@@ -9,8 +11,10 @@
  * set either: their original evidence is B2's and B1's, so no probe of it can
  * show the defect, which appears only in the reproduction, and any set would
  * reward the same reading as the benign twin. They are measured by rootCause
- * attribution instead. Cases absent from the map — clean cases, B2, B3, D7, D8,
- * and every held-out case — are not graded, so a missing set never counts as a miss.
+ * attribution instead. A held-out case's set lives in its gitignored
+ * definition, not here, and is graded only when that definition carries one.
+ * Cases with no set anywhere — clean cases, B2, B3, D7, D8, and any held-out
+ * case without one — are not graded, so a missing set never counts as a miss.
  */
 export const PUBLIC_GOLD_EVIDENCE_PROBES: ReadonlyMap<string, readonly string[]> = new Map<string, readonly string[]>([
   // contract-violation:analysis-method-id-query-or-count; the blocked analysis request; its count.
@@ -34,8 +38,10 @@ export const PUBLIC_GOLD_EVIDENCE_PROBES: ReadonlyMap<string, readonly string[]>
 /**
  * The evidence set for one case.
  * @param caseId - corpus case id.
+ * @param heldOut - the case's held-out definition, when it is held out.
  * @returns the set, or null when the case is not graded.
  */
-export function goldEvidenceProbes(caseId: string): readonly string[] | null {
-  return PUBLIC_GOLD_EVIDENCE_PROBES.get(caseId) ?? null
+export function goldEvidenceProbes(caseId: string, heldOut?: HeldOutDefinition): readonly string[] | null {
+  if (PUBLIC_GOLD_EVIDENCE_PROBES.has(caseId)) return PUBLIC_GOLD_EVIDENCE_PROBES.get(caseId) ?? null
+  return heldOut?.caseId === caseId ? heldOut.goldEvidenceProbes ?? null : null
 }

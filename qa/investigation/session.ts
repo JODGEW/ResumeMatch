@@ -88,9 +88,10 @@ function requireKnownKeys(args: Record<string, unknown>, allowed: string[], tool
  *
  * Lifecycle state, budgets, argument validation, and evidence containment are
  * all decided here, so the adapter that speaks the harness tool protocol holds
- * no policy of its own. Two latches survive to the finding: an attempted
- * unauthorized action forces `policy_blocked`, and a spent budget forces
- * `inconclusive`.
+ * no policy of its own. An attempted unauthorized action latches and forces
+ * `policy_blocked`. A spent budget is recorded in the finding but is not a
+ * verdict of its own: it makes the case `inconclusive` only when it stops the
+ * reproduction oracle from running.
  */
 export class InvestigationSession {
   private state: SessionState = 'read'

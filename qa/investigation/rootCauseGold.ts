@@ -1,4 +1,5 @@
 import type { RootCause } from './finding'
+import type { HeldOutDefinition } from './heldoutDefinitions'
 
 /**
  * The root cause a correct investigation names, per public case.
@@ -6,9 +7,10 @@ import type { RootCause } from './finding'
  * Each answer is determinable from evidence the investigator can see: the
  * transition log, network events (redacted as recorded), request counts, and
  * the reproduction's oracle result. `null` marks a case that never reaches an
- * investigator, so there is nothing to grade. Cases absent from the map —
- * every held-out case — are not graded either, so a missing answer can never
- * count as a miss.
+ * investigator, so there is nothing to grade. A held-out case's answer lives in
+ * its gitignored definition, not here, and is graded only when that definition
+ * carries one. A case with no answer anywhere is not graded, so a missing
+ * answer can never count as a miss.
  */
 export const PUBLIC_ROOT_CAUSE_GOLD: ReadonlyMap<string, RootCause | null> = new Map<string, RootCause | null>([
   // Triage `expected`: no investigation runs.
@@ -48,8 +50,10 @@ export const PUBLIC_ROOT_CAUSE_GOLD: ReadonlyMap<string, RootCause | null> = new
 /**
  * The graded answer for one case.
  * @param caseId - corpus case id.
+ * @param heldOut - the case's held-out definition, when it is held out.
  * @returns the answer, or null when the case is not graded.
  */
-export function goldRootCause(caseId: string): RootCause | null {
-  return PUBLIC_ROOT_CAUSE_GOLD.get(caseId) ?? null
+export function goldRootCause(caseId: string, heldOut?: HeldOutDefinition): RootCause | null {
+  if (PUBLIC_ROOT_CAUSE_GOLD.has(caseId)) return PUBLIC_ROOT_CAUSE_GOLD.get(caseId) ?? null
+  return heldOut?.caseId === caseId ? heldOut.rootCause ?? null : null
 }

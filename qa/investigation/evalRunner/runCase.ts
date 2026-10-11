@@ -7,7 +7,8 @@ import process from 'node:process'
 import { EVALUATION_COST_LIMIT_USD, parseProviderLog, providerLogCostUsd, providerLogTotals, sweepHasBudget } from '../cost'
 import type { TokenRates } from '../cost'
 import { EVAL_CASES } from '../evalCases'
-import { resolveEvalCase } from '../heldoutDefinitions'
+import { HELD_OUT_CASE_IDS } from '../evalCases.heldout'
+import { loadHeldOutDefinition, resolveEvalCase } from '../heldoutDefinitions'
 import type { EvalCase } from '../evalCases'
 import type { Finding } from '../finding'
 import { goldEvidenceProbes } from '../goldEvidence'
@@ -289,6 +290,11 @@ async function runInvestigation(
 export async function runEvalCase(caseId: string, options: EvalRunnerOptions): Promise<EvalCaseResult> {
   const evalCase = await resolveEvalCase(caseId, EVAL_CASES, options.heldOut === true, options.repositoryPath)
   if (evalCase === undefined) throw new Error(`Unknown evaluation case: ${caseId}`)
+  // A held-out case's answers live in its gitignored definition; resolving the
+  // case above has already refused it without the --held-out opt-in.
+  const heldOut = HELD_OUT_CASE_IDS.includes(caseId)
+    ? await loadHeldOutDefinition(caseId, options.heldOut === true, options.repositoryPath)
+    : undefined
   const startedAt = Date.now()
   const errors: string[] = []
   const result: EvalCaseResult = {
@@ -340,7 +346,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
       result.transcript = path.basename(transcriptPath)
       errors.push(...(await runInvestigation(worktree.directory, result.runId, requestLog, transcriptPath, evalCase.scenarioId, options)).errors)
       const finding = await findFinding(worktree.directory)
-      recordRootCauseGrade(result, gradeRootCause(finding, goldRootCause(caseId)))
+      recordRootCauseGrade(result, gradeRootCause(finding, goldRootCause(caseId, heldOut)))
       if (finding === null) errors.push('no finding was submitted')
       else {
         result.classification = finding.classification
@@ -355,7 +361,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
             .filter(item => !ORIENTATION_PROBES.includes(item))
             .slice(0, GOLD_PROBE_WINDOW_EXCLUSIVE)
             .includes(result.goldFirstProbe)
-        result.goldEvidenceProbeHit = goldEvidenceHit(finding.probesSelected, goldEvidenceProbes(caseId))
+        result.goldEvidenceProbeHit = goldEvidenceHit(finding.probesSelected, goldEvidenceProbes(caseId, heldOut))
         result.rejectedCalls = finding.rejectedCalls.length
         result.findingCostUsd = finding.usage.costUsd
         result.usage = {
