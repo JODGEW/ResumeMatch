@@ -695,6 +695,162 @@ Observations:
   They appear beside the post-fix numbers to show what changed when it was
   hidden, not as like-for-like results.
 
+##### DeepSeek `deepseek-v4-flash` (2026-10-10)
+
+Three post-fix sweeps of all thirteen cases on the frozen DeepSeek
+configuration, in `.qa-artifacts/postfix/deepseek-v2-run1..3`.
+
+Run conditions:
+
+| Setting | Value | Source |
+| --- | --- | --- |
+| ResumeMatch commit | `846a4c6`, all three runs | `sourceIdentity.headCommit` in each `read_failure_manifest` result |
+| Provider route, model | `deepseek-official`, `deepseek-v4-flash` | the request header of all 24 investigations |
+| Reasoning effort, output cap | `max`, 256000 | the same headers |
+| Overlay | `adapter:run-config.yml`, a Freeze v5 row; `freeze.test.ts` passes 4/4 at `846a4c6` | [Run config](#run-config) |
+| Sweep rates per 1M tokens | input 0.44, output 1.32, cache hit 0.014: the runner's defaults (`qa/investigation/evalRunner/main.ts:44-46`) | same as `cordis.yml` |
+| Investigation ceiling | $0.25 | `adapter:cordis.yml` |
+| Sweep ceiling | $5.00 | `EVALUATION_COST_LIMIT_USD`, `qa/investigation/cost.ts` |
+| Prompt caching | provider-side. Cache-hit tokens per sweep: 1,190,144, 1,082,496, 1,241,088. The Anthropic runs had caching off | request logs |
+| Sweeps (n) | 3 | |
+
+Data integrity:
+
+- For each run, the table re-rendered from `summary.json` equals the printed
+  table, and each `<case>.json` equals its summary entry.
+- In every case, request-log lines equal `modelRequests`, which equal the
+  transcript's usage events.
+- Every cost equals its request log priced at the rates above.
+- No case recorded the usage-guard error.
+
+Results per run:
+
+| Run | Classification | Requests | Cost | gold / gold3 / gold4x |
+| --- | --- | --- | --- | --- |
+| run1 | 13/13 | 95 | $0.1825 | 0/5, 1/5, 3/5 |
+| run2 | 13/13 | 92 | $0.1640 | 0/5, 1/5, 3/5 |
+| run3 | 12/13 (D2 `inconclusive`) | 97 | $0.1929 | 0/5, 1/5, 1/5 |
+| Pooled | 38/39 | mean 94.7 (92–97) | mean $0.1798 ($0.1640–$0.1929) | 0/15, 3/15, 7/15 |
+
+The D2 miss is the first post-fix classification miss on any model.
+
+First probe, over the 24 model-calling cases: `read_failed_assertion` 19,
+`read_failure_manifest` 5.
+
+Finding text (24 findings):
+
+| Term | Findings with a hit |
+| --- | --- |
+| Case id | 0 |
+| `mutation` | 0 |
+| `seeded` | 1 |
+| `evaluationIdentity` | 0 |
+| `transient` | 5 |
+
+- **`seeded`.** The one hit is run3 D1, "locally seeded sample data": the
+  model's word for the sample page's bundled data.
+- **`transient`.** The five hits are B1 in all three runs, B2 in run3, and D3
+  in run1. Four describe the observed 503 or the blocked poll. D3 rules one out:
+  "a contract/implementation mismatch rather than a transient execution fault".
+- **Tool results.** Neither word appears in any tool result. Each run's 8
+  `evaluationIdentity` hits are the `"evaluationIdentity": null` key of the
+  fixed view.
+
+**Why D2 in run3 is `inconclusive`.**
+
+- **Cause.** `run_oracle` never ran, so `reproductionOracleResult` was `null`
+  and `classify()` returned `inconclusive` (`finding.ts:203`). The precondition
+  rule did not apply, and there was no policy latch.
+- **What happened.** The investigation reached the 20-call tool ceiling one
+  action before the oracle:
+  - Calls 1–8: eight probes, which used the whole probe budget.
+  - Calls 9–10: two more `count_requests` (grouped by `mockDecision`, then by
+    `originAlias`), each refused with `BUDGET_EXHAUSTED` for probes.
+  - Call 11: `start_fresh_reproduction`.
+  - Calls 12–20: open the upload page; a `wait_for_state upload_ready` before
+    the form was filled, which timed out after 10 s (`REPRODUCTION_FAILED`);
+    one inspection; one screenshot; one accessibility snapshot; fill; attach;
+    a wait; the Analyze click.
+  - Call 21: `wait_for_state completed_report`, refused with `BUDGET_EXHAUSTED`
+    for tool calls. This latched `budgetExhausted`.
+- **The three rejected calls** are the two refused probes and that last wait.
+  - The refused probes mattered. Each still used one of the 20 tool calls, and
+    without them the model had exactly enough calls left for the wait and
+    `run_oracle`.
+  - The early wait cost one more.
+- **What was not reached.** Cost ($0.0261 against $0.25) and wall time (137 s
+  against 8 minutes).
+- **The narrative was right.** It named the rejected upload body
+  (`new-upload-body-schema`) as the cause.
+
+Budget refusals per case (the table's `rejected` column):
+
+| Run | D5 | D6 | D1 | D2 | D3 | D4 | B1 | B2 | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| run1 | 2 | 0 | 0 | 1 | 0 | 1 | 0 | 1 | 5 |
+| run2 | 7 | 1 | 5 | 0 | 0 | 0 | 1 | 1 | 15 |
+| run3 | 1 | 0 | 0 | 3 | 0 | 0 | 2 | 0 | 6 |
+
+- **Probe ceiling: 22 of the 26.** 21 were `count_requests` and 1
+  `read_network_events`.
+- **Tool-call ceiling: the other 4.** Three were inspections in run2 D5, after
+  its oracle had run, so it stayed `confirmed`. The fourth is the run3 D2 wait
+  above.
+- **Other refusals, not counted in the column:**
+  - 15 `REPRODUCTION_FAILED`: all `wait_for_state` timeouts;
+  - 17 `INVALID_STATE`: mostly reads after the oracle had run;
+  - 12 `INVALID_ARGUMENTS`: 11 on `submit_finding`, for example the
+    unsupported fields `reasoningSummaryNote` and `confidence`.
+
+**Known discrepancies, not fixed:**
+
+- **Refused probes still use a tool call.** `InvestigationSession.call` spends a
+  tool call (`session.ts:174`) before `readTool` checks the probe ceiling
+  (`session.ts:225`). So a probe refused for budget still uses one of the 20
+  tool calls. The statement under [Budgets and latches](#budgets-and-latches)
+  that exceeding the probe ceiling "refuses that call and nothing more" is
+  inaccurate in effect. This caused the run3 D2 `inconclusive`.
+- **The harness offers a tool outside the 16 QA tools.**
+  - `skill("failure-investigation")` was called 8 times in 7 transcripts
+    across the three runs: run1 D1, run2 B2, run3 B2, D1, D2, D4, and D3
+    twice.
+  - The harness answered that the skill "is unknown or no longer available".
+    The call did not count against the QA tool budget.
+  - This contradicts the statement under
+    [Composition and prompt](#composition-and-prompt) that the composition has
+    no other rows.
+  - Freeze v6 must address it.
+
+**Excluded attempts.** These folders hold no counted results:
+
+- `.qa-artifacts/postfix/deepseek-run1` holds two attempts:
+  - 21:39–21:40: D5, D6 and D1 stopped with `MISSING_CREDENTIAL`, "no API key
+    for provider route deepseek-official", because `DEEPSEEK_API_KEY` was not
+    exported.
+  - 21:41–21:42: D5, D6 and D1 failed in the QA launcher in about 3 s each,
+    and the attempt stopped at D2.
+- `deepseek-run2` and `deepseek-run3`: all 13 cases record "the QA launcher did
+  not complete the scenario", 3–4 s each, with 0 requests.
+- The operator's stated cause for those launcher failures is an orphaned
+  `vite preview` on port 4173 left by an interrupted run. The artifacts are
+  consistent with that, but no file records the port.
+
+**Comparison with the 2026-08-22/23 pre-fix DeepSeek runs.** They were not one
+sweep under one freeze. The thirteen cases come from three runs:
+
+- **Public, minus D2:** the v4 sweep `phase1-v4` at `2647925` (Freeze v4). It
+  matched 9 of its 10 public cases. Its D2 was `inconclusive` because the v4
+  oracle registry had no oracle for a rejected upload body, the gap Freeze v5
+  closed.
+- **D2:** rerun alone under v5 as `phase1-v5-d2` at `2d65cfb`, `confirmed`.
+- **D5, D6 and B4:** run as `heldout-live` at `bb0ebc4`. The v5-frozen files are
+  unchanged from `2d65cfb`. That commit also corrected B4's expectation, after
+  the scripted `heldout-verify` run showed `artifact_rejected`.
+
+Post-fix, D2 was `confirmed` in 2 of 3 runs. With n = 1 pre-fix run of D2 under
+v5, the run3 miss cannot be attributed to the fix. Its cause, the shared
+tool-call ceiling, is also not something the fix changed.
+
 ### Evaluation copies
 
 Each case runs in a detached `git worktree` under the system temp directory, never inside the main worktree, and the main worktree must be clean before one is created. The mutation applier takes a case id only — never a patch — resolves it through a registry, requires its anchor to match exactly once, and re-counts both strings after the write.
