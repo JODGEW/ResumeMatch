@@ -306,6 +306,70 @@ describe('probe arguments', () => {
   })
 })
 
+describe('budget refusal accounting', () => {
+  const refusal = async (tool: string, args: Record<string, unknown> = {}) => {
+    try {
+      await session.call(tool, args)
+    } catch (error) {
+      return error as { code: string; message: string }
+    }
+    throw new Error(`${tool} was not refused`)
+  }
+
+  it('says a refused probe still used a tool call, how many remain, and that further probes are refused too', async () => {
+    for (let index = 0; index < INVESTIGATION_BUDGET.probes; index += 1) await session.call('read_page_errors', {})
+    const first = await refusal('read_page_errors')
+    expect(first).toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    expect(first.message).toBe(
+      'Budget for probes is exhausted (limit 8). This refused call still used one of the 20 tool calls; 11 remain. '
+      + 'Further probes will also be refused, and each will still use a tool call.',
+    )
+    expect(session.status().remaining.toolCalls).toBe(11)
+    expect((await refusal('read_page_errors')).message).toContain('still used one of the 20 tool calls; 10 remain.')
+    expect(session.status().remaining.toolCalls).toBe(10)
+  })
+
+  it('says a call refused by another per-kind ceiling still used a tool call', async () => {
+    await session.call('start_fresh_reproduction', {})
+    for (let index = 0; index < INVESTIGATION_BUDGET.actions; index += 1) {
+      await session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'results' } })
+    }
+    const refused = await refusal('execute_allowed_action', { action: { kind: 'open_route', route: 'results' } })
+    expect(refused.message).toBe('Budget for actions is exhausted (limit 8). This refused call still used one of the 20 tool calls; 10 remain.')
+    expect(session.status().remaining.toolCalls).toBe(10)
+  })
+
+  it('says a call refused by the 20-call ceiling did not use one, and records the message it returned', async () => {
+    for (let index = 0; index < INVESTIGATION_BUDGET.probes; index += 1) await session.call('read_page_errors', {})
+    for (let index = INVESTIGATION_BUDGET.probes; index < INVESTIGATION_BUDGET.toolCalls; index += 1) await refusal('read_page_errors')
+    expect(session.status().remaining.toolCalls).toBe(0)
+    const refused = await refusal('read_page_errors')
+    expect(refused.message).toBe(
+      'Budget for toolCalls is exhausted (limit 20). This refused call did not use a tool call; none remain, and only submit_finding is available.',
+    )
+    await session.call('submit_finding', { finding: NARRATIVE })
+    expect(session.submittedFinding()?.rejectedCalls.at(-1)).toEqual({ tool: 'read_page_errors', reason: refused.message })
+  })
+
+  it('reports the actual outcome when the wall clock refuses a call', async () => {
+    let now = 1_000
+    const directories = await createInvestigationDirectory(approvedRoot, newInvestigationId())
+    const timed = new InvestigationSession({
+      investigationId: 'inv-clock', findingId: 'f-clock', runDirectory, manifest: manifest(), directories,
+      driver: new FakeDriver(directories.reproductionDirectory), model: { provider: 'fake', modelId: 'fake-1' },
+      checkouts: { resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) },
+      now: () => now,
+    })
+    await timed.call('read_page_errors', {})
+    now += INVESTIGATION_BUDGET.wallClockMs + 1
+    await expect(timed.call('read_page_errors', {})).rejects.toMatchObject({
+      code: 'BUDGET_EXHAUSTED',
+      message: 'Investigation wall-clock budget is exhausted. This refused call did not use a tool call; 19 remain. '
+        + 'Every further call except submit_finding will also be refused.',
+    })
+  })
+})
+
 describe('cost gate', () => {
   const RATES = { inputPerMillion: 0.44, outputPerMillion: 1.32 }
 
@@ -349,7 +413,11 @@ describe('cost gate', () => {
     const { session } = await costSession(0.01)
     session.recordUsage({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 1_000_000 }, new Date('2026-08-20T12:00:00Z'))
     expect(session.status().budgetExhausted).toBe(true)
-    await expect(session.call('start_fresh_reproduction', {})).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    await expect(session.call('start_fresh_reproduction', {})).rejects.toMatchObject({
+      code: 'BUDGET_EXHAUSTED',
+      message: 'The investigation cost ceiling is exhausted; only submit_finding remains. This refused call did not use a tool call.',
+    })
+    expect(session.status().remaining.toolCalls).toBe(INVESTIGATION_BUDGET.toolCalls)
     await session.call('submit_finding', { finding: NARRATIVE })
     expect(session.submittedFinding()?.classification).toBe('inconclusive')
     expect(session.submittedFinding()?.usage.costUsd).toBeCloseTo(1.32, 10)

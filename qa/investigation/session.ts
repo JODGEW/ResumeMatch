@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { resolveRoute, validateAction, validateInspectionTarget, allowsControlledClock, scenarioActionPolicy, type AllowedAction } from './actions'
-import { BudgetLedger, INVESTIGATION_BUDGET } from './budget'
+import { BudgetLedger, INVESTIGATION_BUDGET, type BudgetKind } from './budget'
 import { CostLedger } from './cost'
 import { InvestigationError, policyBlocked } from './errors'
 import {
@@ -165,7 +165,7 @@ export class InvestigationSession {
       throw policyBlocked('The investigation is blocked after an unauthorized action; only submit_finding remains')
     }
     if (this.options.cost?.isExhausted() === true && tool !== 'submit_finding') {
-      throw new InvestigationError('BUDGET_EXHAUSTED', 'The investigation cost ceiling is exhausted; only submit_finding remains')
+      throw new InvestigationError('BUDGET_EXHAUSTED', 'The investigation cost ceiling is exhausted; only submit_finding remains. This refused call did not use a tool call.')
     }
     try {
       // The terminal tool is exempt: locking it out behind the shared ceiling
@@ -201,20 +201,46 @@ export class InvestigationSession {
    * investigation nothing but its own attention, so exceeding them refuses the
    * call without latching. Every other ceiling truncates real work, so it
    * latches and the finding cannot claim a completed reproduction.
+   *
+   * The tool-call ceiling is charged before any other, so a call refused by a
+   * per-kind ceiling has already used one of the tool calls. The refusal says
+   * so, with the true remainder, rather than leaving the model to discover it.
    * @param kind - the budget to spend.
    * @param tool - the tool the caller asked for, recorded on refusal.
    * @throws `BUDGET_EXHAUSTED` when the ceiling is reached.
    */
-  private spend(kind: Parameters<BudgetLedger['spend']>[0], tool: string): void {
+  private spend(kind: BudgetKind, tool: string): void {
     try {
       this.ledger.spend(kind)
     } catch (error) {
       if (error instanceof InvestigationError && error.code === 'BUDGET_EXHAUSTED') {
-        this.rejectedCalls.push({ tool, reason: error.message })
+        const refusal = new InvestigationError('BUDGET_EXHAUSTED', `${error.message}. ${this.toolCallAccounting(kind)}`)
+        this.rejectedCalls.push({ tool, reason: refusal.message })
         if (kind !== 'probes') this.budgetLatched = true
+        throw refusal
       }
       throw error
     }
+  }
+
+  /**
+   * What a refused spend did to the tool-call ceiling, in the model's terms.
+   * @param kind - the budget whose spend was refused.
+   */
+  private toolCallAccounting(kind: BudgetKind): string {
+    const limit = INVESTIGATION_BUDGET.toolCalls
+    const remaining = this.ledger.remaining().toolCalls
+    const left = `${remaining} ${remaining === 1 ? 'remains' : 'remain'}`
+    // Only the tool-call spend itself happens before a tool call is charged.
+    const used = kind !== 'toolCalls'
+    // A refusal below the kind's own ceiling can only be the wall clock.
+    if (this.ledger.count(kind) < INVESTIGATION_BUDGET[kind]) {
+      const outcome = used ? `This refused call still used one of the ${limit} tool calls; ${left}` : `This refused call did not use a tool call; ${left}`
+      return `${outcome}. Every further call except submit_finding will also be refused.`
+    }
+    if (!used) return 'This refused call did not use a tool call; none remain, and only submit_finding is available.'
+    const accounting = `This refused call still used one of the ${limit} tool calls; ${left}.`
+    return kind === 'probes' ? `${accounting} Further probes will also be refused, and each will still use a tool call.` : accounting
   }
 
   private async readTool(tool: string, input: unknown): Promise<unknown> {

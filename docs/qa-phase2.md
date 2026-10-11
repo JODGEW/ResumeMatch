@@ -64,7 +64,7 @@ First-probe scoring lives in `qa/investigation/goldProbe.ts` and reports two rat
 
 Hypotheses 3, probes 6, reproductions 1, actions 8, inspections 6, screenshots 2, accessibility snapshots 2, clock advances 2, oracle runs 1, tool calls 20, wall clock 8 minutes. Enforcement is in code, not in prompt text.
 
-An attempted unauthorized action latches `policy_blocked` and leaves only `submit_finding` reachable. A spent budget is not a penalty of its own: it reaches the verdict through its consequence, since an investigation cut short has no completed reproduction oracle. Exceeding the read-only probe ceiling refuses that call and nothing more — probes cost the investigation only its own attention — while every other ceiling truncates real work and latches. Every refusal is recorded in the finding's `rejectedCalls`.
+An attempted unauthorized action latches `policy_blocked` and leaves only `submit_finding` reachable. A spent budget is not a penalty of its own: it reaches the verdict through its consequence, since an investigation cut short has no completed reproduction oracle. Exceeding the read-only probe ceiling refuses that call without latching — probes cost the investigation only its own attention — while every other ceiling truncates real work and latches. A call refused by the probe ceiling, or by any other per-kind ceiling, still uses one of the 20 tool calls, because the tool-call ceiling is charged first; a call refused by the tool-call ceiling, the cost ceiling, or the wall clock before that charge uses none. Every budget refusal tells the model which happened and how many tool calls remain. Every refusal is recorded in the finding's `rejectedCalls`.
 
 ## Fresh reproduction
 
@@ -809,7 +809,9 @@ Budget refusals per case (the table's `rejected` column):
   (`session.ts:225`). So a probe refused for budget still uses one of the 20
   tool calls. The statement under [Budgets and latches](#budgets-and-latches)
   that exceeding the probe ceiling "refuses that call and nothing more" is
-  inaccurate in effect. This caused the run3 D2 `inconclusive`.
+  inaccurate in effect. This caused the run3 D2 `inconclusive`. That statement
+  was corrected on 2026-10-11, and refusals now say how many tool calls remain;
+  the accounting itself is unchanged.
 - **The harness offers a tool outside the 16 QA tools.**
   - `skill("failure-investigation")` was called 8 times in 7 transcripts
     across the three runs: run1 D1, run2 B2, run3 B2, D1, D2, D4, and D3
