@@ -45,9 +45,12 @@ export interface EvalCase {
  * Held-out cases live in `evalCases.heldout.ts` with no mutation, fault, or gold
  * probe, and their definitions stay in the gitignored `heldout/` directory.
  *
- * `expectedTriage` is a prediction to be confirmed by running each case, not an
- * assertion of observed behavior: only B1 and B2 have been executed so far, and
- * both matched. Every other row stays a prediction until the runner exists.
+ * Each case is executed by the evaluation runner (`evalRunner/`, `qaCommand
+ * evaluate`). C1-C3, D1-D4 and B1-B3 matched their expected triage and
+ * classification in the 2026-10-08 sweep at `9c5e6d7` (docs/qa-phase2.md).
+ * D7, D8, D9 and B5 were added in slice 4; their triage and original failed
+ * oracle were measured with the scripted provider in the slice 5 pilot, and
+ * B5's expected classification is still a prediction (see its row).
  */
 export const EVAL_CASES: readonly EvalCase[] = [
   {
@@ -139,7 +142,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
     // The original run is B2's: the second poll is aborted, so the report never
     // completes. Only a fresh reproduction shows that polling also stops at
     // `processing` with no fault at all.
-    // Predicted original failed oracle, until the slice 5 pilot: P1-02_COMPLETED_REPORT.
+    // Measured in the slice 5 pilot (2026-10-11, a327a4c): triage investigate,
+    // original failed oracle P1-02_COMPLETED_REPORT.
     id: 'D7', kind: 'seeded_defect', scenarioId: 'P1-02',
     summary: 'Polling stops at the processing response, and one analysis poll is interrupted',
     mutation: {
@@ -155,7 +159,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
     // In the reproduction the upload succeeds and the S3 request, sent without
     // its file part, is rejected; the page still navigates, so the original
     // failure passes and the contract failures are new.
-    // Predicted original failed oracle, until the slice 5 pilot: P1-02_RESULTS_NAVIGATION.
+    // Measured in the slice 5 pilot (2026-10-11, a327a4c): triage investigate,
+    // original failed oracle P1-02_RESULTS_NAVIGATION.
     id: 'D8', kind: 'seeded_defect', scenarioId: 'P1-02',
     summary: 'The upload returns 503 once, and the S3 request omits the file',
     mutation: {
@@ -169,7 +174,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
   {
     // The first analysis request is blocked for its query key, so polling never
     // starts and the first failure is a rendering one.
-    // Predicted original failed oracle, until the slice 5 pilot: P1-02_PROCESSING_STATE.
+    // Measured in the slice 5 pilot (2026-10-11, a327a4c): triage investigate,
+    // original failed oracle P1-02_PROCESSING_STATE.
     id: 'D9', kind: 'seeded_defect', scenarioId: 'P1-02',
     summary: 'The analysis request sends the wrong query key',
     mutation: {
@@ -182,7 +188,11 @@ export const EVAL_CASES: readonly EvalCase[] = [
   {
     // The second poll is aborted, polling stops, and the timeout report never
     // appears; a reproduction that advances the controlled clock reaches it.
-    // Predicted original failed oracle, until the slice 5 pilot: P1-05_TIMEOUT_STATE.
+    // Measured in the slice 5 pilot (2026-10-11, a327a4c): triage investigate,
+    // original failed oracle P1-05_TIMEOUT_STATE. The expected classification is
+    // still a prediction: that pilot ran the upload script, which cannot drive
+    // P1-05, so its reproduction was not judged. It is measured in the
+    // committed pilot that runs the timeout script.
     id: 'B5', kind: 'benign_transient', scenarioId: 'P1-05',
     summary: 'One analysis poll in the timeout scenario is interrupted; a fresh reproduction reaches the timeout',
     transientFaults: ['analysis_interrupted_once'],

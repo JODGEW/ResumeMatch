@@ -120,12 +120,14 @@ const TASK = 'Investigate the recorded release failure.'
  *
  * The script stands in for a model's plan, and a plan is scenario-shaped: the
  * sample page defines one route and no form actions, while the upload scenarios
- * need the whole form. A scenario with no entry falls back to the upload plan.
+ * need the whole form, and the timeout scenario opens results and advances its
+ * controlled clock. A scenario with no entry falls back to the upload plan.
  */
-const SCRIPT_BY_SCENARIO: Readonly<Record<string, string>> = {
+export const SCRIPT_BY_SCENARIO: Readonly<Record<string, string>> = {
   'P1-01': 'sample',
   'P1-02': 'gold',
   'P1-03': 'gold',
+  'P1-05': 'timeout',
 }
 
 function registry(evalCase: EvalCase): MutationRegistry {

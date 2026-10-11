@@ -7,9 +7,10 @@ import process from 'node:process'
 import { describe, expect, it } from 'vitest'
 
 import { parseProviderLog, providerLogCostUsd, providerLogTotals } from '../cost'
+import { EVAL_CASES } from '../evalCases'
 import {
-  caseArtifactPaths, evidenceProbeSummary, guardRecordedUsage, recordRootCauseGrade, rootCauseSummary, stopsSweep, summaryTable, sweepCostUsd,
-  transcriptUsageEvents, USAGE_NOT_RECORDED,
+  caseArtifactPaths, evidenceProbeSummary, guardRecordedUsage, recordRootCauseGrade, rootCauseSummary, SCRIPT_BY_SCENARIO, stopsSweep, summaryTable,
+  sweepCostUsd, transcriptUsageEvents, USAGE_NOT_RECORDED,
 } from './runCase'
 import type { EvalCaseResult } from './runCase'
 
@@ -232,5 +233,13 @@ describe('recorded usage guard', () => {
     guardRecordedUsage(refused, transcriptUsageEvents(PROVIDER_FAILURE))
     expect(refused.errors).toEqual(['no finding was submitted'])
     expect(stopsSweep(refused)).toBe(false)
+  })
+})
+
+describe('scripted plan by scenario', () => {
+  it('names a plan for every scenario a public case is investigated in, so none falls back to the upload plan', () => {
+    const investigated = [...new Set(EVAL_CASES.filter(item => item.expectedTriage === 'investigate').map(item => item.scenarioId))].sort()
+    expect(investigated.filter(scenarioId => SCRIPT_BY_SCENARIO[scenarioId] === undefined)).toEqual([])
+    expect(SCRIPT_BY_SCENARIO['P1-05']).toBe('timeout')
   })
 })
