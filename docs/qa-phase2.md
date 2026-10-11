@@ -62,7 +62,7 @@ First-probe scoring lives in `qa/investigation/goldProbe.ts` and reports two rat
 
 ## Budgets and latches
 
-Hypotheses 3, probes 6, reproductions 1, actions 8, inspections 6, screenshots 2, accessibility snapshots 2, clock advances 2, oracle runs 1, tool calls 20, wall clock 8 minutes. Enforcement is in code, not in prompt text.
+Hypotheses 3, probes 8, reproductions 1, actions 8, inspections 6, screenshots 2, accessibility snapshots 2, clock advances 2, oracle runs 1, tool calls 20, wall clock 8 minutes. Enforcement is in code, not in prompt text.
 
 An attempted unauthorized action latches `policy_blocked` and leaves only `submit_finding` reachable. A spent budget is not a penalty of its own: it reaches the verdict through its consequence, since an investigation cut short has no completed reproduction oracle. Exceeding the read-only probe ceiling refuses that call without latching — probes cost the investigation only its own attention — while every other ceiling truncates real work and latches. A call refused by the probe ceiling, or by any other per-kind ceiling, still uses one of the 20 tool calls, because the tool-call ceiling is charged first; a call refused by the tool-call ceiling, the cost ceiling, or the wall clock before that charge uses none. Every budget refusal tells the model which happened and how many tool calls remain. Every refusal is recorded in the finding's `rejectedCalls`.
 
@@ -90,9 +90,9 @@ A finding that names `classification`, `reproductionOracleResult`, `rejectedCall
 
 ## Evaluation
 
-The corpus is split in two. `qa/investigation/evalCases.ts` holds the public half — three clean cases, four seeded defects anchored to exact single-occurrence source strings, and three benign transient cases — with their mutations, faults, and gold first probes. `qa/investigation/evalCases.heldout.ts` holds D5, D6, and B4 as expectations only: no mutation, no fault, no gold probe. Their definitions live in the gitignored `qa/investigation/heldout/` directory and load only under an explicit `--held-out` opt-in, and a gate test fails if any held-out id appears in the public file.
+The corpus is split in two. `qa/investigation/evalCases.ts` holds the public half — three clean cases, seven seeded defects anchored to exact single-occurrence source strings, and four benign transient cases — with their mutations and faults, and gold first probes for D1–D4 and B1. Their graded root causes and evidence sets live in `rootCauseGold.ts` and `goldEvidence.ts`. `qa/investigation/evalCases.heldout.ts` holds D5, D6, and B4 as expectations only: no mutation, no fault, no gold probe. Their definitions live in the gitignored `qa/investigation/heldout/` directory and load only under an explicit `--held-out` opt-in, and a gate test fails if any held-out id appears in the public file. Since `cd8c186` a held-out definition may also carry its case's gold root cause and evidence set; a case without them is not graded.
 
-That makes thirteen cases, not the original twelve. B2 was implemented and executed during Phase 2 development, so it can no longer serve as held out; it stays in the corpus as a public benign case and carries no gold probe, and B4 takes the held-out slot. B4 interrupts the last-resume lookup once in the reuse scenario — a route and a scenario no public benign case covers, failing as a missing element rather than a failed navigation or a stalled poll.
+That made thirteen cases, not the original twelve. B2 was implemented and executed during Phase 2 development, so it can no longer serve as held out; it stays in the corpus as a public benign case and carries no gold probe, and B4 takes the held-out slot. B4 interrupts the last-resume lookup once in the reuse scenario — a route and a scenario no public benign case covers, failing as a missing element rather than a failed navigation or a stalled poll. Commit `a327a4c` added D7, D8, D9 and B5 to the public half, for seventeen cases.
 
 ### Runner
 
@@ -112,6 +112,32 @@ A model-request counter file is created for every case whether or not an
 investigation is launched, and the scripted provider appends one entry per
 request, so a clean case's zero is a reading of that counter rather than the
 absence of an observation.
+
+A sweep refuses to start when the adapter checkout has uncommitted or untracked
+changes (`cleanAdapterCommit`, `evalRunner/worktree.ts`): the adapter names
+itself in every finding by `git rev-parse HEAD` with no dirty flag, so an edited
+adapter would be recorded as a commit that did not run. Each case result records
+the clean commit as `adapterCommit`. The ResumeMatch checkout is held to the
+same rule when each evaluation copy is created.
+
+`--sweep-cost-limit <dollars>` sets the sweep ceiling; without it the ceiling is
+$5.00 (`EVALUATION_COST_LIMIT_USD`). A case is refused rather than started once
+the sweep has spent the ceiling. Each case result records the ceiling it was
+gated against as `sweepLimitUsd`, and the line under the summary table names it.
+
+When the QA launcher fails, the case result keeps its exit code, signal, and the
+last 4,000 characters of its stdout and stderr as `launcherFailure`, so a
+failure such as an occupied port can be diagnosed from the artifacts.
+
+Two errors stop the sweep before another case starts: model usage the runner
+never saw (`model usage not recorded; cost ceilings were not enforced`), and a
+provider with no credential (`the provider has no API key
+(MISSING_CREDENTIAL)`, `guardCredential` in `evalRunner/runCase.ts`). The second
+is recognized from the transcript's `turn/end` error: the code
+`MISSING_CREDENTIAL`, or a message containing "no API key". That shape comes
+from the only case seen so far, DeepSeek with no key (post-fix
+`deepseek-run1`, D1); a provider that reports a missing key any other way is not
+caught.
 
 ### Keyless results
 
@@ -142,17 +168,141 @@ first real work. No case has run against a real model.
 
 The files below decide what the model sees and what it is allowed to do: the
 prompt, the tool descriptions, the action grammar, the budgets, the finding
-schema, the public corpus with its gold set, and the composition. They are
-frozen before any live evaluation so that a result can be attributed to a
-specific investigator rather than to a moving one.
+schema, the public corpus with its gold set, and the composition. Since v6 they
+also cover how a run is scored and the scenario and evidence model the cases run
+in. They are frozen before any live evaluation so that a result can be
+attributed to a specific investigator rather than to a moving one.
 
-`qa/investigation/freeze.test.ts` recomputes these hashes on every `npm test`. A
-frozen file cannot change without this record changing in the same commit, which
-is the point: the change becomes visible in review instead of drifting silently.
+`qa/investigation/freeze.test.ts` recomputes the current version's hashes on
+every `npm test`. A frozen file cannot change without this record changing in
+the same commit, which is the point: the change becomes visible in review
+instead of drifting silently. Only the current version gates; earlier tables
+are history, and the test also checks that the Freeze v5 section is unchanged.
 An `adapter:` path resolves inside the adapter checkout, located by
 `RESUMEMATCH_QA_ADAPTER_PATH` or its default; when that checkout is absent the
-adapter rows are reported as unverified and the four repository rows are still
-enforced.
+nine adapter rows are reported as unverified and the 28 repository rows are
+still enforced.
+
+### Freeze v6 (2026-10-11)
+
+Superseding v5 after the cross-model sweeps of 2026-10-08 to 2026-10-10, in
+which Haiku, Sonnet and Opus each matched 13 of 13 on triage and
+classification: the benchmark did not separate them. v6 freezes what makes a
+result model-sensitive and attributable: a structured root cause in the
+finding, four harder public cases, and the metrics that grade them. The Freeze
+v5 table below is kept byte-for-byte as history; its line saying
+`freeze.test.ts` verifies it describes the gate as it stood until v6.
+
+**What moved since v5.** Five v5 files moved; `run-config.yml`,
+`oracleRegistry.ts`, `actions.ts` and `budget.ts` did not.
+
+- `qa/investigation/finding.ts` (`5945e39`): `rootCause` is required, with
+  exactly `attribution`, `routeTemplate` and `failureMode`; the schema is
+  `phase2-finding/2`, and stored `phase2-finding/1` findings still load. The
+  example narrative returned with every rejected submission was replaced: the
+  old one described D1's scenario, and 25 rejections across DeepSeek, Sonnet and
+  Opus had returned it. The new one, a duplicated `/user/last-resume` request,
+  matches no public answer, and the held-out loader refuses a gold answer equal
+  to it.
+- `qa/investigation/evalCases.ts` (`a327a4c`, `c51bc38`, `6951836`): public
+  cases D7, D8, D9 and B5. Their triage and original failed oracles were
+  measured in a scripted pilot at `a327a4c`, and B5's classification in the
+  scripted pilot at `c51bc38`, both on 2026-10-11.
+- `adapter:prompts/investigator.md` and `adapter:src/qa-tools.ts` (`1d6d7aa`):
+  the prompt and the `submit_finding` description name `rootCause` and its
+  values.
+- `adapter:cordis.yml` (`fa754fe`): the investigator is offered only the 16 QA
+  tools. `skills`, `toolJobs` and `toolBash` are off, which removes `skill`,
+  `job_kill`, `job_list` and `job_output`, offered in every earlier transcript,
+  and `bash`, which was never offered.
+
+**What v6 adds, and why.** v5 pinned the prompt, the tools, the grammar, the
+budgets, the schema, the corpus and the composition. v6 pins every file whose
+change could alter, for the same model, any byte the investigator receives,
+which actions it can take or what they do, or any recorded score. Files that
+only move bytes, build, lock or report are left out; the three commits under
+Frozen at pin everything else.
+
+- The investigator's interface: `session.ts` (tool dispatch, the manifest view
+  with the evaluation identity removed, budget and refusal wording),
+  `errors.ts`, `evidenceReader.ts`, `reproduction.ts`, `cost.ts` (when the cost
+  ceiling blocks tools), `evalRunner/runCase.ts` (the task message the model
+  receives, and the grades it records), and the adapter's `system-prompt.ts`,
+  `pricing.ts` and three Anthropic overlays, which v5 did not cover.
+- Scoring and cases: `triage.ts`, `rootCauseGold.ts`, `rootCauseScore.ts`,
+  `goldEvidence.ts`, `goldProbe.ts`, `heldoutDefinitions.ts` (held-out cases
+  and, from `cd8c186`, their gold answers and evidence sets),
+  `evalRunner/mutation.ts` and `tests/e2e/evalCase.e2e.ts`.
+- The scenario and evidence model, which produces every byte of evidence:
+  `scenarios.ts`, `contractRouter.ts`, `networkPolicy.ts`, `evidence.ts`,
+  `uploadObservation.ts`, `runReleaseCheck.ts`, `oracles.ts`,
+  `artifactValidator.ts` and `qa/fixtures/data.ts`. A Phase 1 change to any of
+  them moves the original-run evidence for every case, so it is recorded as v7
+  rather than left to drift under v6.
+
+Left out: the runner's command line, checkouts and drift guard (`main.ts`,
+`worktree.ts`, `digest.ts`); the line protocol and paths (`serverMain.ts`,
+`paths.ts`, `adapter:src/investigation-client.ts`); `adapter:src/git-identity.ts`;
+the scripted provider and its driver; `qa/browser/types.ts`; build and launch
+mechanics; and `qa/investigation/evalCases.heldout.ts`, whose expectation rows
+the held-out step adds after this freeze. The gitignored held-out definitions
+are not hashed here.
+
+`freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `bec5c5176c6b38a5bee3745cec546fd1d1d77cdbc6c8e568c53af456a475d100` |
+| `adapter:src/qa-tools.ts` | `745117fa998d5da7db885087c3f5af9a10b7af2e0e6bead80d5d41ab225fa5a4` |
+| `adapter:cordis.yml` | `cb14edabb8f2c819268d03b166c190f80ffc02dd058d046f9b1ed86a71d1ba45` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `adapter:run-config.anthropic.yml` | `996694916d76eb5346a80ff8cd365bb1c5e435474fddcc3468c3c1f2795bc83c` |
+| `adapter:run-config.anthropic-haiku.yml` | `b6aff68226e9e27b29edd9d266fce103417eaa2b51cfe4b00a88f55c379787c3` |
+| `adapter:run-config.anthropic-opus.yml` | `fbcdf5976d914b6f605462c9c6673232a6e9ff614fb9f0cbe9d1e97bd938d9f2` |
+| `adapter:src/system-prompt.ts` | `f4eae4af1f8739cf140ecd33990836bd53c19e5359f3c3dbab5ec0225f820f3b` |
+| `adapter:src/pricing.ts` | `1559e8e4160ab6747d3d1aac916e2321869cd7e2ff7dad911b1b3297c30f2b32` |
+| `qa/investigation/finding.ts` | `973cd66da05b2bd257b748be6d128828745ab23ae4cafdb349582a06a24e780f` |
+| `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
+| `qa/investigation/budget.ts` | `b2a5feef1fec034e3c1c3685a7762e5b45eba46a2469929e1bc8f3c88e61161d` |
+| `qa/investigation/session.ts` | `d7d85c06b10091f3c2c367784be2cbc003a436b76260983979ece7b056987b66` |
+| `qa/investigation/errors.ts` | `8890d8f41bec0034be479ac2d5cf5bb8d6132541fd4daf308068e53868b7e9ec` |
+| `qa/investigation/evidenceReader.ts` | `92c30372a3e70d16c409dd2a493e2c620a855ed59c5e0e660264491517513acb` |
+| `qa/investigation/reproduction.ts` | `15f2b2559a9a730f50578336c941ec9e670b62ad92e74575e3041ce3f523ba82` |
+| `qa/investigation/cost.ts` | `1fe360e99eecdfe402ad951d8eb3d86981f849d5a01c0433496440b5993c8438` |
+| `qa/investigation/evalRunner/runCase.ts` | `d02e2251ef8b51455b4dca0dbec58082d5e1bd81ce085b3c5f7c0bcad14d8fee` |
+| `qa/investigation/evalCases.ts` | `cb7cecae87ebe23f85c355c40e726635c58b5f1fec4c30f1521db312905e1b92` |
+| `qa/browser/oracleRegistry.ts` | `c7381c8987c41153cd1875cecf8324461b5752fe4664f93f16b977b941637b61` |
+| `qa/investigation/triage.ts` | `4f7153b63d43d02beacd52d928ba7f4643462fc6c24c1e575d684b03b9f88f27` |
+| `qa/investigation/rootCauseGold.ts` | `a15441a3e5944bf0f26533cf7dd13196ecd6ce8e98a6e59ba6285ddc81703dc3` |
+| `qa/investigation/rootCauseScore.ts` | `dbe5a364f0297e33f6529794912a4a6bb82677cad233f569782e1d9aadb9aa1e` |
+| `qa/investigation/goldEvidence.ts` | `a84ba136e4d3663d28965f7cbe36f3738da7d5583562252194ce5a5ff45b6fa1` |
+| `qa/investigation/goldProbe.ts` | `b3421e9d9288bf1c19b2e2d7c94116b1aca47e95916bc3ff5a8a702fa1a7b27d` |
+| `qa/investigation/heldoutDefinitions.ts` | `2116fe94c802f0901ca29188f07ad296b618ddb61184cc6c6c01f3dbd51733af` |
+| `qa/investigation/evalRunner/mutation.ts` | `2c24d0dea1599dd8867a625a6c6a94a7bcd3b9d235a943a849a0cf08f7190a50` |
+| `tests/e2e/evalCase.e2e.ts` | `c93916d905ca5cfd5b05404389225cc1949b4fd0f6402b528666321981963983` |
+| `qa/browser/scenarios.ts` | `1f146807f83623881da0a64a792794a75c08b50966b95d127f2167d840a004cc` |
+| `qa/browser/contractRouter.ts` | `92242a3db70e1d5bd0f30b3908b14b250e476d2c93537df6311d9b67668c4c67` |
+| `qa/browser/networkPolicy.ts` | `77f4734ffa4281b351476d3f678f099220fbf83aeec18bfc48f929d75f52d977` |
+| `qa/browser/evidence.ts` | `e2cce31f7d5f34d7ad333a4a48f2de25fbf778ea906d943c40def17ccd1a2d62` |
+| `qa/browser/uploadObservation.ts` | `eb45c67b874e07b8b30b5763a56d86eedd62b0da229bac8008998f9c6f2efb7c` |
+| `qa/browser/runReleaseCheck.ts` | `1bb6ee6c67a08dfdbce5929b837492bb9b34c57d188d1c1b770a596315c7ac4e` |
+| `qa/browser/oracles.ts` | `b76a8b3d33268b5f9f608679fb07186fcd51bcac7f277f5cf763ed60cdcf5ec4` |
+| `qa/browser/artifactValidator.ts` | `5d0d53c5327afeb08d83c6fdba4df14af56a41672aaa71d7d2539f013f9efeee` |
+| `qa/fixtures/data.ts` | `f39559c24e52b45512bc7639c8f30058702099aa841051912aed2dd6031fe305` |
+
+#### Frozen at
+
+| Checkout | Commit |
+| --- | --- |
+| ResumeMatch | `cd8c186b73ec13dd5fb0f55759abf1b01622fc6a` |
+| DeepSeek Harness | `015fa1305085bdf7fbac6e738eaf39207ad9b73a` |
+| `resumematch-qa-tools` adapter | `4041ae20ac9c2d6987e7ef8bf6fdebf9e45854fa` |
+
+The ResumeMatch commit is the one the hashes were taken at; the commit that adds
+this section changes only this document and its test, neither of which is
+frozen. The adapter rows were taken at the adapter commit above; `evaluate`
+refuses to run from a dirty adapter checkout and records its commit in every
+case result as `adapterCommit`.
 
 ### Freeze v5 (2026-08-23)
 
@@ -275,6 +425,8 @@ a gate; `freeze.test.ts` does not verify it.
 
 ### Frozen at
 
+These are Freeze v5's commits; Freeze v6 records its own in its section.
+
 | Checkout | Commit |
 | --- | --- |
 | ResumeMatch | `a05115ba4c9e8252a95a1c39b82b2c632337dfb5` |
@@ -311,7 +463,7 @@ model come from `RESUMEMATCH_QA_PROVIDER` and `RESUMEMATCH_QA_MODEL`.
 | Output rate | $1.32 / 1M tokens, peak | `cordis.yml` |
 | Peak bands (UTC minutes) | `60-240` and `360-600`; everything else off-peak | `cordis.yml` |
 | Investigation ceiling | $0.25 | `cordis.yml` |
-| Sweep ceiling | $5.00 | `qa/investigation/cost.ts` |
+| Sweep ceiling | $5.00 by default; `evaluate --sweep-cost-limit <dollars>` overrides it | `qa/investigation/cost.ts` |
 
 Cache hits are charged at their own rate; a run without one configured falls
 back to the input rate, which overstates rather than understates. The finding records the disjoint counts, so a more
@@ -470,6 +622,8 @@ the code.
 - Findings repeated the identity. A finding's text named the case id in 34 of
   40 Sonnet findings, 14 of 14 Opus, 20 of 40 Haiku, and 4 of the 12 DeepSeek
   transcripts.
+- None of the DeepSeek counts above includes the 2 held-out live DeepSeek
+  transcripts in `.qa-artifacts/heldout-live/`.
 
 **Fix: `f1e5aff`.** Only the investigator's view changed.
 
