@@ -5,7 +5,7 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 
 import { runReleaseCheck } from '../../qa/browser/runReleaseCheck'
-import type { EvidenceManifest, TransientFault } from '../../qa/browser/types'
+import type { EvidenceManifest, ScenarioId, TransientFault } from '../../qa/browser/types'
 import { buildDigest, sourceDigest } from '../../qa/investigation/evalRunner/digest'
 import { approvedArtifactRoot, createInvestigationDirectory, newInvestigationId } from '../../qa/investigation/paths'
 import { PlaywrightReproduction } from '../../qa/investigation/reproduction'
@@ -22,7 +22,33 @@ const NARRATIVE = {
   rootCause: { attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' },
 }
 
-async function investigate(manifest: EvidenceManifest, runDirectory: string): Promise<{ finding: Finding; directory: string }> {
+type ToolCall = [tool: string, input: unknown]
+
+/** The reproduction the scripted provider drives for an upload case: fill, submit, wait for the report. */
+function uploadReproduction(scenarioId: ScenarioId, options: { waitForReport: boolean } = { waitForReport: true }): ToolCall[] {
+  return [
+    ['execute_allowed_action', { action: { kind: 'open_route', route: 'upload' } }],
+    ['execute_allowed_action', { action: { kind: 'fill_synthetic_text', field: 'job_description' } }],
+    ...scenarioId === 'P1-02' ? [['execute_allowed_action', { action: { kind: 'attach_synthetic_file', file: 'qa_synthetic_resume' } }] as ToolCall] : [],
+    ['execute_allowed_action', { action: { kind: 'click_by_role', role: 'button', name: 'Analyze Resume' } }],
+    ...options.waitForReport ? [['execute_allowed_action', { action: { kind: 'wait_for_state', state: 'completed_report' } }] as ToolCall] : [],
+  ]
+}
+
+/** A timeout-scenario reproduction that advances the controlled clock by `ms` once processing is showing. */
+function timeoutReproduction(ms: number): ToolCall[] {
+  return [
+    ['execute_allowed_action', { action: { kind: 'open_route', route: 'results' } }],
+    ['execute_allowed_action', { action: { kind: 'wait_for_state', state: 'processing' } }],
+    ['advance_controlled_clock', { ms }],
+  ]
+}
+
+async function investigate(
+  manifest: EvidenceManifest,
+  runDirectory: string,
+  reproduction: ToolCall[] = uploadReproduction(manifest.scenarioId),
+): Promise<{ finding: Finding; directory: string }> {
   const approvedRoot = approvedArtifactRoot()
   const directories = await createInvestigationDirectory(approvedRoot, newInvestigationId())
   const driver = new PlaywrightReproduction(manifest.scenarioId, directories.reproductionDirectory)
@@ -34,13 +60,7 @@ async function investigate(manifest: EvidenceManifest, runDirectory: string): Pr
   try {
     await session.call('read_failed_assertion', {})
     await session.call('start_fresh_reproduction', {})
-    await session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'upload' } })
-    await session.call('execute_allowed_action', { action: { kind: 'fill_synthetic_text', field: 'job_description' } })
-    if (manifest.scenarioId === 'P1-02') {
-      await session.call('execute_allowed_action', { action: { kind: 'attach_synthetic_file', file: 'qa_synthetic_resume' } })
-    }
-    await session.call('execute_allowed_action', { action: { kind: 'click_by_role', role: 'button', name: 'Analyze Resume' } })
-    await session.call('execute_allowed_action', { action: { kind: 'wait_for_state', state: 'completed_report' } })
+    for (const [tool, input] of reproduction) await session.call(tool, input)
     await session.call('run_oracle', {})
     await session.call('submit_finding', { finding: NARRATIVE })
   } finally {
@@ -51,14 +71,14 @@ async function investigate(manifest: EvidenceManifest, runDirectory: string): Pr
   return { finding: finding as Finding, directory: directories.directory }
 }
 
-async function failingRun(fault: TransientFault) {
+async function failingRun(fault: TransientFault, scenarioId: ScenarioId = 'P1-02') {
   // A run that injects a fault must declare it: without an evaluation identity
   // the validator judges the bundle under the strict release allowlist and
   // rejects the transient response, so the run never becomes investigable.
-  const result = await runReleaseCheck('P1-02', {
+  const result = await runReleaseCheck(scenarioId, {
     transientFaults: [fault],
     evaluationIdentity: {
-      caseId: fault === 'upload_503_once' ? 'B1' : 'B2',
+      caseId: scenarioId === 'P1-05' ? 'B5' : fault === 'upload_503_once' ? 'B1' : 'B2',
       mutationApplied: null,
       transientFaults: [fault],
       sourceDigest: await sourceDigest(process.cwd()),
@@ -99,6 +119,50 @@ test('B2: one interrupted analysis poll is investigable and does not reproduce',
   expect(manifest.failedOracle).toBe('P1-02_COMPLETED_REPORT')
 
   const { finding } = await investigate(manifest, runDirectory)
+  expect(finding.classification).toBe('not_reproduced')
+})
+
+// The investigator is never told to wait before run_oracle, so judging right
+// after the trigger must apply the waits Phase 1 recorded the failure under.
+test('B1 judged right after the click: the route and report get Phase 1\'s waits, so it does not reproduce', async () => {
+  test.setTimeout(120_000)
+  const { manifest, runDirectory } = await failingRun('upload_503_once')
+  expect(manifest.failedOracle).toBe('P1-02_RESULTS_NAVIGATION')
+
+  const { finding } = await investigate(manifest, runDirectory, uploadReproduction('P1-02', { waitForReport: false }))
+  expect(finding.reproductionOracleResult?.failures).toEqual([])
+  expect(finding.classification).toBe('not_reproduced')
+})
+
+test('B2 judged right after the click: the completed report gets Phase 1\'s waits, so it does not reproduce', async () => {
+  test.setTimeout(120_000)
+  const { manifest, runDirectory } = await failingRun('analysis_interrupted_once')
+  expect(manifest.failedOracle).toBe('P1-02_COMPLETED_REPORT')
+
+  const { finding } = await investigate(manifest, runDirectory, uploadReproduction('P1-02', { waitForReport: false }))
+  expect(finding.reproductionOracleResult?.failures).toEqual([])
+  expect(finding.classification).toBe('not_reproduced')
+})
+
+test('B5 with the clock advanced too little for the timeout is inconclusive, not confirmed', async () => {
+  test.setTimeout(120_000)
+  const { manifest, runDirectory } = await failingRun('analysis_interrupted_once', 'P1-05')
+  expect(manifest.failedOracle).toBe('P1-05_TIMEOUT_STATE')
+
+  const { finding } = await investigate(manifest, runDirectory, timeoutReproduction(30_000))
+  expect(finding.reproductionOracleResult?.failures.map(item => item.oracleId)).toContain('P1-05_TIMEOUT_STATE')
+  expect(finding.reproductionOracleResult?.preconditionMet).toBe(false)
+  expect(finding.classification).toBe('inconclusive')
+})
+
+test('B5 with the clock advanced past the timeout does not reproduce', async () => {
+  test.setTimeout(120_000)
+  const { manifest, runDirectory } = await failingRun('analysis_interrupted_once', 'P1-05')
+
+  const { finding } = await investigate(manifest, runDirectory, [
+    ...timeoutReproduction(120_001),
+    ['execute_allowed_action', { action: { kind: 'wait_for_state', state: 'timeout_report' } }],
+  ])
   expect(finding.classification).toBe('not_reproduced')
 })
 
