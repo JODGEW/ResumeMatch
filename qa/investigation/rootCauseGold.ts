@@ -6,9 +6,9 @@ import type { RootCause } from './finding'
  * Each answer is determinable from evidence the investigator can see: the
  * transition log, network events (redacted as recorded), request counts, and
  * the reproduction's oracle result. `null` marks a case that never reaches an
- * investigator, so there is nothing to grade. Cases absent from the map — the
- * public cases added later and every held-out case — are not graded either, so
- * a missing answer can never count as a miss.
+ * investigator, so there is nothing to grade. Cases absent from the map —
+ * every held-out case — are not graded either, so a missing answer can never
+ * count as a miss.
  */
 export const PUBLIC_ROOT_CAUSE_GOLD: ReadonlyMap<string, RootCause | null> = new Map<string, RootCause | null>([
   // Triage `expected`: no investigation runs.
@@ -31,6 +31,18 @@ export const PUBLIC_ROOT_CAUSE_GOLD: ReadonlyMap<string, RootCause | null> = new
   ['B1', { attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' }],
   // `analysis-response:aborted` with no contract violation; the reproduction passes.
   ['B2', { attribution: 'transient_or_environment', routeTemplate: '/analysis/:analysisId', failureMode: 'aborted_response' }],
+  // The original run matches B2; the reproduction's count_requests shows two
+  // analysis requests ending at processing, and the oracle fails the completed report.
+  ['D7', { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'stopped_early' }],
+  // The original run matches B1; in the reproduction one request is blocked and
+  // CONTRACT_NO_VIOLATIONS fails. The upload was accepted (the page navigated)
+  // and all three polls completed, so the blocked request is the S3 upload.
+  ['D8', { attribution: 'product_defect', routeTemplate: '/synthetic-upload', failureMode: 'malformed_request' }],
+  // contract-violation:analysis-method-id-query-or-count; the analysis request is
+  // blocked carrying an unknown query key instead of userId.
+  ['D9', { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'malformed_request' }],
+  // `analysis-response:aborted` with no contract violation; the reproduction reaches the timeout.
+  ['B5', { attribution: 'transient_or_environment', routeTemplate: '/analysis/:analysisId', failureMode: 'aborted_response' }],
 ])
 
 /**

@@ -75,8 +75,20 @@ describe('goldRootCause', () => {
     expect(goldRootCause('B2')).toEqual({ attribution: 'transient_or_environment', routeTemplate: '/analysis/:analysisId', failureMode: 'aborted_response' })
   })
 
-  it('treats never-investigated, later and held-out cases as not graded', () => {
-    for (const caseId of ['C1', 'C2', 'C3', 'B3', 'D5', 'D6', 'B4', 'D7', 'D8', 'D9', 'B5']) expect(goldRootCause(caseId)).toBeNull()
-    expect([...PUBLIC_ROOT_CAUSE_GOLD.keys()].sort()).toEqual(['B1', 'B2', 'B3', 'C1', 'C2', 'C3', 'D1', 'D2', 'D3', 'D4'])
+  it('holds the slice 4 answers for D7, D8, D9 and B5', () => {
+    expect(goldRootCause('D7')).toEqual(D4_GOLD)
+    expect(goldRootCause('D8')).toEqual({ attribution: 'product_defect', routeTemplate: '/synthetic-upload', failureMode: 'malformed_request' })
+    expect(goldRootCause('D9')).toEqual({ attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'malformed_request' })
+    expect(goldRootCause('B5')).toEqual({ attribution: 'transient_or_environment', routeTemplate: '/analysis/:analysisId', failureMode: 'aborted_response' })
+  })
+
+  it('treats never-investigated and held-out cases as not graded', () => {
+    for (const caseId of ['C1', 'C2', 'C3', 'B3', 'D5', 'D6', 'B4']) expect(goldRootCause(caseId)).toBeNull()
+    expect([...PUBLIC_ROOT_CAUSE_GOLD.keys()].sort())
+      .toEqual(['B1', 'B2', 'B3', 'B5', 'C1', 'C2', 'C3', 'D1', 'D2', 'D3', 'D4', 'D7', 'D8', 'D9'])
+  })
+
+  it('gives no case the example narrative\'s answer', () => {
+    for (const answer of PUBLIC_ROOT_CAUSE_GOLD.values()) expect(answer?.routeTemplate).not.toBe('/user/last-resume')
   })
 })

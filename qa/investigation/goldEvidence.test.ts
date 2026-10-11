@@ -46,14 +46,16 @@ describe('goldEvidenceHit', () => {
 })
 
 describe('goldEvidenceProbes', () => {
-  it('holds the section 3 sets for D1-D4 and B1, and nothing for B2 or any other case', () => {
+  it('holds the sets for D1-D4, B1, D9 and B5, and nothing for B2, D7, D8 or any other case', () => {
     expect(Object.fromEntries(PUBLIC_GOLD_EVIDENCE_PROBES)).toEqual({
       D1: ['read_scenario_transition_log', 'read_network_events', 'count_requests'],
       D2: ['read_scenario_transition_log', 'read_network_events'],
       D3: ['read_scenario_transition_log', 'read_network_events', 'count_requests'],
       D4: ['read_scenario_transition_log', 'read_network_events', 'count_requests'],
       B1: ['read_scenario_transition_log', 'read_network_events'],
+      D9: ['read_scenario_transition_log', 'read_network_events', 'count_requests'],
+      B5: ['read_scenario_transition_log', 'read_network_events'],
     })
-    for (const caseId of ['C1', 'C2', 'C3', 'B2', 'B3', 'D5', 'D6', 'B4', 'D7', 'D8', 'D9', 'B5']) expect(goldEvidenceProbes(caseId)).toBeNull()
+    for (const caseId of ['C1', 'C2', 'C3', 'B2', 'B3', 'D5', 'D6', 'B4', 'D7', 'D8']) expect(goldEvidenceProbes(caseId)).toBeNull()
   })
 })

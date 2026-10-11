@@ -25,7 +25,11 @@ export interface EvalCase {
    * rejected and the case never reaches an investigator.
    */
   mutation?: { file: string; find: string; replace: string; approvedRequestHashes?: string[] }
-  /** Evaluation-only transient faults, for benign cases only. */
+  /**
+   * Evaluation-only transient faults. In a benign case the fault is the cause;
+   * in a seeded defect it masks or imitates the defect in the original run only,
+   * since a fresh reproduction never re-injects a fault.
+   */
   transientFaults?: TransientFault[]
   expectedTriage: TriageDecision
   /** The classification a correct investigation reaches, when one is triggered. */
@@ -130,6 +134,59 @@ export const EVAL_CASES: readonly EvalCase[] = [
     summary: 'S3 accepts the object but its response fails; the product continues regardless',
     transientFaults: ['s3_response_500_once'],
     expectedTriage: 'expected', expectedClassification: null,
+  },
+  {
+    // The original run is B2's: the second poll is aborted, so the report never
+    // completes. Only a fresh reproduction shows that polling also stops at
+    // `processing` with no fault at all.
+    // Predicted original failed oracle, until the slice 5 pilot: P1-02_COMPLETED_REPORT.
+    id: 'D7', kind: 'seeded_defect', scenarioId: 'P1-02',
+    summary: 'Polling stops at the processing response, and one analysis poll is interrupted',
+    mutation: {
+      file: 'src/hooks/usePolling.ts',
+      find: 'if (!isInProgress(data.status)) {',
+      replace: "if (data.status !== 'pending_upload') {",
+    },
+    transientFaults: ['analysis_interrupted_once'],
+    expectedTriage: 'investigate', expectedClassification: 'confirmed',
+  },
+  {
+    // The original run is B1's: the upload returns 503, so S3 is never reached.
+    // In the reproduction the upload succeeds and the S3 request, sent without
+    // its file part, is rejected; the page still navigates, so the original
+    // failure passes and the contract failures are new.
+    // Predicted original failed oracle, until the slice 5 pilot: P1-02_RESULTS_NAVIGATION.
+    id: 'D8', kind: 'seeded_defect', scenarioId: 'P1-02',
+    summary: 'The upload returns 503 once, and the S3 request omits the file',
+    mutation: {
+      file: 'src/api/upload.ts',
+      find: "formData.append('file', file);",
+      replace: 'void file;',
+    },
+    transientFaults: ['upload_503_once'],
+    expectedTriage: 'investigate', expectedClassification: 'inconclusive',
+  },
+  {
+    // The first analysis request is blocked for its query key, so polling never
+    // starts and the first failure is a rendering one.
+    // Predicted original failed oracle, until the slice 5 pilot: P1-02_PROCESSING_STATE.
+    id: 'D9', kind: 'seeded_defect', scenarioId: 'P1-02',
+    summary: 'The analysis request sends the wrong query key',
+    mutation: {
+      file: 'src/api/analysis.ts',
+      find: 'const { data } = await client.get<Analysis>(`/analysis/${analysisId}?userId=${userId}`);',
+      replace: 'const { data } = await client.get<Analysis>(`/analysis/${analysisId}?user=${userId}`);',
+    },
+    expectedTriage: 'investigate', expectedClassification: 'confirmed',
+  },
+  {
+    // The second poll is aborted, polling stops, and the timeout report never
+    // appears; a reproduction that advances the controlled clock reaches it.
+    // Predicted original failed oracle, until the slice 5 pilot: P1-05_TIMEOUT_STATE.
+    id: 'B5', kind: 'benign_transient', scenarioId: 'P1-05',
+    summary: 'One analysis poll in the timeout scenario is interrupted; a fresh reproduction reaches the timeout',
+    transientFaults: ['analysis_interrupted_once'],
+    expectedTriage: 'investigate', expectedClassification: 'not_reproduced',
   },
 ]
 
