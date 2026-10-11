@@ -1,10 +1,13 @@
 import { invalidArguments, policyBlocked } from './errors'
 import type { ArgumentHelp } from './errors'
 import type { UsageRecord } from './cost'
-import type { RunFailure, SafetyViolation, ScenarioId } from '../browser/types'
+import type { NetworkRouteTemplate, RunFailure, SafetyViolation, ScenarioId } from '../browser/types'
 
 /** Bumped only when the closed finding schema changes. */
-export const FINDING_SCHEMA_VERSION = 'phase2-finding/1'
+export const FINDING_SCHEMA_VERSION = 'phase2-finding/2'
+
+/** The version before `rootCause`; findings stored under it still load. */
+export const FINDING_SCHEMA_VERSION_V1 = 'phase2-finding/1'
 
 /** The four terminal outcomes. Chosen by rule, never by the model. */
 export type Classification = 'confirmed' | 'not_reproduced' | 'inconclusive' | 'policy_blocked'
@@ -17,6 +20,35 @@ const AUTHORITY_FIELDS = [
 
 const CONFIDENCE = ['low', 'medium', 'high'] as const
 
+/** Whom the evidence blames for the original failure. */
+export const ROOT_CAUSE_ATTRIBUTIONS = ['product_defect', 'transient_or_environment', 'undetermined'] as const
+
+/**
+ * The request a root cause can sit on, as network events name it for the API
+ * and S3 origins. Page routes and assets are not request surfaces.
+ */
+export const ROOT_CAUSE_ROUTE_TEMPLATES = [
+  '/upload', '/synthetic-upload', '/analysis/:analysisId', '/user/last-resume',
+] as const satisfies readonly NetworkRouteTemplate[]
+
+/** What went wrong with that request. */
+export const ROOT_CAUSE_FAILURE_MODES = [
+  'unexpected_request', 'missing_request', 'malformed_request', 'stopped_early', 'error_response', 'aborted_response',
+] as const
+
+/**
+ * The model's conclusion about the original failure, in closed values.
+ *
+ * It is graded against each case's answer and never read by {@link classify}.
+ * `undetermined` carries no route and no failure mode, so an abstention can't
+ * earn partial credit.
+ */
+export interface RootCause {
+  attribution: (typeof ROOT_CAUSE_ATTRIBUTIONS)[number]
+  routeTemplate: (typeof ROOT_CAUSE_ROUTE_TEMPLATES)[number] | null
+  failureMode: (typeof ROOT_CAUSE_FAILURE_MODES)[number] | null
+}
+
 /**
  * The narrative schema, published with every rejection.
  *
@@ -26,7 +58,7 @@ const CONFIDENCE = ['low', 'medium', 'high'] as const
 export const NARRATIVE_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['expectedBehavior', 'observedBehavior', 'hypotheses', 'evidenceRefs', 'reasoningSummary'],
+  required: ['expectedBehavior', 'observedBehavior', 'hypotheses', 'evidenceRefs', 'reasoningSummary', 'rootCause'],
   properties: {
     expectedBehavior: { type: 'string', minLength: 1, maxLength: 2_000 },
     observedBehavior: { type: 'string', minLength: 1, maxLength: 2_000 },
@@ -52,18 +84,35 @@ export const NARRATIVE_JSON_SCHEMA = {
         },
       },
     },
+    rootCause: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['attribution', 'routeTemplate', 'failureMode'],
+      description: 'With attribution undetermined, routeTemplate and failureMode are null; otherwise both are set.',
+      properties: {
+        attribution: { enum: ROOT_CAUSE_ATTRIBUTIONS },
+        routeTemplate: { enum: [...ROOT_CAUSE_ROUTE_TEMPLATES, null] },
+        failureMode: { enum: [...ROOT_CAUSE_FAILURE_MODES, null] },
+      },
+    },
   },
 } as const
 
-/** One minimal narrative that passes {@link validateNarrative}. */
+/**
+ * One minimal narrative that passes {@link validateNarrative}.
+ *
+ * It is returned with every rejection, so its `rootCause` deliberately matches
+ * no corpus case's answer.
+ */
 export const MINIMAL_NARRATIVE_EXAMPLE = {
-  expectedBehavior: 'The sample page renders its report without calling the analysis API.',
-  observedBehavior: 'The page issued one analysis request, so the no-REST oracle failed.',
+  expectedBehavior: 'The upload page asks for the last resume once before showing the form.',
+  observedBehavior: 'The page requested the last resume twice, so the contract recorded an extra request.',
   hypotheses: [
-    { statement: 'The sample path polls the analysis endpoint.', evidenceRefs: [], confidence: 'high' },
+    { statement: 'The upload page fetches the last resume again on every render.', evidenceRefs: [], confidence: 'high' },
   ],
   evidenceRefs: [],
   reasoningSummary: 'The reproduction failed the same oracle as the original run.',
+  rootCause: { attribution: 'product_defect', routeTemplate: '/user/last-resume', failureMode: 'unexpected_request' },
 } as const
 
 /** Schema and example returned with every narrative rejection. */
@@ -89,6 +138,12 @@ export interface ModelNarrative {
   hypotheses: Hypothesis[]
   evidenceRefs: string[]
   reasoningSummary: string
+  /**
+   * Always present on a narrative {@link validateNarrative} returns. Optional in
+   * the type only for the narrative the session substitutes when it discards a
+   * policy-blocked submission, which records no conclusion.
+   */
+  rootCause?: RootCause
 }
 
 /** The reproduction oracle verdict, produced by the Phase 1 oracle functions. */
@@ -159,7 +214,7 @@ export interface FindingUsage {
   requests: UsageRecord[]
 }
 
-export interface Finding extends ModelNarrative {
+export interface Finding extends Omit<ModelNarrative, 'rootCause'> {
   schemaVersion: typeof FINDING_SCHEMA_VERSION
   findingId: string
   sourceRunId: string
@@ -178,6 +233,30 @@ export interface Finding extends ModelNarrative {
   safetyViolations: SafetyViolation[]
   model: { provider: string; modelId: string }
   usage: FindingUsage
+  /** Null only when a policy-blocked submission's narrative was discarded. */
+  rootCause: RootCause | null
+}
+
+/** A finding stored under {@link FINDING_SCHEMA_VERSION_V1}, before `rootCause` existed. */
+export type FindingV1 = Omit<Finding, 'schemaVersion' | 'rootCause'> & { schemaVersion: typeof FINDING_SCHEMA_VERSION_V1 }
+
+/** A finding as read back from disk, under either schema version. */
+export type StoredFinding = Finding | FindingV1
+
+/**
+ * Read a stored `finding.json` for analysis.
+ *
+ * Findings written before `rootCause` existed must still load, so both
+ * versions are accepted; an unknown version is refused rather than misread.
+ * @param text - the file's contents.
+ * @throws when the text is not JSON or names an unknown schema version.
+ */
+export function parseStoredFinding(text: string): StoredFinding {
+  const value = JSON.parse(text) as { schemaVersion?: unknown }
+  if (value.schemaVersion !== FINDING_SCHEMA_VERSION && value.schemaVersion !== FINDING_SCHEMA_VERSION_V1) {
+    throw new Error(`Unknown finding schema version: ${String(value.schemaVersion)}`)
+  }
+  return value as StoredFinding
 }
 
 /**
@@ -230,6 +309,33 @@ function requireEvidenceRefs(value: unknown, field: string): string[] {
   return value as string[]
 }
 
+const ROOT_CAUSE_REQUIRED = 'rootCause is required: an object with exactly attribution, routeTemplate, and failureMode'
+
+function requireRootCause(value: unknown): RootCause {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidArguments(ROOT_CAUSE_REQUIRED, NARRATIVE_HELP)
+  const candidate = value as Record<string, unknown>
+  const extra = Object.keys(candidate).filter(key => !['attribution', 'routeTemplate', 'failureMode'].includes(key))
+  if (extra.length > 0) throw invalidArguments(`rootCause has unsupported fields: ${extra.join(', ')}`, NARRATIVE_HELP)
+  if (!ROOT_CAUSE_ATTRIBUTIONS.includes(candidate.attribution as RootCause['attribution'])) {
+    throw invalidArguments('rootCause.attribution must be product_defect, transient_or_environment, or undetermined', NARRATIVE_HELP)
+  }
+  if (candidate.routeTemplate !== null && !ROOT_CAUSE_ROUTE_TEMPLATES.includes(candidate.routeTemplate as NonNullable<RootCause['routeTemplate']>)) {
+    throw invalidArguments(`rootCause.routeTemplate must be ${ROOT_CAUSE_ROUTE_TEMPLATES.join(', ')}, or null`, NARRATIVE_HELP)
+  }
+  if (candidate.failureMode !== null && !ROOT_CAUSE_FAILURE_MODES.includes(candidate.failureMode as NonNullable<RootCause['failureMode']>)) {
+    throw invalidArguments(`rootCause.failureMode must be ${ROOT_CAUSE_FAILURE_MODES.join(', ')}, or null`, NARRATIVE_HELP)
+  }
+  const rootCause = candidate as unknown as RootCause
+  const undetermined = rootCause.attribution === 'undetermined'
+  if ((rootCause.routeTemplate === null) !== undetermined || (rootCause.failureMode === null) !== undetermined) {
+    throw invalidArguments(
+      'rootCause.routeTemplate and rootCause.failureMode must both be null when attribution is undetermined, and both set otherwise',
+      NARRATIVE_HELP,
+    )
+  }
+  return { attribution: rootCause.attribution, routeTemplate: rootCause.routeTemplate, failureMode: rootCause.failureMode }
+}
+
 /**
  * Validate untrusted model output into a narrative.
  * @throws `POLICY_BLOCKED` when the model names a deterministic authority field,
@@ -243,7 +349,7 @@ export function validateNarrative(input: unknown): ModelNarrative {
   for (const field of AUTHORITY_FIELDS) {
     if (field in candidate) throw policyBlocked(`A finding may not supply the deterministic field ${field}`)
   }
-  const allowed = ['expectedBehavior', 'observedBehavior', 'hypotheses', 'evidenceRefs', 'reasoningSummary']
+  const allowed = ['expectedBehavior', 'observedBehavior', 'hypotheses', 'evidenceRefs', 'reasoningSummary', 'rootCause']
   const unknown = Object.keys(candidate).filter(key => !allowed.includes(key))
   if (unknown.length > 0) throw invalidArguments(`Unsupported finding fields: ${unknown.join(', ')}`, NARRATIVE_HELP)
   if (!Array.isArray(candidate.hypotheses) || candidate.hypotheses.length === 0 || candidate.hypotheses.length > MAX_HYPOTHESES) {
@@ -274,6 +380,7 @@ export function validateNarrative(input: unknown): ModelNarrative {
     reasoningSummary: requireText(candidate.reasoningSummary, 'reasoningSummary'),
     evidenceRefs: requireEvidenceRefs(candidate.evidenceRefs, 'evidenceRefs'),
     hypotheses,
+    rootCause: requireRootCause(candidate.rootCause),
   }
 }
 
@@ -300,6 +407,7 @@ export function buildFinding(facts: DeterministicFacts, narrative: ModelNarrativ
     coercedArgs: facts.coercedArgs,
     classification: classify(facts),
     reasoningSummary: narrative.reasoningSummary,
+    rootCause: narrative.rootCause ?? null,
     safetyViolations: facts.safetyViolations,
     model: facts.model,
     usage: facts.usage,

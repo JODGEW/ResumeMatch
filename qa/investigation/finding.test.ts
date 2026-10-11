@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildFinding, classify, FINDING_SCHEMA_VERSION, validateNarrative } from './finding'
+import {
+  buildFinding, classify, FINDING_SCHEMA_VERSION, FINDING_SCHEMA_VERSION_V1, MINIMAL_NARRATIVE_EXAMPLE, NARRATIVE_JSON_SCHEMA,
+  parseStoredFinding, ROOT_CAUSE_ATTRIBUTIONS, ROOT_CAUSE_FAILURE_MODES, ROOT_CAUSE_ROUTE_TEMPLATES, validateNarrative,
+} from './finding'
 import type { DeterministicFacts, ModelNarrative } from './finding'
 
 const RUN_REF = 'runs/p1-04-11111111-2222-4333-8444-555555555555/network-events.json'
@@ -12,6 +15,7 @@ function narrative(overrides: Partial<Record<string, unknown>> = {}): unknown {
     reasoningSummary: 'Polling stopped before the terminal response arrived.',
     evidenceRefs: [RUN_REF],
     hypotheses: [{ statement: 'Polling stops early.', evidenceRefs: [RUN_REF], confidence: 'high' }],
+    rootCause: { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'stopped_early' },
     ...overrides,
   }
 }
@@ -145,7 +149,7 @@ describe('buildFinding', () => {
     expect(Object.keys(finding).sort()).toEqual([
       'adapterCommit', 'classification', 'coercedArgs', 'evidenceRefs', 'expectedBehavior', 'failedOracle',
       'findingId', 'harnessCommit', 'hypotheses', 'model', 'observedBehavior', 'probesSelected', 'reasoningSummary',
-      'rejectedCalls', 'reproductionOracleResult', 'reproductionSequence', 'resumematchCommit', 'safetyViolations',
+      'rejectedCalls', 'reproductionOracleResult', 'reproductionSequence', 'resumematchCommit', 'rootCause', 'safetyViolations',
       'scenarioId', 'schemaVersion', 'sourceCommit', 'sourceRunId', 'usage',
     ])
     expect({
@@ -169,5 +173,120 @@ describe('corpus shapes', () => {
       reproductionOracleResult: repro('passed', []),
     })
     expect(classify(b1)).toBe('not_reproduced')
+  })
+})
+
+describe('rootCause', () => {
+  const rootCause = (value: unknown) => narrative({ rootCause: value })
+
+  it('accepts every committed attribution with a route and a failure mode, and abstention with neither', () => {
+    expect(validateNarrative(narrative()).rootCause).toEqual({
+      attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'stopped_early',
+    })
+    expect(validateNarrative(rootCause({ attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' })).rootCause)
+      .toEqual({ attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' })
+    expect(validateNarrative(rootCause({ attribution: 'undetermined', routeTemplate: null, failureMode: null })).rootCause)
+      .toEqual({ attribution: 'undetermined', routeTemplate: null, failureMode: null })
+  })
+
+  it('is required', () => {
+    const { rootCause: _omitted, ...withoutRootCause } = narrative() as Record<string, unknown>
+    void _omitted
+    expect(() => validateNarrative(withoutRootCause))
+      .toThrow('rootCause is required: an object with exactly attribution, routeTemplate, and failureMode')
+    for (const value of [null, 'product_defect', [], 3]) {
+      expect(() => validateNarrative(rootCause(value))).toThrow(/^rootCause is required/)
+    }
+  })
+
+  it('rejects unsupported fields and values outside each closed set', () => {
+    const valid = { attribution: 'product_defect', routeTemplate: '/upload', failureMode: 'malformed_request' }
+    expect(() => validateNarrative(rootCause({ ...valid, component: 'Upload.tsx' })))
+      .toThrow('rootCause has unsupported fields: component')
+    expect(() => validateNarrative(rootCause({ ...valid, attribution: 'confirmed' })))
+      .toThrow('rootCause.attribution must be product_defect, transient_or_environment, or undetermined')
+    for (const route of ['/sample', '/results/:analysisId', '/css2', undefined]) {
+      expect(() => validateNarrative(rootCause({ ...valid, routeTemplate: route })))
+        .toThrow('rootCause.routeTemplate must be /upload, /synthetic-upload, /analysis/:analysisId, /user/last-resume, or null')
+    }
+    expect(() => validateNarrative(rootCause({ ...valid, failureMode: 'timeout' }))).toThrow(
+      'rootCause.failureMode must be unexpected_request, missing_request, malformed_request, stopped_early, error_response, aborted_response, or null',
+    )
+  })
+
+  it('sets both route and failure mode unless undetermined, and neither when undetermined', () => {
+    const message = 'rootCause.routeTemplate and rootCause.failureMode must both be null when attribution is undetermined, and both set otherwise'
+    for (const value of [
+      { attribution: 'undetermined', routeTemplate: '/upload', failureMode: null },
+      { attribution: 'undetermined', routeTemplate: null, failureMode: 'error_response' },
+      { attribution: 'product_defect', routeTemplate: '/upload', failureMode: null },
+      { attribution: 'transient_or_environment', routeTemplate: null, failureMode: null },
+    ]) {
+      expect(() => validateNarrative(rootCause(value))).toThrow(message)
+    }
+  })
+
+  it('returns every rejection as INVALID_ARGUMENTS with the schema and an example that passes', () => {
+    try {
+      validateNarrative(rootCause({ attribution: 'maybe', routeTemplate: null, failureMode: null }))
+      throw new Error('expected a rejection')
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'INVALID_ARGUMENTS', help: { schema: NARRATIVE_JSON_SCHEMA, example: MINIMAL_NARRATIVE_EXAMPLE } })
+    }
+    expect(validateNarrative(MINIMAL_NARRATIVE_EXAMPLE).rootCause).toEqual(MINIMAL_NARRATIVE_EXAMPLE.rootCause)
+  })
+
+  it('publishes the schema from the same closed sets the validator enforces', () => {
+    expect(NARRATIVE_JSON_SCHEMA.required).toContain('rootCause')
+    const { properties } = NARRATIVE_JSON_SCHEMA.properties.rootCause
+    expect(properties.attribution.enum).toEqual(ROOT_CAUSE_ATTRIBUTIONS)
+    expect(properties.routeTemplate.enum).toEqual([...ROOT_CAUSE_ROUTE_TEMPLATES, null])
+    expect(properties.failureMode.enum).toEqual([...ROOT_CAUSE_FAILURE_MODES, null])
+  })
+
+  it('is recorded in the finding without changing its classification', () => {
+    const transient = validateNarrative(rootCause({ attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' }))
+    const finding = buildFinding(facts(), transient)
+    expect(finding.classification).toBe('confirmed')
+    expect(finding.rootCause).toEqual({ attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' })
+  })
+
+  it('is null for the narrative a session substitutes after a policy-blocked submission', () => {
+    const discarded: ModelNarrative = {
+      expectedBehavior: 'Not recorded.', observedBehavior: 'Not recorded.', reasoningSummary: 'Blocked.',
+      evidenceRefs: [], hypotheses: [{ statement: 'Discarded.', evidenceRefs: [], confidence: 'low' }],
+    }
+    expect(buildFinding(facts({ policyBlocked: true }), discarded).rootCause).toBeNull()
+  })
+})
+
+describe('parseStoredFinding', () => {
+  /** A finding as phase2-finding/1 wrote it: no rootCause. Values are invented. */
+  const V1_FINDING = {
+    schemaVersion: 'phase2-finding/1', findingId: 'f-v1', sourceRunId: 'p1-04-11111111-2222-4333-8444-555555555555',
+    scenarioId: 'P1-04', sourceCommit: 'a'.repeat(40), resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40),
+    adapterCommit: 'd'.repeat(40), failedOracle: 'P1-04_FAILURE_TITLE', expectedBehavior: 'e', observedBehavior: 'o',
+    hypotheses: [{ statement: 's', evidenceRefs: [], confidence: 'high' }], evidenceRefs: [], probesSelected: ['read_failed_assertion'],
+    reproductionSequence: [], reproductionOracleResult: null, rejectedCalls: [], coercedArgs: 0, classification: 'inconclusive',
+    reasoningSummary: 'r', safetyViolations: [], model: { provider: 'fake', modelId: 'fake-1' },
+    usage: { toolCalls: 1, cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 0, costUsd: 0, requests: [] },
+  }
+
+  it('still loads a phase2-finding/1 finding, which has no rootCause', () => {
+    const finding = parseStoredFinding(JSON.stringify(V1_FINDING))
+    expect(finding.schemaVersion).toBe(FINDING_SCHEMA_VERSION_V1)
+    expect(finding).toEqual(V1_FINDING)
+    expect('rootCause' in finding).toBe(false)
+  })
+
+  it('round-trips a finding written under the current version', () => {
+    const finding = buildFinding(facts(), validateNarrative(narrative()))
+    expect(finding.schemaVersion).toBe('phase2-finding/2')
+    expect(parseStoredFinding(JSON.stringify(finding))).toEqual(finding)
+  })
+
+  it('refuses an unknown schema version rather than misreading it', () => {
+    expect(() => parseStoredFinding(JSON.stringify({ ...V1_FINDING, schemaVersion: 'phase2-finding/9' })))
+      .toThrow('Unknown finding schema version: phase2-finding/9')
   })
 })

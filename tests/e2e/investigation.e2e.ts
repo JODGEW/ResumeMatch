@@ -19,6 +19,7 @@ const NARRATIVE = {
   reasoningSummary: 'A single transient upload failure did not recur in a fresh context.',
   evidenceRefs: [] as string[],
   hypotheses: [{ statement: 'The upload request failed once and did not recur.', evidenceRefs: [] as string[], confidence: 'medium' }],
+  rootCause: { attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' },
 }
 
 async function investigate(manifest: EvidenceManifest, runDirectory: string): Promise<{ finding: Finding; directory: string }> {

@@ -61,6 +61,7 @@ const NARRATIVE = {
   reasoningSummary: 'The terminal response was treated as in progress.',
   evidenceRefs: [] as string[],
   hypotheses: [{ statement: 'Terminal status is misclassified.', evidenceRefs: [] as string[], confidence: 'high' }],
+  rootCause: { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'stopped_early' },
 }
 
 function manifest(): EvidenceManifest {
