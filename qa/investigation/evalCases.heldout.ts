@@ -36,6 +36,15 @@ export const HELD_OUT_CASES: readonly HeldOutCase[] = [
   // rejected for having none and no investigator is reachable. See the declared
   // boundary in docs/qa-phase2.md.
   { id: 'B4', kind: 'benign_transient', scenarioId: 'P1-03', expectedTriage: 'artifact_rejected', expectedClassification: null },
+  // Added in step 5 (2026-10-11), after Freeze v6. Triage and the original
+  // failed oracle are measured in the step 5 scripted pilot. D10's
+  // classification is predicted there too; D11's and B6's are predictions until
+  // the first live sweep confirms them, because no scripted reproduction path
+  // is proven for P1-03. Any later correction is recorded here with its reason
+  // and date, never edited silently.
+  { id: 'D10', kind: 'seeded_defect', scenarioId: 'P1-02', expectedTriage: 'investigate', expectedClassification: 'inconclusive' },
+  { id: 'D11', kind: 'seeded_defect', scenarioId: 'P1-03', expectedTriage: 'investigate', expectedClassification: 'confirmed' },
+  { id: 'B6', kind: 'benign_transient', scenarioId: 'P1-03', expectedTriage: 'investigate', expectedClassification: 'not_reproduced' },
 ]
 
 /** Ids whose implementations must never inform prompts, probe rules, or tool descriptions. */

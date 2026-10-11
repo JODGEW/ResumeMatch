@@ -14,21 +14,22 @@ import { goldRootCause } from './rootCauseGold'
 describe('evaluation corpus', () => {
   // Thirteen, not the original twelve: B4 replaces B2 in the held-out slot while
   // B2 stays in the corpus as a public benign case. Seventeen since slice 4 added
-  // D7, D8, D9 and B5 to the public half.
-  it('holds three clean, nine seeded, and five benign cases across both halves', () => {
-    expect(EVAL_CASES.length + HELD_OUT_CASES.length).toBe(17)
+  // D7, D8, D9 and B5 to the public half. Twenty since step 5 added D10, D11 and
+  // B6 to the held-out half.
+  it('holds three clean, eleven seeded, and six benign cases across both halves', () => {
+    expect(EVAL_CASES.length + HELD_OUT_CASES.length).toBe(20)
     expect(EVAL_CASES.filter(item => item.kind === 'clean')).toHaveLength(3)
     const seeded = EVAL_CASES.filter(item => item.kind === 'seeded_defect').length
       + HELD_OUT_CASES.filter(item => item.kind === 'seeded_defect').length
     const benign = EVAL_CASES.filter(item => item.kind === 'benign_transient').length
       + HELD_OUT_CASES.filter(item => item.kind === 'benign_transient').length
-    expect({ seeded, benign }).toEqual({ seeded: 9, benign: 5 })
+    expect({ seeded, benign }).toEqual({ seeded: 11, benign: 6 })
     const ids = [...EVAL_CASES.map(item => item.id), ...HELD_OUT_CASE_IDS]
-    expect(new Set(ids).size).toBe(17)
+    expect(new Set(ids).size).toBe(20)
   })
 
-  it('holds out D5, D6, and B4', () => {
-    expect([...HELD_OUT_CASE_IDS].sort()).toEqual(['B4', 'D5', 'D6'])
+  it('holds out D5, D6, D10, D11, B4, and B6', () => {
+    expect([...HELD_OUT_CASE_IDS].sort()).toEqual(['B4', 'B6', 'D10', 'D11', 'D5', 'D6'])
   })
 
   it('keeps B2 in the public set with no gold probe', () => {
