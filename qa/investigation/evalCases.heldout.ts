@@ -36,12 +36,14 @@ export const HELD_OUT_CASES: readonly HeldOutCase[] = [
   // rejected for having none and no investigator is reachable. See the declared
   // boundary in docs/qa-phase2.md.
   { id: 'B4', kind: 'benign_transient', scenarioId: 'P1-03', expectedTriage: 'artifact_rejected', expectedClassification: null },
-  // Added in step 5 (2026-10-11), after Freeze v6. Triage and the original
-  // failed oracle are measured in the step 5 scripted pilot. D10's
-  // classification is predicted there too; D11's and B6's are predictions until
-  // the first live sweep confirms them, because no scripted reproduction path
-  // is proven for P1-03. Any later correction is recorded here with its reason
-  // and date, never edited silently.
+  // Added in step 5 (2026-10-11), after Freeze v6, as predictions. Measured in
+  // the step 5 scripted pilot (2026-10-11, b36c5af), all as predicted: triage
+  // investigate for each; original failed oracles P1-02_RESULTS_NAVIGATION (D10),
+  // P1-03_PROCESSING_STATE (D11) and P1-03_RESULTS_NAVIGATION (B6); scripted
+  // classifications inconclusive, confirmed and not_reproduced. In P1-03 the
+  // scripted upload plan's file attach is refused and the reuse path continues
+  // without it. Any later correction is recorded here with its reason and date,
+  // never edited silently.
   { id: 'D10', kind: 'seeded_defect', scenarioId: 'P1-02', expectedTriage: 'investigate', expectedClassification: 'inconclusive' },
   { id: 'D11', kind: 'seeded_defect', scenarioId: 'P1-03', expectedTriage: 'investigate', expectedClassification: 'confirmed' },
   { id: 'B6', kind: 'benign_transient', scenarioId: 'P1-03', expectedTriage: 'investigate', expectedClassification: 'not_reproduced' },
