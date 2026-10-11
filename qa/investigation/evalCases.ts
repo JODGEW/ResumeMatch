@@ -49,8 +49,7 @@ export interface EvalCase {
  * evaluate`). C1-C3, D1-D4 and B1-B3 matched their expected triage and
  * classification in the 2026-10-08 sweep at `9c5e6d7` (docs/qa-phase2.md).
  * D7, D8, D9 and B5 were added in slice 4; their triage and original failed
- * oracle were measured with the scripted provider in the slice 5 pilot, and
- * B5's expected classification is still a prediction (see its row).
+ * oracle were measured with the scripted provider in the slice 5 pilot.
  */
 export const EVAL_CASES: readonly EvalCase[] = [
   {
@@ -189,10 +188,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
     // The second poll is aborted, polling stops, and the timeout report never
     // appears; a reproduction that advances the controlled clock reaches it.
     // Measured in the slice 5 pilot (2026-10-11, a327a4c): triage investigate,
-    // original failed oracle P1-05_TIMEOUT_STATE. The expected classification is
-    // still a prediction: that pilot ran the upload script, which cannot drive
-    // P1-05, so its reproduction was not judged. It is measured in the
-    // committed pilot that runs the timeout script.
+    // original failed oracle P1-05_TIMEOUT_STATE.
+    // Measured in the committed scripted pilot (2026-10-11, c51bc38): not_reproduced.
     id: 'B5', kind: 'benign_transient', scenarioId: 'P1-05',
     summary: 'One analysis poll in the timeout scenario is interrupted; a fresh reproduction reaches the timeout',
     transientFaults: ['analysis_interrupted_once'],

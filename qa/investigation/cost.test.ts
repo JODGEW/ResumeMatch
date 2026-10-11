@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CostLedger, EVALUATION_COST_LIMIT_USD, INVESTIGATION_COST_LIMIT_USD,
-  parseProviderLog, pricingWindow, providerLogCostUsd, providerLogTotals, requestCostUsd, sweepHasBudget,
+  parseProviderLog, parseSweepCostLimit, pricingWindow, providerLogCostUsd, providerLogTotals, requestCostUsd, sweepHasBudget,
 } from './cost'
 
 /** The peak rates the evaluation is authorized against, cache hits included. */
@@ -109,5 +109,17 @@ describe('sweep ceiling', () => {
     expect(sweepHasBudget(4.99)).toBe(true)
     expect(sweepHasBudget(5)).toBe(false)
     expect(sweepHasBudget(7.5)).toBe(false)
+  })
+
+  it('takes --sweep-cost-limit when given, and five dollars when not', () => {
+    expect(parseSweepCostLimit(undefined)).toBe(EVALUATION_COST_LIMIT_USD)
+    expect(parseSweepCostLimit('12.5')).toBe(12.5)
+    expect(sweepHasBudget(7.5, parseSweepCostLimit('12.5'))).toBe(true)
+  })
+
+  it('refuses a sweep cost limit that is not a positive number of dollars', () => {
+    for (const value of ['', '0', '-1', 'abc', 'Infinity']) {
+      expect(() => parseSweepCostLimit(value)).toThrow(/--sweep-cost-limit must be a positive number of dollars/)
+    }
   })
 })

@@ -6,13 +6,14 @@ import process from 'node:process'
 
 import { describe, expect, it } from 'vitest'
 
-import { parseProviderLog, providerLogCostUsd, providerLogTotals } from '../cost'
+import { EVALUATION_COST_LIMIT_USD, parseProviderLog, providerLogCostUsd, providerLogTotals } from '../cost'
 import { EVAL_CASES } from '../evalCases'
 import {
-  caseArtifactPaths, evidenceProbeSummary, guardRecordedUsage, recordRootCauseGrade, rootCauseSummary, SCRIPT_BY_SCENARIO, stopsSweep, summaryTable,
-  sweepCostUsd, transcriptUsageEvents, USAGE_NOT_RECORDED,
+  caseArtifactPaths, evidenceProbeSummary, guardCredential, guardRecordedUsage, LAUNCHER_OUTPUT_LIMIT, MISSING_CREDENTIAL, recordRootCauseGrade,
+  rootCauseSummary, runEvalCase, runScenario, SCRIPT_BY_SCENARIO, stopsSweep, summaryTable, sweepCostUsd, sweepTotalLine, transcriptUsageEvents,
+  USAGE_NOT_RECORDED,
 } from './runCase'
-import type { EvalCaseResult } from './runCase'
+import type { EvalCaseResult, EvalRunnerOptions } from './runCase'
 
 function result(overrides: Partial<EvalCaseResult>): EvalCaseResult {
   return {
@@ -22,7 +23,7 @@ function result(overrides: Partial<EvalCaseResult>): EvalCaseResult {
     modelRequests: 0, classification: null, expectedClassification: null, classificationMatched: false,
     firstProbe: null, goldFirstProbe: null, goldProbeHit: null, goldProbeWithinFirst3: null, goldProbeWithinFirst4Excl: null,
     goldEvidenceProbeHit: null, rootCauseAttributionCorrect: null, rootCauseTripleCorrect: null, rootCauseUndetermined: null, rootCauseGradeReason: null,
-    rejectedCalls: 0,
+    rejectedCalls: 0, sweepLimitUsd: 5, adapterCommit: 'b'.repeat(40),
     costUsd: 0, findingCostUsd: 0, wallClockMs: 4_000,
     worktreeRemoved: true, errors: [],
     ...overrides,
@@ -241,5 +242,102 @@ describe('scripted plan by scenario', () => {
     const investigated = [...new Set(EVAL_CASES.filter(item => item.expectedTriage === 'investigate').map(item => item.scenarioId))].sort()
     expect(investigated.filter(scenarioId => SCRIPT_BY_SCENARIO[scenarioId] === undefined)).toEqual([])
     expect(SCRIPT_BY_SCENARIO['P1-05']).toBe('timeout')
+  })
+})
+
+/** Options for runs that never reach the harness; every path the runner would use is named. */
+const OPTIONS: EvalRunnerOptions = {
+  repositoryPath: process.cwd(), commit: 'a'.repeat(40), productNodePath: process.execPath, harnessNodePath: process.execPath,
+  harnessPath: '/unused/harness', adapterPath: '/unused/adapter', adapterCommit: 'b'.repeat(40), configFile: '/unused/adapter/cordis.yml',
+  provider: 'resumematch-qa-fake', model: 'scripted-investigation', outputDirectory: '/unused/output',
+  rates: { inputPerMillion: 0.44, outputPerMillion: 1.32, cacheHitPerMillion: 0.014 },
+}
+
+describe('QA launcher failure', () => {
+  async function withLauncher(script: string, run: (worktree: string) => Promise<void>): Promise<void> {
+    const worktree = await mkdtemp(path.join(tmpdir(), 'qa-launcher-'))
+    try {
+      await mkdir(path.join(worktree, 'qa', 'browser'), { recursive: true })
+      await writeFile(path.join(worktree, 'qa', 'browser', 'qaCommand.mjs'), script, 'utf8')
+      await run(worktree)
+    } finally {
+      await rm(worktree, { recursive: true, force: true })
+    }
+  }
+
+  it('keeps what a failed launcher printed, so an occupied port is visible in the case JSON', async () => {
+    const script = "console.log('building the QA bundle'); console.error('Error: listen EADDRINUSE: address already in use 127.0.0.1:4173'); process.exit(1)\n"
+    await withLauncher(script, async worktree => {
+      expect(await runScenario(worktree, 'C1', 'label', OPTIONS)).toEqual({
+        failure: {
+          exitCode: 1, signal: null, spawnError: null,
+          stdout: 'building the QA bundle\n', stderr: 'Error: listen EADDRINUSE: address already in use 127.0.0.1:4173\n',
+        },
+      })
+    })
+  })
+
+  it('keeps only the tail of long output, where the failure is reported', async () => {
+    // exitCode rather than exit(): exit() would cut a piped write at the pipe buffer.
+    await withLauncher("process.stderr.write('x'.repeat(10000) + 'the real error'); process.exitCode = 2\n", async worktree => {
+      const outcome = await runScenario(worktree, 'C1', 'label', OPTIONS)
+      const stderr = 'failure' in outcome ? outcome.failure.stderr : ''
+      expect(stderr).toMatch(/^\[\d+ earlier characters omitted\]\n/)
+      expect(stderr.endsWith('the real error')).toBe(true)
+      expect(stderr.length).toBeLessThan(LAUNCHER_OUTPUT_LIMIT + 50)
+    })
+  })
+})
+
+describe('missing credential', () => {
+  /** The turn end a DeepSeek case recorded when no key was available (post-fix deepseek-run1, D1). */
+  const turnEnd = (code: string, message: string) => JSON.stringify({
+    type: 'session_event', event: { type: 'turn/end', data: { turn: 1, reason: { kind: 'error', error: { message, code } } } },
+  })
+  const NO_KEY = 'llm-deepseek: no API key for provider route "deepseek-official"; store DEEPSEEK_API_KEY through the credentials service '
+    + '(the web Models page writes it), or export DEEPSEEK_API_KEY in the launching environment'
+
+  it('records a missing credential and stops the sweep before another case starts', () => {
+    const d1 = result({ caseId: 'D1', harnessLaunched: true, errors: ['no finding was submitted'] })
+    guardCredential(d1, [turnEnd('MISSING_CREDENTIAL', NO_KEY), '', '--- stderr ---', ''].join('\n'))
+    expect(d1.errors).toEqual(['no finding was submitted', MISSING_CREDENTIAL])
+    expect(stopsSweep(d1)).toBe(true)
+  })
+
+  it('also recognizes a provider that reports no API key under another code', () => {
+    const d1 = result({ caseId: 'D1', harnessLaunched: true })
+    guardCredential(d1, turnEnd('PROVIDER_ERROR', 'anthropic: no API key configured'))
+    expect(stopsSweep(d1)).toBe(true)
+  })
+
+  it('leaves a case alone when its turn ended normally or it never launched', () => {
+    const ran = result({ caseId: 'D1', harnessLaunched: true })
+    guardCredential(ran, JSON.stringify({ type: 'session_event', event: { type: 'turn/end', data: { turn: 1, reason: { kind: 'stop' } } } }))
+    const triaged = result({ caseId: 'C1', harnessLaunched: false })
+    guardCredential(triaged, turnEnd('MISSING_CREDENTIAL', NO_KEY))
+    expect([ran.errors, triaged.errors]).toEqual([[], []])
+    expect(stopsSweep(ran) || stopsSweep(triaged)).toBe(false)
+  })
+})
+
+describe('sweep cost ceiling and adapter identity', () => {
+  it('refuses a case once the sweep has spent the limit it was given, and records that limit and the adapter commit', async () => {
+    const refused = await runEvalCase('D7', { ...OPTIONS, spentUsd: 3, sweepLimitUsd: 2 })
+    expect(refused.errors).toEqual(['sweep cost ceiling reached before this case started'])
+    expect({ limit: refused.sweepLimitUsd, adapter: refused.adapterCommit, launched: refused.harnessLaunched })
+      .toEqual({ limit: 2, adapter: 'b'.repeat(40), launched: false })
+  })
+
+  it('records the five-dollar default when no limit is given', async () => {
+    const refused = await runEvalCase('D7', { ...OPTIONS, spentUsd: 5 })
+    expect(refused.sweepLimitUsd).toBe(EVALUATION_COST_LIMIT_USD)
+  })
+
+  it('states the ceiling used on the total line, unchanged without the flag', () => {
+    expect(sweepTotalLine([], EVALUATION_COST_LIMIT_USD)).toBe(
+      'total cost $0.0000 of the $5.00 sweep ceiling; evidence probe - (0 graded); '
+      + 'root cause attribution -, triple -, undetermined -, policy-blocked - (0 graded)',
+    )
+    expect(sweepTotalLine([result({ costUsd: 6.25 })], 12.5)).toMatch(/^total cost \$6\.2500 of the \$12\.50 sweep ceiling;/)
   })
 })

@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
-import { parseProviderLog, providerLogCostUsd, providerLogTotals, sweepHasBudget } from '../cost'
+import { EVALUATION_COST_LIMIT_USD, parseProviderLog, providerLogCostUsd, providerLogTotals, sweepHasBudget } from '../cost'
 import type { TokenRates } from '../cost'
 import { EVAL_CASES } from '../evalCases'
 import { resolveEvalCase } from '../heldoutDefinitions'
@@ -33,6 +33,8 @@ export interface EvalRunnerOptions {
   harnessPath: string
   /** The adapter checkout inside the harness. */
   adapterPath: string
+  /** The adapter's HEAD, read once the sweep has checked that the checkout is clean. */
+  adapterCommit: string
   /** Composition the harness boots; the live overlay replaces the scripted provider. */
   configFile: string
   /** Provider route the agent uses. */
@@ -98,9 +100,15 @@ export interface EvalCaseResult {
   rootCauseGradeReason: NotGradedReason | 'policy_blocked' | null
   /** Calls the investigation refused, so an over-eager plan is visible in the summary. */
   rejectedCalls: number
+  /** The sweep ceiling this case was gated against. */
+  sweepLimitUsd: number
+  /** The clean adapter commit the sweep ran. */
+  adapterCommit: string
   worktreeRemoved: boolean
   /** File name of the captured harness transcript, when one was launched. */
   transcript?: string
+  /** What the QA launcher printed, when it failed. */
+  launcherFailure?: LauncherFailure
   /** Token totals across every logged request, whichever provider served them. */
   providerTokens?: { requests: number; cacheHitTokens: number; cacheMissTokens: number; completionTokens: number }
   /** Per-request accounting copied from the finding; empty for a case that spent nothing. */
@@ -154,11 +162,38 @@ async function findFinding(worktree: string): Promise<Finding | null> {
   return null
 }
 
+/** Characters kept from each launcher stream: the tail, where a failure is reported. */
+export const LAUNCHER_OUTPUT_LIMIT = 4_000
+
+/**
+ * What a failed QA launcher reported. Without it a failure such as an occupied
+ * port leaves only "the QA launcher did not complete the scenario".
+ */
+export interface LauncherFailure {
+  exitCode: number | null
+  signal: string | null
+  /** Set when the launcher could not be spawned or its output overflowed. */
+  spawnError: string | null
+  stdout: string
+  stderr: string
+}
+
+function outputTail(text: string | null | undefined): string {
+  const output = text ?? ''
+  if (output.length <= LAUNCHER_OUTPUT_LIMIT) return output
+  return `[${output.length - LAUNCHER_OUTPUT_LIMIT} earlier characters omitted]\n${output.slice(-LAUNCHER_OUTPUT_LIMIT)}`
+}
+
 /**
  * Run the ResumeMatch scenario for one case inside its evaluation copy.
- * @returns the recorded case result, or null when the launcher failed.
+ * @returns the recorded case result, or what the launcher printed when it failed.
  */
-async function runScenario(worktree: string, caseId: string, label: string, options: EvalRunnerOptions): Promise<Record<string, unknown> | null> {
+export async function runScenario(
+  worktree: string,
+  caseId: string,
+  label: string,
+  options: EvalRunnerOptions,
+): Promise<{ scenario: Record<string, unknown> } | { failure: LauncherFailure }> {
   const resultPath = path.join(worktree, '.qa-eval-result.json')
   const outcome = spawnSync(options.productNodePath, ['qa/browser/qaCommand.mjs', 'test', 'tests/e2e/evalCase.e2e.ts'], {
     cwd: worktree,
@@ -174,8 +209,15 @@ async function runScenario(worktree: string, caseId: string, label: string, opti
     },
     encoding: 'utf8',
   })
-  if (outcome.status !== 0) return null
-  return JSON.parse(await readFile(resultPath, 'utf8')) as Record<string, unknown>
+  if (outcome.status !== 0) {
+    return {
+      failure: {
+        exitCode: outcome.status, signal: outcome.signal, spawnError: outcome.error?.message ?? null,
+        stdout: outputTail(outcome.stdout), stderr: outputTail(outcome.stderr),
+      },
+    }
+  }
+  return { scenario: JSON.parse(await readFile(resultPath, 'utf8')) as Record<string, unknown> }
 }
 
 /**
@@ -258,10 +300,11 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     firstProbe: null, goldFirstProbe: evalCase.goldFirstProbe ?? null, goldProbeHit: null,
     goldProbeWithinFirst3: null, goldProbeWithinFirst4Excl: null, goldEvidenceProbeHit: null,
     rootCauseAttributionCorrect: null, rootCauseTripleCorrect: null, rootCauseUndetermined: null, rootCauseGradeReason: null,
-    rejectedCalls: 0, worktreeRemoved: false, errors,
+    rejectedCalls: 0, sweepLimitUsd: options.sweepLimitUsd ?? EVALUATION_COST_LIMIT_USD, adapterCommit: options.adapterCommit,
+    worktreeRemoved: false, errors,
   }
 
-  if (!sweepHasBudget(options.spentUsd ?? 0, options.sweepLimitUsd)) {
+  if (!sweepHasBudget(options.spentUsd ?? 0, result.sweepLimitUsd)) {
     errors.push('sweep cost ceiling reached before this case started')
     return result
   }
@@ -276,11 +319,13 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     await symlink(path.join(options.repositoryPath, 'node_modules'), path.join(worktree.directory, 'node_modules'))
     if (evalCase.mutation !== undefined) await applyMutationById(worktree.directory, caseId, registry(evalCase))
 
-    const scenario = await runScenario(worktree.directory, caseId, worktree.label, options)
-    if (scenario === null) {
+    const launched = await runScenario(worktree.directory, caseId, worktree.label, options)
+    if ('failure' in launched) {
       errors.push('the QA launcher did not complete the scenario')
+      result.launcherFailure = launched.failure
       return result
     }
+    const { scenario } = launched
     result.runId = String(scenario.runId)
     result.oracleStatus = String(scenario.oracleStatus)
     result.expectationMet = Boolean(scenario.expectationMet)
@@ -332,7 +377,11 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     result.modelRequests = totals.requests
     result.providerTokens = totals
     result.costUsd = providerLogCostUsd(logged, options.rates)
-    if (result.harnessLaunched) guardRecordedUsage(result, transcriptUsageEvents(await readFile(transcriptPath, 'utf8')))
+    if (result.harnessLaunched) {
+      const transcript = await readFile(transcriptPath, 'utf8')
+      guardRecordedUsage(result, transcriptUsageEvents(transcript))
+      guardCredential(result, transcript)
+    }
     try {
       await removeEvaluationWorktree(options.repositoryPath, worktree)
       result.worktreeRemoved = true
@@ -401,14 +450,56 @@ export function guardRecordedUsage(result: EvalCaseResult, usageEvents: number):
   result.classificationMatched = false
 }
 
+/** Recorded when the provider had no credential; every later model-calling case would fail the same way. */
+export const MISSING_CREDENTIAL = 'the provider has no API key (MISSING_CREDENTIAL)'
+
+/**
+ * Record a turn the provider ended for want of a credential.
+ *
+ * Such a case spends nothing, so the usage guard never fires, and the sweep
+ * would otherwise run every remaining case into the same refusal.
+ * @param result - the case result.
+ * @param transcript - the case transcript: JSONL session events, then stderr.
+ */
+export function guardCredential(result: EvalCaseResult, transcript: string): void {
+  if (!result.harnessLaunched) return
+  for (const line of transcript.split('\n')) {
+    let record: { event?: { type?: string; data?: { reason?: { error?: { code?: unknown; message?: unknown } } } } } | null
+    try {
+      record = JSON.parse(line)
+    } catch {
+      continue
+    }
+    const error = record?.event?.type === 'turn/end' ? record.event.data?.reason?.error : undefined
+    if (error?.code === 'MISSING_CREDENTIAL' || /no API key/i.test(String(error?.message ?? ''))) {
+      result.errors.push(MISSING_CREDENTIAL)
+      return
+    }
+  }
+}
+
+/** Errors after which no further case may start. */
+export const SWEEP_STOPPING_ERRORS: readonly string[] = [USAGE_NOT_RECORDED, MISSING_CREDENTIAL]
+
 /** Whether a case result must end the sweep before another case starts. */
 export function stopsSweep(result: EvalCaseResult): boolean {
-  return result.errors.includes(USAGE_NOT_RECORDED)
+  return result.errors.some(error => SWEEP_STOPPING_ERRORS.includes(error))
 }
 
 /** Total spend across a sweep's completed cases. */
 export function sweepCostUsd(results: readonly EvalCaseResult[]): number {
   return results.reduce((total, item) => total + item.costUsd, 0)
+}
+
+/**
+ * The line printed under the summary table.
+ * @param results - one result per case.
+ * @param sweepLimitUsd - the ceiling the sweep ran under.
+ * @returns the spend against that ceiling, then the evidence-probe and root-cause numbers.
+ */
+export function sweepTotalLine(results: readonly EvalCaseResult[], sweepLimitUsd: number): string {
+  return `total cost $${sweepCostUsd(results).toFixed(4)} of the $${sweepLimitUsd.toFixed(2)} sweep ceiling; `
+    + `${evidenceProbeSummary(results)}; ${rootCauseSummary(results)}`
 }
 
 /** Render the per-case results as a fixed-width summary table. */

@@ -62,6 +62,26 @@ export async function createEvaluationWorktree(repositoryPath: string, commit: s
 }
 
 /**
+ * The adapter checkout's HEAD, refusing a checkout with uncommitted changes.
+ *
+ * The adapter names itself in every finding by `git rev-parse HEAD` with no dirty
+ * flag, so an edited adapter would be recorded as a commit that did not run.
+ * @param adapterPath - the adapter checkout the harness loads.
+ * @returns the full HEAD commit.
+ * @throws when the checkout has modified, staged, or untracked files.
+ */
+export function cleanAdapterCommit(adapterPath: string): string {
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: adapterPath, encoding: 'utf8', env: GIT_ENVIRONMENT,
+  }).trim()
+  if (status.length > 0) {
+    throw new Error(`Refusing to run a sweep: the adapter checkout at ${adapterPath} has uncommitted changes, `
+      + 'so its recorded commit would not identify the code that ran. Commit or stash them first.')
+  }
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: adapterPath, encoding: 'utf8', env: GIT_ENVIRONMENT }).trim()
+}
+
+/**
  * Remove one evaluation checkout and its git registration.
  * @param repositoryPath - the main worktree.
  * @param worktree - the checkout to remove.

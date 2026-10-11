@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -7,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { buildDigest, detectSourceDrift } from './digest'
 import { applyMutationById } from './mutation'
 import type { MutationRegistry } from './mutation'
-import { evaluationWorktreeRoot, worktreeLabel } from './worktree'
+import { cleanAdapterCommit, evaluationWorktreeRoot, worktreeLabel } from './worktree'
 import type { EvaluationIdentity } from '../../browser/types'
 
 const REGISTRY: MutationRegistry = caseId => ({
@@ -115,5 +116,36 @@ describe('worktree labelling', () => {
 
   it('keeps evaluation checkouts outside the repository', () => {
     expect(evaluationWorktreeRoot().startsWith(process.cwd())).toBe(false)
+  })
+})
+
+describe('adapter checkout', () => {
+  // A fixed identity, so the commit below never depends on the machine's git configuration (CI has none).
+  const IDENTITY = {
+    GIT_AUTHOR_NAME: 'QA', GIT_AUTHOR_EMAIL: 'qa@example.com', GIT_COMMITTER_NAME: 'QA', GIT_COMMITTER_EMAIL: 'qa@example.com',
+  }
+  const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, ...IDENTITY } }).trim()
+
+  it('returns the HEAD of a clean adapter checkout and refuses one with uncommitted or untracked changes', async () => {
+    const adapter = await realpath(await mkdtemp(path.join(tmpdir(), 'qa-adapter-')))
+    try {
+      git(adapter, 'init', '--quiet')
+      // Every git call below runs in this throwaway repository, never in the ResumeMatch or adapter checkout.
+      expect(git(adapter, 'rev-parse', '--show-toplevel')).toBe(adapter)
+      expect(adapter.startsWith(await realpath(process.cwd()))).toBe(false)
+      await writeFile(path.join(adapter, 'cordis.yml'), 'plugins: []\n', 'utf8')
+      git(adapter, 'add', 'cordis.yml')
+      git(adapter, '-c', 'commit.gpgsign=false', 'commit', '--quiet', '--no-verify', '-m', 'adapter')
+      expect(cleanAdapterCommit(adapter)).toBe(git(adapter, 'rev-parse', 'HEAD'))
+
+      await writeFile(path.join(adapter, 'cordis.yml'), 'plugins: [edited]\n', 'utf8')
+      expect(() => cleanAdapterCommit(adapter)).toThrow(/Refusing to run a sweep: the adapter checkout at .* has uncommitted changes/)
+      git(adapter, 'checkout', '--quiet', '--', 'cordis.yml')
+
+      await writeFile(path.join(adapter, 'run-config.local.yml'), 'x: 1\n', 'utf8')
+      expect(() => cleanAdapterCommit(adapter)).toThrow(/has uncommitted changes/)
+    } finally {
+      await rm(adapter, { recursive: true, force: true })
+    }
   })
 })
