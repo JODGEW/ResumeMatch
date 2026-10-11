@@ -10,7 +10,8 @@ import { EVAL_CASES } from '../evalCases'
 import { resolveEvalCase } from '../heldoutDefinitions'
 import type { EvalCase } from '../evalCases'
 import type { Finding } from '../finding'
-import { firstProbe, GOLD_PROBE_WINDOW, GOLD_PROBE_WINDOW_EXCLUSIVE, ORIENTATION_PROBES } from '../goldProbe'
+import { goldEvidenceProbes } from '../goldEvidence'
+import { firstProbe, GOLD_PROBE_WINDOW, GOLD_PROBE_WINDOW_EXCLUSIVE, goldEvidenceHit, ORIENTATION_PROBES } from '../goldProbe'
 import { goldRootCause } from '../rootCauseGold'
 import { gradeRootCause, scoreRootCauses } from '../rootCauseScore'
 import type { NotGradedReason, RootCauseGrade } from '../rootCauseScore'
@@ -81,6 +82,8 @@ export interface EvalCaseResult {
   goldProbeWithinFirst3: boolean | null
   /** Whether it appeared in the opening four discriminating probes. */
   goldProbeWithinFirst4Excl: boolean | null
+  /** Whether the first discriminating probe was in the case's evidence set; null when not graded. */
+  goldEvidenceProbeHit: boolean | null
   /** Whether `rootCause.attribution` matched the case's answer; null when not graded. */
   rootCauseAttributionCorrect: boolean | null
   /** Whether attribution, route, and failure mode all matched; null when not graded. */
@@ -251,7 +254,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     classification: null, expectedClassification: evalCase.expectedClassification, classificationMatched: false,
     costUsd: 0, findingCostUsd: 0, wallClockMs: 0,
     firstProbe: null, goldFirstProbe: evalCase.goldFirstProbe ?? null, goldProbeHit: null,
-    goldProbeWithinFirst3: null, goldProbeWithinFirst4Excl: null,
+    goldProbeWithinFirst3: null, goldProbeWithinFirst4Excl: null, goldEvidenceProbeHit: null,
     rootCauseAttributionCorrect: null, rootCauseTripleCorrect: null, rootCauseUndetermined: null, rootCauseGradeReason: null,
     rejectedCalls: 0, worktreeRemoved: false, errors,
   }
@@ -305,6 +308,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
             .filter(item => !ORIENTATION_PROBES.includes(item))
             .slice(0, GOLD_PROBE_WINDOW_EXCLUSIVE)
             .includes(result.goldFirstProbe)
+        result.goldEvidenceProbeHit = goldEvidenceHit(finding.probesSelected, goldEvidenceProbes(caseId))
         result.rejectedCalls = finding.rejectedCalls.length
         result.findingCostUsd = finding.usage.costUsd
         result.usage = {
@@ -410,7 +414,7 @@ export function summaryTable(results: readonly EvalCaseResult[]): string {
   const yn = (value: boolean | null) => (value === null ? '-' : value ? 'y' : 'n')
   const header = [
     'case', 'kind', 'triage', 'ok', 'requests', 'rejected', 'classification', 'ok', 'first probe', 'gold', 'gold3', 'gold4x',
-    'attr', 'triple', 'undet', 'cost', 'wall', 'clean',
+    'goldEv', 'attr', 'triple', 'undet', 'cost', 'wall', 'clean',
   ]
   const rows = results.map(item => [
     item.caseId, item.kind, item.triage ?? '-', item.triageMatched ? 'y' : 'n', String(item.modelRequests),
@@ -419,13 +423,24 @@ export function summaryTable(results: readonly EvalCaseResult[]): string {
     item.firstProbe ?? '-', item.goldProbeHit === null ? '-' : item.goldProbeHit ? 'y' : 'n',
     item.goldProbeWithinFirst3 === null ? '-' : item.goldProbeWithinFirst3 ? 'y' : 'n',
     item.goldProbeWithinFirst4Excl === null ? '-' : item.goldProbeWithinFirst4Excl ? 'y' : 'n',
-    yn(item.rootCauseAttributionCorrect), yn(item.rootCauseTripleCorrect), yn(item.rootCauseUndetermined),
+    yn(item.goldEvidenceProbeHit), yn(item.rootCauseAttributionCorrect), yn(item.rootCauseTripleCorrect), yn(item.rootCauseUndetermined),
     `$${item.costUsd.toFixed(4)}`, `${(item.wallClockMs / 1000).toFixed(0)}s`,
     item.worktreeRemoved ? 'y' : 'n',
   ])
   const widths = header.map((_, column) => Math.max(header[column].length, ...rows.map(row => row[column].length)))
   const line = (cells: string[]) => cells.map((cell, column) => cell.padEnd(widths[column])).join('  ')
   return [line(header), line(widths.map(width => '-'.repeat(width))), ...rows.map(line)].join('\n')
+}
+
+/**
+ * The run's evidence-probe count for the total line, over the graded cases.
+ * @param results - one result per case.
+ * @returns e.g. `evidence probe 4/5`.
+ */
+export function evidenceProbeSummary(results: readonly EvalCaseResult[]): string {
+  const graded = results.filter(item => item.goldEvidenceProbeHit !== null)
+  if (graded.length === 0) return 'evidence probe - (0 graded)'
+  return `evidence probe ${graded.filter(item => item.goldEvidenceProbeHit === true).length}/${graded.length}`
 }
 
 /**

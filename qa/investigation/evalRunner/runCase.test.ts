@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 
 import { parseProviderLog, providerLogCostUsd, providerLogTotals } from '../cost'
 import {
-  caseArtifactPaths, guardRecordedUsage, recordRootCauseGrade, rootCauseSummary, stopsSweep, summaryTable, sweepCostUsd,
+  caseArtifactPaths, evidenceProbeSummary, guardRecordedUsage, recordRootCauseGrade, rootCauseSummary, stopsSweep, summaryTable, sweepCostUsd,
   transcriptUsageEvents, USAGE_NOT_RECORDED,
 } from './runCase'
 import type { EvalCaseResult } from './runCase'
@@ -20,7 +20,7 @@ function result(overrides: Partial<EvalCaseResult>): EvalCaseResult {
     triage: 'expected', expectedTriage: 'expected', triageMatched: true, harnessLaunched: false,
     modelRequests: 0, classification: null, expectedClassification: null, classificationMatched: false,
     firstProbe: null, goldFirstProbe: null, goldProbeHit: null, goldProbeWithinFirst3: null, goldProbeWithinFirst4Excl: null,
-    rootCauseAttributionCorrect: null, rootCauseTripleCorrect: null, rootCauseUndetermined: null, rootCauseGradeReason: null,
+    goldEvidenceProbeHit: null, rootCauseAttributionCorrect: null, rootCauseTripleCorrect: null, rootCauseUndetermined: null, rootCauseGradeReason: null,
     rejectedCalls: 0,
     costUsd: 0, findingCostUsd: 0, wallClockMs: 4_000,
     worktreeRemoved: true, errors: [],
@@ -41,13 +41,13 @@ describe('root-cause columns', () => {
     recordRootCauseGrade(graded, { graded: true, attributionCorrect: true, tripleCorrect: false, undetermined: false, policyBlocked: false })
     const cells = (line: string) => line.trim().split(/\s{2,}/)
     const [header, , clean, d1] = summaryTable([result({}), graded]).split('\n')
-    expect(cells(header)).toEqual([...OLD_HEADER, 'attr', 'triple', 'undet', 'cost', 'wall', 'clean'])
+    expect(cells(header)).toEqual([...OLD_HEADER, 'goldEv', 'attr', 'triple', 'undet', 'cost', 'wall', 'clean'])
     expect(cells(d1)).toEqual([
       'D1', 'seeded_defect', 'investigate', 'y', '9', '0', 'confirmed', 'y', 'read_failure_manifest', 'n', 'n', 'y',
-      'y', 'n', 'n', '$0.0184', '61s', 'y',
+      '-', 'y', 'n', 'n', '$0.0184', '61s', 'y',
     ])
     // A zero-call case grades nothing and shows "-" in each new column.
-    expect(cells(clean)).toEqual(['C1', 'clean', 'expected', 'y', '0', '0', '-', 'y', '-', '-', '-', '-', '-', '-', '-', '$0.0000', '4s', 'y'])
+    expect(cells(clean)).toEqual(['C1', 'clean', 'expected', 'y', '0', '0', '-', 'y', '-', '-', '-', '-', '-', '-', '-', '-', '$0.0000', '4s', 'y'])
   })
 
   it('records the three per-case fields in the result and keeps the older fields untouched', () => {
@@ -63,7 +63,7 @@ describe('root-cause columns', () => {
     const v1 = result({ caseId: 'D2' })
     recordRootCauseGrade(v1, { graded: false, reason: 'v1_finding' })
     expect(v1).toMatchObject({ rootCauseAttributionCorrect: null, rootCauseTripleCorrect: null, rootCauseUndetermined: null, rootCauseGradeReason: 'v1_finding' })
-    expect(summaryTable([v1]).split('\n')[2]).toMatch(/\s-\s+-\s+-\s+\$0\.0000/)
+    expect(summaryTable([v1]).split('\n')[2]).toMatch(/\s-\s+-\s+-\s+-\s+\$0\.0000/)
   })
 
   it('reports the run totals over graded cases only, with a separate policy-blocked count', () => {
@@ -80,6 +80,27 @@ describe('root-cause columns', () => {
     ])).toBe('root cause attribution 2/4, triple 1/4, undetermined 1/4, policy-blocked 1/4')
     expect(rootCauseSummary([result({}), notGraded]))
       .toBe('root cause attribution -, triple -, undetermined -, policy-blocked - (0 graded)')
+  })
+})
+
+describe('evidence-probe column', () => {
+  it('shows goldEv after gold4x, leaves the older columns in place, and shows "-" when not graded', () => {
+    const cells = (line: string) => line.trim().split(/\s{2,}/)
+    const hit = result({ caseId: 'D1', goldEvidenceProbeHit: true, goldProbeHit: false, goldProbeWithinFirst3: false, goldProbeWithinFirst4Excl: true })
+    const miss = result({ caseId: 'D2', goldEvidenceProbeHit: false })
+    const [header, , d1, d2, b2] = summaryTable([hit, miss, result({ caseId: 'B2' })]).split('\n')
+    const at = cells(header).indexOf('goldEv')
+    expect(cells(header).slice(at - 3, at + 2)).toEqual(['gold', 'gold3', 'gold4x', 'goldEv', 'attr'])
+    expect(cells(d1).slice(at - 3, at + 1)).toEqual(['n', 'n', 'y', 'y'])
+    expect(cells(d2)[at]).toBe('n')
+    expect(cells(b2)[at]).toBe('-')
+  })
+
+  it('reports the run count over graded cases only', () => {
+    expect(evidenceProbeSummary([
+      result({ goldEvidenceProbeHit: true }), result({ goldEvidenceProbeHit: false }), result({ goldEvidenceProbeHit: true }), result({}),
+    ])).toBe('evidence probe 2/3')
+    expect(evidenceProbeSummary([result({})])).toBe('evidence probe - (0 graded)')
   })
 })
 
@@ -105,10 +126,10 @@ describe('summaryTable', () => {
     const lines = table.split('\n')
     expect(lines[0].split(/\s+/)).toEqual([
       'case', 'kind', 'triage', 'ok', 'requests', 'rejected', 'classification', 'ok', 'first', 'probe', 'gold', 'gold3',
-      'gold4x', 'attr', 'triple', 'undet', 'cost', 'wall', 'clean',
+      'gold4x', 'goldEv', 'attr', 'triple', 'undet', 'cost', 'wall', 'clean',
     ])
     expect(lines[2]).toMatch(/^C1\s+clean\s+expected\s+y\s+0\s+0\s/)
-    expect(lines[3]).toMatch(/^D1\s+seeded_defect\s+investigate\s+y\s+11\s+3\s+confirmed\s+y\s+read_network_events\s+y\s+y\s+y\s+-\s+-\s+-\s+\$0\.0231\s+9s\s+y/)
+    expect(lines[3]).toMatch(/^D1\s+seeded_defect\s+investigate\s+y\s+11\s+3\s+confirmed\s+y\s+read_network_events\s+y\s+y\s+y\s+-\s+-\s+-\s+-\s+\$0\.0231\s+9s\s+y/)
   })
 
   it('marks a clean case with no expected classification as matching', () => {

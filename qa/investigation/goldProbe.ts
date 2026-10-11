@@ -67,6 +67,30 @@ export function firstProbe(finding: Pick<Finding, 'probesSelected'>): string | n
 }
 
 /**
+ * The first probe that was not an orientation read.
+ * @param probesSelected - the probes in call order.
+ * @returns that probe, or null when only orientation reads were made.
+ */
+export function firstDiscriminatingProbe(probesSelected: readonly string[]): string | null {
+  return probesSelected.find(item => !ORIENTATION_PROBES.includes(item)) ?? null
+}
+
+/**
+ * Whether the first discriminating probe is in the case's evidence set.
+ *
+ * An investigation that made only orientation reads never reached for the
+ * evidence, so it is a miss, not ungraded.
+ * @param probesSelected - the probes in call order.
+ * @param evidenceSet - the case's evidence tools, or null when it has none.
+ * @returns the hit, or null when the case is not graded.
+ */
+export function goldEvidenceHit(probesSelected: readonly string[], evidenceSet: readonly string[] | null): boolean | null {
+  if (evidenceSet === null) return null
+  const probe = firstDiscriminatingProbe(probesSelected)
+  return probe !== null && evidenceSet.includes(probe)
+}
+
+/**
  * Score first-probe selection against the gold set.
  *
  * Only cases that declare a gold probe are scored: clean cases start no
