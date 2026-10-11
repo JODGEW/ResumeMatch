@@ -11,6 +11,9 @@ import { resolveEvalCase } from '../heldoutDefinitions'
 import type { EvalCase } from '../evalCases'
 import type { Finding } from '../finding'
 import { firstProbe, GOLD_PROBE_WINDOW, GOLD_PROBE_WINDOW_EXCLUSIVE, ORIENTATION_PROBES } from '../goldProbe'
+import { goldRootCause } from '../rootCauseGold'
+import { gradeRootCause, scoreRootCauses } from '../rootCauseScore'
+import type { NotGradedReason, RootCauseGrade } from '../rootCauseScore'
 import { applyMutationById } from './mutation'
 import type { MutationRegistry } from './mutation'
 import { createEvaluationWorktree, removeEvaluationWorktree } from './worktree'
@@ -78,6 +81,18 @@ export interface EvalCaseResult {
   goldProbeWithinFirst3: boolean | null
   /** Whether it appeared in the opening four discriminating probes. */
   goldProbeWithinFirst4Excl: boolean | null
+  /** Whether `rootCause.attribution` matched the case's answer; null when not graded. */
+  rootCauseAttributionCorrect: boolean | null
+  /** Whether attribution, route, and failure mode all matched; null when not graded. */
+  rootCauseTripleCorrect: boolean | null
+  /** Whether the finding abstained with `undetermined`; null when not graded. */
+  rootCauseUndetermined: boolean | null
+  /**
+   * Why the case has no grade, or `policy_blocked` for a graded miss whose
+   * narrative was discarded after an unauthorized submission. Null otherwise,
+   * including for a case that never launched an investigation.
+   */
+  rootCauseGradeReason: NotGradedReason | 'policy_blocked' | null
   /** Calls the investigation refused, so an over-eager plan is visible in the summary. */
   rejectedCalls: number
   worktreeRemoved: boolean
@@ -236,8 +251,9 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
     classification: null, expectedClassification: evalCase.expectedClassification, classificationMatched: false,
     costUsd: 0, findingCostUsd: 0, wallClockMs: 0,
     firstProbe: null, goldFirstProbe: evalCase.goldFirstProbe ?? null, goldProbeHit: null,
-    goldProbeWithinFirst3: null, goldProbeWithinFirst4Excl: null, rejectedCalls: 0,
-    worktreeRemoved: false, errors,
+    goldProbeWithinFirst3: null, goldProbeWithinFirst4Excl: null,
+    rootCauseAttributionCorrect: null, rootCauseTripleCorrect: null, rootCauseUndetermined: null, rootCauseGradeReason: null,
+    rejectedCalls: 0, worktreeRemoved: false, errors,
   }
 
   if (!sweepHasBudget(options.spentUsd ?? 0, options.sweepLimitUsd)) {
@@ -274,6 +290,7 @@ export async function runEvalCase(caseId: string, options: EvalRunnerOptions): P
       result.transcript = path.basename(transcriptPath)
       errors.push(...(await runInvestigation(worktree.directory, result.runId, requestLog, transcriptPath, evalCase.scenarioId, options)).errors)
       const finding = await findFinding(worktree.directory)
+      recordRootCauseGrade(result, gradeRootCause(finding, goldRootCause(caseId)))
       if (finding === null) errors.push('no finding was submitted')
       else {
         result.classification = finding.classification
@@ -390,7 +407,11 @@ export function sweepCostUsd(results: readonly EvalCaseResult[]): number {
 
 /** Render the per-case results as a fixed-width summary table. */
 export function summaryTable(results: readonly EvalCaseResult[]): string {
-  const header = ['case', 'kind', 'triage', 'ok', 'requests', 'rejected', 'classification', 'ok', 'first probe', 'gold', 'gold3', 'gold4x', 'cost', 'wall', 'clean']
+  const yn = (value: boolean | null) => (value === null ? '-' : value ? 'y' : 'n')
+  const header = [
+    'case', 'kind', 'triage', 'ok', 'requests', 'rejected', 'classification', 'ok', 'first probe', 'gold', 'gold3', 'gold4x',
+    'attr', 'triple', 'undet', 'cost', 'wall', 'clean',
+  ]
   const rows = results.map(item => [
     item.caseId, item.kind, item.triage ?? '-', item.triageMatched ? 'y' : 'n', String(item.modelRequests),
     String(item.rejectedCalls),
@@ -398,10 +419,51 @@ export function summaryTable(results: readonly EvalCaseResult[]): string {
     item.firstProbe ?? '-', item.goldProbeHit === null ? '-' : item.goldProbeHit ? 'y' : 'n',
     item.goldProbeWithinFirst3 === null ? '-' : item.goldProbeWithinFirst3 ? 'y' : 'n',
     item.goldProbeWithinFirst4Excl === null ? '-' : item.goldProbeWithinFirst4Excl ? 'y' : 'n',
+    yn(item.rootCauseAttributionCorrect), yn(item.rootCauseTripleCorrect), yn(item.rootCauseUndetermined),
     `$${item.costUsd.toFixed(4)}`, `${(item.wallClockMs / 1000).toFixed(0)}s`,
     item.worktreeRemoved ? 'y' : 'n',
   ])
   const widths = header.map((_, column) => Math.max(header[column].length, ...rows.map(row => row[column].length)))
   const line = (cells: string[]) => cells.map((cell, column) => cell.padEnd(widths[column])).join('  ')
   return [line(header), line(widths.map(width => '-'.repeat(width))), ...rows.map(line)].join('\n')
+}
+
+/**
+ * Copy one finding's root-cause grade onto its case result.
+ * @param result - the case result to update.
+ * @param grade - the grade from {@link gradeRootCause}.
+ */
+export function recordRootCauseGrade(result: EvalCaseResult, grade: RootCauseGrade): void {
+  if (!grade.graded) {
+    result.rootCauseGradeReason = grade.reason
+    return
+  }
+  result.rootCauseAttributionCorrect = grade.attributionCorrect
+  result.rootCauseTripleCorrect = grade.tripleCorrect
+  result.rootCauseUndetermined = grade.undetermined
+  result.rootCauseGradeReason = grade.policyBlocked ? 'policy_blocked' : null
+}
+
+/**
+ * The run's root-cause numbers for the total line, each over the graded cases.
+ *
+ * Attribution accuracy is the primary model-separating number; the policy-blocked
+ * count separates a blocked submission from a wrong diagnosis.
+ * @param results - one result per case.
+ * @returns e.g. `root cause attribution 5/6, triple 4/6, undetermined 0/6, policy-blocked 0/6`.
+ */
+export function rootCauseSummary(results: readonly EvalCaseResult[]): string {
+  const score = scoreRootCauses(results.map((item): RootCauseGrade => item.rootCauseAttributionCorrect === null
+    ? { graded: false, reason: 'no_gold' }
+    : {
+        graded: true,
+        attributionCorrect: item.rootCauseAttributionCorrect,
+        tripleCorrect: item.rootCauseTripleCorrect === true,
+        undetermined: item.rootCauseUndetermined === true,
+        policyBlocked: item.rootCauseGradeReason === 'policy_blocked',
+      }))
+  if (score.graded === 0) return 'root cause attribution -, triple -, undetermined -, policy-blocked - (0 graded)'
+  const of = (count: number) => `${count}/${score.graded}`
+  return `root cause attribution ${of(score.attributionCorrect)}, triple ${of(score.tripleCorrect)}, `
+    + `undetermined ${of(score.undetermined)}, policy-blocked ${of(score.policyBlocked)}`
 }

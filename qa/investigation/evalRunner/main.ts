@@ -4,7 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { EVALUATION_COST_LIMIT_USD } from '../cost'
-import { runEvalCase, stopsSweep, summaryTable, sweepCostUsd, USAGE_NOT_RECORDED } from './runCase'
+import { rootCauseSummary, runEvalCase, stopsSweep, summaryTable, sweepCostUsd, USAGE_NOT_RECORDED } from './runCase'
 import type { EvalCaseResult, EvalRunnerOptions } from './runCase'
 
 function argumentValue(flag: string, fallback?: string): string {
@@ -62,7 +62,7 @@ async function main(): Promise<number> {
   }
   await writeFile(path.join(options.outputDirectory, 'summary.json'), `${JSON.stringify(results, null, 2)}\n`, 'utf8')
   process.stdout.write(`${summaryTable(results)}\n`)
-  process.stdout.write(`total cost $${sweepCostUsd(results).toFixed(4)} of the $${EVALUATION_COST_LIMIT_USD.toFixed(2)} sweep ceiling\n`)
+  process.stdout.write(`total cost $${sweepCostUsd(results).toFixed(4)} of the $${EVALUATION_COST_LIMIT_USD.toFixed(2)} sweep ceiling; ${rootCauseSummary(results)}\n`)
   return results.every(item => item.triageMatched && item.errors.length === 0) ? 0 : 1
 }
 
