@@ -12,11 +12,56 @@ const ADAPTER_PATH = process.env.RESUMEMATCH_QA_ADAPTER_PATH
 const FREEZE_DOCUMENT = path.join(process.cwd(), 'docs', 'qa-phase2.md')
 const ROW = /^\| `([^`]+)` \| `([0-9a-f]{64})` \|$/gm
 /** Only the current version gates; earlier tables are kept as history. */
-const CURRENT_VERSION = '### Freeze v6'
-/** The version v6 superseded, kept byte-for-byte as the record its sweeps were taken under. */
-const PREVIOUS_VERSION = '### Freeze v5'
+const CURRENT_VERSION = '### Freeze v7'
+/** The version v7 superseded, kept byte-for-byte as the record its sweeps were taken under. */
+const V6_VERSION = '### Freeze v6'
+/** sha256 of the Freeze v6 section, from its heading up to the Freeze v5 heading, when v7 superseded it. */
+const V6_SECTION_SHA256 = '19fcbc194d4f15cab856be239ed2efa6a6a507893f1f37428814022f64a1df99'
+/** The version v6 superseded, kept the same way. */
+const V5_VERSION = '### Freeze v5'
 /** sha256 of the Freeze v5 section, from its heading up to the Freeze v4 heading, when v6 superseded it. */
-const PREVIOUS_SECTION_SHA256 = 'b644147ada40e368e96c5ca112fae26e3ac8acf979992820e9c12d4f1cb182c0'
+const V5_SECTION_SHA256 = 'b644147ada40e368e96c5ca112fae26e3ac8acf979992820e9c12d4f1cb182c0'
+
+/** The files v6 froze and v7 keeps: the investigator interface, the scoring and cases, and the scenario and evidence model. */
+const FROZEN_REFERENCES = [
+  'adapter:cordis.yml',
+  'adapter:prompts/investigator.md',
+  'adapter:run-config.anthropic-haiku.yml',
+  'adapter:run-config.anthropic-opus.yml',
+  'adapter:run-config.anthropic.yml',
+  'adapter:run-config.yml',
+  'adapter:src/pricing.ts',
+  'adapter:src/qa-tools.ts',
+  'adapter:src/system-prompt.ts',
+  'qa/browser/artifactValidator.ts',
+  'qa/browser/contractRouter.ts',
+  'qa/browser/evidence.ts',
+  'qa/browser/networkPolicy.ts',
+  'qa/browser/oracleRegistry.ts',
+  'qa/browser/oracles.ts',
+  'qa/browser/runReleaseCheck.ts',
+  'qa/browser/scenarios.ts',
+  'qa/browser/uploadObservation.ts',
+  'qa/fixtures/data.ts',
+  'qa/investigation/actions.ts',
+  'qa/investigation/budget.ts',
+  'qa/investigation/cost.ts',
+  'qa/investigation/errors.ts',
+  'qa/investigation/evalCases.ts',
+  'qa/investigation/evalRunner/mutation.ts',
+  'qa/investigation/evalRunner/runCase.ts',
+  'qa/investigation/evidenceReader.ts',
+  'qa/investigation/finding.ts',
+  'qa/investigation/goldEvidence.ts',
+  'qa/investigation/goldProbe.ts',
+  'qa/investigation/heldoutDefinitions.ts',
+  'qa/investigation/reproduction.ts',
+  'qa/investigation/rootCauseGold.ts',
+  'qa/investigation/rootCauseScore.ts',
+  'qa/investigation/session.ts',
+  'qa/investigation/triage.ts',
+  'tests/e2e/evalCase.e2e.ts',
+]
 
 interface FrozenFile { reference: string; sha256: string }
 
@@ -75,49 +120,16 @@ describe('freeze record', () => {
   })
 
   it('freezes the investigator interface, the scoring and cases, and the scenario and evidence model', async () => {
-    expect((await frozenFiles()).map(file => file.reference).sort()).toEqual([
-      'adapter:cordis.yml',
-      'adapter:prompts/investigator.md',
-      'adapter:run-config.anthropic-haiku.yml',
-      'adapter:run-config.anthropic-opus.yml',
-      'adapter:run-config.anthropic.yml',
-      'adapter:run-config.yml',
-      'adapter:src/pricing.ts',
-      'adapter:src/qa-tools.ts',
-      'adapter:src/system-prompt.ts',
-      'qa/browser/artifactValidator.ts',
-      'qa/browser/contractRouter.ts',
-      'qa/browser/evidence.ts',
-      'qa/browser/networkPolicy.ts',
-      'qa/browser/oracleRegistry.ts',
-      'qa/browser/oracles.ts',
-      'qa/browser/runReleaseCheck.ts',
-      'qa/browser/scenarios.ts',
-      'qa/browser/uploadObservation.ts',
-      'qa/fixtures/data.ts',
-      'qa/investigation/actions.ts',
-      'qa/investigation/budget.ts',
-      'qa/investigation/cost.ts',
-      'qa/investigation/errors.ts',
-      'qa/investigation/evalCases.ts',
-      'qa/investigation/evalRunner/mutation.ts',
-      'qa/investigation/evalRunner/runCase.ts',
-      'qa/investigation/evidenceReader.ts',
-      'qa/investigation/finding.ts',
-      'qa/investigation/goldEvidence.ts',
-      'qa/investigation/goldProbe.ts',
-      'qa/investigation/heldoutDefinitions.ts',
-      'qa/investigation/reproduction.ts',
-      'qa/investigation/rootCauseGold.ts',
-      'qa/investigation/rootCauseScore.ts',
-      'qa/investigation/session.ts',
-      'qa/investigation/triage.ts',
-      'tests/e2e/evalCase.e2e.ts',
-    ])
+    expect((await frozenFiles()).map(file => file.reference).sort()).toEqual(FROZEN_REFERENCES)
+  })
+
+  it('keeps Freeze v6 as readable history, unchanged byte for byte', async () => {
+    expect((await frozenFiles(V6_VERSION)).map(file => file.reference).sort()).toEqual(FROZEN_REFERENCES)
+    expect(createHash('sha256').update(await section(V6_VERSION)).digest('hex')).toBe(V6_SECTION_SHA256)
   })
 
   it('keeps Freeze v5 as readable history, unchanged byte for byte', async () => {
-    expect((await frozenFiles(PREVIOUS_VERSION)).map(file => file.reference).sort()).toEqual([
+    expect((await frozenFiles(V5_VERSION)).map(file => file.reference).sort()).toEqual([
       'adapter:cordis.yml',
       'adapter:prompts/investigator.md',
       'adapter:run-config.yml',
@@ -128,6 +140,6 @@ describe('freeze record', () => {
       'qa/investigation/evalCases.ts',
       'qa/investigation/finding.ts',
     ])
-    expect(createHash('sha256').update(await section(PREVIOUS_VERSION)).digest('hex')).toBe(PREVIOUS_SECTION_SHA256)
+    expect(createHash('sha256').update(await section(V5_VERSION)).digest('hex')).toBe(V5_SECTION_SHA256)
   })
 })

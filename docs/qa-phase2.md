@@ -139,6 +139,12 @@ from the only case seen so far, DeepSeek with no key (post-fix
 `deepseek-run1`, D1); a provider that reports a missing key any other way is not
 caught.
 
+Known, not fixed: `INVESTIGATION_BUDGET.reproductionWallClockMs` (240 s,
+`budget.ts`) is defined but not enforced. Only the 480 s investigation wall
+clock is checked, and only when a budget is spent, so nothing bounds how long a
+single `run_oracle` takes. Under v7 the longest scripted public case took 79 s
+end to end.
+
 ### Keyless results
 
 Five public cases, run with the scripted provider at ResumeMatch `5578e95` and
@@ -177,11 +183,149 @@ attributed to a specific investigator rather than to a moving one.
 every `npm test`. A frozen file cannot change without this record changing in
 the same commit, which is the point: the change becomes visible in review
 instead of drifting silently. Only the current version gates; earlier tables
-are history, and the test also checks that the Freeze v5 section is unchanged.
+are history, and the test also checks that the Freeze v6 and v5 sections are
+unchanged.
 An `adapter:` path resolves inside the adapter checkout, located by
 `RESUMEMATCH_QA_ADAPTER_PATH` or its default; when that checkout is absent the
 nine adapter rows are reported as unverified and the 28 repository rows are
 still enforced.
+
+### Freeze v7 (2026-10-11)
+
+Superseding v6 after its first live sweep, in which Haiku classified public
+case B5, a benign transient, as `confirmed`. Its reproduction opened the
+timeout results page, waited for the processing state, advanced the controlled
+clock 30 000 ms of the 120 000 ms the poll timeout needs
+(`src/hooks/usePolling.ts`), and ran the oracle. `P1-05_TIMEOUT_STATE` failed
+because the timeout had not been reached yet, and its precondition only checked
+that the route had been opened, so the case was confirmed. The same kind of
+gap existed in real time: the sweep gave every observation 3 s
+(`SWEEP_TIMEOUT_MS`), while Phase 1 had recorded the original failure under its
+own longer waits, so a reproduction judged soon after its trigger could fail
+B1's navigation or B2's completed report for want of time. The Freeze v6 table
+below is kept byte for byte as history; its line saying `freeze.test.ts`
+verifies it describes the gate as it stood until v7.
+
+**The principle.** The investigator is never told to wait before `run_oracle`,
+and the prompt is frozen, so a reproduction is judged under the waits Phase 1
+recorded the failure under, not by a waiting rule the investigator was never
+given.
+
+- The original failed oracle is judged at the end of its Phase 1 wait chain,
+  counted from the chain's trigger (the submit click, the route opening, or the
+  controlled-clock advance): the sum of Phase 1's budgets along the chain,
+  `requireVisible` 8 s and `requireUrl` 30 s (`oracles.ts`) and Playwright's
+  default 30 s for `goto`. P1-02's navigation is judged until 30 s after the
+  click, its processing state until 38 s, its completed report until 46 s.
+  Time already spent since the trigger counts, so a reproduction that waited
+  is not made to wait again, and none is judged sooner than Phase 1 would have
+  been. The original failure's precondition is read after its wait.
+- The verify sweep shares that deadline, which expires once, instead of a
+  fixed 3 s per observation.
+- Controlled-clock states are the exception, because time passes under the
+  controlled clock only when the reproduction advances it. A failed P1-05
+  timeout observation can confirm only when more than 120 000 ms were advanced
+  since the route was last opened, counting only advances begun while the
+  status card was visible: the poll timeout is armed in the step that first
+  renders it. Otherwise the precondition is not met and the case is
+  `inconclusive`. The gate stands only between a failure and a confirmation; a
+  timeout state that did appear needs no such check.
+
+**What moved since v6.** Two files, both in `1514378`:
+`qa/browser/oracleRegistry.ts` (each observation's Phase 1 wait chain, what it
+waits for, and the controlled-clock check) and `qa/investigation/reproduction.ts`
+(records the submit click and the counted clock advances; `judgeReproduction`,
+extracted from `runOracle`, applies the waits and the gate). The prompt, the
+tool descriptions, the finding schema, the graders and the public cases are
+unchanged, and the other 35 rows carry their v6 hashes.
+
+**Not comparable with v6.** Classification results recorded under v6 are not
+comparable with v7. The same reproduction steps can be judged differently in
+both directions: a reproduction judged soon after its trigger no longer fails
+for want of time, and an under-advanced timeout no longer confirms. The oracle
+result an investigator reads after `run_oracle` can differ too, so the rest of
+a live run can as well.
+
+**Scripted public sweep at `1514378`** (scripted provider, 2026-10-11). All
+fourteen public cases matched their expected triage and classification:
+
+| Case | Triage | Classification | Wall |
+| --- | --- | --- | --- |
+| C1, C2, C3, B3 | expected | — | 9–19 s |
+| D1 | investigate | `confirmed` | 19 s |
+| D2 | investigate | `confirmed` | 79 s |
+| D3 | investigate | `confirmed` | 34 s |
+| D4 | investigate | `confirmed` | 70 s |
+| D7 | investigate | `confirmed` | 70 s |
+| D8 | investigate | `inconclusive` | 60 s |
+| D9 | investigate | `confirmed` | 61 s |
+| B1 | investigate | `not_reproduced` | 60 s |
+| B2 | investigate | `not_reproduced` | 34 s |
+| B5 | investigate | `not_reproduced` | 23 s |
+
+D1 is `confirmed`, which resolves the long-standing scripted D1 `inconclusive`
+seen in every earlier scripted run. The script runs the oracle right after
+opening `/sample`; under v6, `P1-01_NO_REST` was checked before D1's unexpected
+analysis request had been sent, so only `CONTRACT_UNEXPECTED_REQUEST` failed.
+v7 checks it after the page's network has gone idle and the sample report has
+rendered, as Phase 1 did. Where the original state never appears, the wait runs
+to the end of its chain: D4 and D7 took 70 s and D2 79 s, with no tool-call
+timeout.
+
+`freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `bec5c5176c6b38a5bee3745cec546fd1d1d77cdbc6c8e568c53af456a475d100` |
+| `adapter:src/qa-tools.ts` | `745117fa998d5da7db885087c3f5af9a10b7af2e0e6bead80d5d41ab225fa5a4` |
+| `adapter:cordis.yml` | `cb14edabb8f2c819268d03b166c190f80ffc02dd058d046f9b1ed86a71d1ba45` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `adapter:run-config.anthropic.yml` | `996694916d76eb5346a80ff8cd365bb1c5e435474fddcc3468c3c1f2795bc83c` |
+| `adapter:run-config.anthropic-haiku.yml` | `b6aff68226e9e27b29edd9d266fce103417eaa2b51cfe4b00a88f55c379787c3` |
+| `adapter:run-config.anthropic-opus.yml` | `fbcdf5976d914b6f605462c9c6673232a6e9ff614fb9f0cbe9d1e97bd938d9f2` |
+| `adapter:src/system-prompt.ts` | `f4eae4af1f8739cf140ecd33990836bd53c19e5359f3c3dbab5ec0225f820f3b` |
+| `adapter:src/pricing.ts` | `1559e8e4160ab6747d3d1aac916e2321869cd7e2ff7dad911b1b3297c30f2b32` |
+| `qa/investigation/finding.ts` | `973cd66da05b2bd257b748be6d128828745ab23ae4cafdb349582a06a24e780f` |
+| `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
+| `qa/investigation/budget.ts` | `b2a5feef1fec034e3c1c3685a7762e5b45eba46a2469929e1bc8f3c88e61161d` |
+| `qa/investigation/session.ts` | `d7d85c06b10091f3c2c367784be2cbc003a436b76260983979ece7b056987b66` |
+| `qa/investigation/errors.ts` | `8890d8f41bec0034be479ac2d5cf5bb8d6132541fd4daf308068e53868b7e9ec` |
+| `qa/investigation/evidenceReader.ts` | `92c30372a3e70d16c409dd2a493e2c620a855ed59c5e0e660264491517513acb` |
+| `qa/investigation/reproduction.ts` | `4de416f40f815a33190f4043ad6221f62440015ad7bfdae5846d4eb791203acc` |
+| `qa/investigation/cost.ts` | `1fe360e99eecdfe402ad951d8eb3d86981f849d5a01c0433496440b5993c8438` |
+| `qa/investigation/evalRunner/runCase.ts` | `d02e2251ef8b51455b4dca0dbec58082d5e1bd81ce085b3c5f7c0bcad14d8fee` |
+| `qa/investigation/evalCases.ts` | `cb7cecae87ebe23f85c355c40e726635c58b5f1fec4c30f1521db312905e1b92` |
+| `qa/browser/oracleRegistry.ts` | `1b46cf267f2c3acae7f5239476b4678d50a99ee082dd4f56e72b4c896a774e55` |
+| `qa/investigation/triage.ts` | `4f7153b63d43d02beacd52d928ba7f4643462fc6c24c1e575d684b03b9f88f27` |
+| `qa/investigation/rootCauseGold.ts` | `a15441a3e5944bf0f26533cf7dd13196ecd6ce8e98a6e59ba6285ddc81703dc3` |
+| `qa/investigation/rootCauseScore.ts` | `dbe5a364f0297e33f6529794912a4a6bb82677cad233f569782e1d9aadb9aa1e` |
+| `qa/investigation/goldEvidence.ts` | `a84ba136e4d3663d28965f7cbe36f3738da7d5583562252194ce5a5ff45b6fa1` |
+| `qa/investigation/goldProbe.ts` | `b3421e9d9288bf1c19b2e2d7c94116b1aca47e95916bc3ff5a8a702fa1a7b27d` |
+| `qa/investigation/heldoutDefinitions.ts` | `2116fe94c802f0901ca29188f07ad296b618ddb61184cc6c6c01f3dbd51733af` |
+| `qa/investigation/evalRunner/mutation.ts` | `2c24d0dea1599dd8867a625a6c6a94a7bcd3b9d235a943a849a0cf08f7190a50` |
+| `tests/e2e/evalCase.e2e.ts` | `c93916d905ca5cfd5b05404389225cc1949b4fd0f6402b528666321981963983` |
+| `qa/browser/scenarios.ts` | `1f146807f83623881da0a64a792794a75c08b50966b95d127f2167d840a004cc` |
+| `qa/browser/contractRouter.ts` | `92242a3db70e1d5bd0f30b3908b14b250e476d2c93537df6311d9b67668c4c67` |
+| `qa/browser/networkPolicy.ts` | `77f4734ffa4281b351476d3f678f099220fbf83aeec18bfc48f929d75f52d977` |
+| `qa/browser/evidence.ts` | `e2cce31f7d5f34d7ad333a4a48f2de25fbf778ea906d943c40def17ccd1a2d62` |
+| `qa/browser/uploadObservation.ts` | `eb45c67b874e07b8b30b5763a56d86eedd62b0da229bac8008998f9c6f2efb7c` |
+| `qa/browser/runReleaseCheck.ts` | `1bb6ee6c67a08dfdbce5929b837492bb9b34c57d188d1c1b770a596315c7ac4e` |
+| `qa/browser/oracles.ts` | `b76a8b3d33268b5f9f608679fb07186fcd51bcac7f277f5cf763ed60cdcf5ec4` |
+| `qa/browser/artifactValidator.ts` | `5d0d53c5327afeb08d83c6fdba4df14af56a41672aaa71d7d2539f013f9efeee` |
+| `qa/fixtures/data.ts` | `f39559c24e52b45512bc7639c8f30058702099aa841051912aed2dd6031fe305` |
+
+#### Frozen at
+
+| Checkout | Commit |
+| --- | --- |
+| ResumeMatch | `1514378b9d38b67073abcb9c7fb8a38494c87338` |
+| DeepSeek Harness | `015fa1305085bdf7fbac6e738eaf39207ad9b73a` |
+| `resumematch-qa-tools` adapter | `4041ae20ac9c2d6987e7ef8bf6fdebf9e45854fa` |
+
+The ResumeMatch commit is the one the hashes were taken at; the commit that adds
+this section changes only this document and its test, neither of which is
+frozen. The adapter rows were taken at the adapter commit above, unchanged since
+v6.
 
 ### Freeze v6 (2026-10-11)
 
