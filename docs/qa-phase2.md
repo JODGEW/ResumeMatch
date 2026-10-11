@@ -534,6 +534,167 @@ Measured after the fix:
   finish. The table reports it only as `no finding was submitted`; the error
   text survives only in the transcript.
 
+#### Post-fix results (2026-10-10)
+
+The thirteen cases were run again on all three Anthropic models after the fix,
+and compared with the pre-fix sweeps of 2026-10-08/09. The full analysis,
+including every quoted hit, is in `.qa-artifacts/analysis/postfix-comparison.md`.
+
+Run conditions:
+
+| Setting | Pre-fix | Post-fix |
+| --- | --- | --- |
+| ResumeMatch commit | `9c5e6d7` (Sonnet run1), `700e0c6` (all others) | `d6005e8`; Haiku run1 at `79fbad3`, which has the leak fix but not the output-path fix |
+| Models | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5` | same |
+| Overlays | `run-config.anthropic-haiku.yml`, `run-config.anthropic.yml`, `run-config.anthropic-opus.yml` (adapter `f8a1ecc`) | same |
+| Rates per 1M tokens (input / output / cache hit) | Haiku 0.10 / 0.50 / 0.01, Sonnet 2.00 / 10.00 / 0.10, Opus 4.00 / 20.00 / 0.20 | same |
+| Investigation ceiling | $1.00 Haiku and Sonnet, $2.00 Opus, as configured in each overlay | same |
+| Sweep ceiling | $5.00 (`EVALUATION_COST_LIMIT_USD`, `qa/investigation/cost.ts`) | same |
+| Effort | Anthropic's documented defaults: Haiku 5.5 medium, Sonnet 5.5 high, Opus 5.5 medium (https://platform.claude.com/docs/en/models/overview, checked 2026-10-08). This setup sends no effort parameter, so the level could not be verified or changed here | same |
+| Prompt caching | off (`cacheRetention: none`) | same |
+| Sweeps (n) | Haiku 5, Sonnet 5, Opus 1 complete + 1 partial | Haiku 5, Sonnet 5, Opus 3 |
+
+Pre-fix Opus coverage:
+
+- Run1 is complete.
+- Run2 counts for D5, D6 and D1–D4. Its B1 and B2 ended on a provider 400.
+- Runs 3, 4 and 5 are excluded: every model-calling case ended on a provider 400.
+- Each of those 26 excluded cases failed on the account's monthly API spend
+  limit, not on model behaviour. The transcript reads "You have reached your
+  specified API usage limits", and the case made 0 requests.
+
+Data integrity, checked before comparing:
+
+- For each post-fix run, the table re-rendered from `summary.json` equals the
+  printed table, and each `<case>.json` equals its summary entry.
+- No case recorded `model usage not recorded; cost ceilings were not enforced`.
+- Every case has triage ok and classification ok.
+- Request-log lines equal transcript usage events in every case except Haiku
+  run1, whose logs were lost.
+- Every recorded cost equals its request log priced at the overlay rates.
+
+Classification: every post-fix run matched 13 of 13 on every model. The pre-fix
+runs also matched every counted case: 13/13, and 11/11 for Opus run2.
+
+Sweep totals, as mean (min–max):
+
+| Model | Pre n | Pre requests | Pre cost | Post n | Post requests | Post cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| Haiku | 5 | 77 (72–82) | $0.1125 (0.1056–0.1195) | 5 | 79.2 (75–82) | $0.1149 (0.1086–0.1206) |
+| Sonnet | 5 | 81.6 (79–85) | $1.9645 (1.8951–2.0553) | 5 | 82.6 (80–85) | $1.9495 (1.8837–2.0108) |
+| Opus | 1 | 81 | $4.1682 | 3 | 84.3 (82–88) | $4.5308 (4.3771–4.8176) |
+
+Requests per case, as mean (min–max). n is 5 for Haiku and Sonnet. For Opus it
+is 2 pre-fix (1 for B1 and B2) and 3 post-fix:
+
+| Case | Haiku pre | Haiku post | Sonnet pre | Sonnet post | Opus pre | Opus post |
+| --- | --- | --- | --- | --- | --- | --- |
+| D5 | 8.2 (7–9) | 8 (7–9) | 9.2 (9–10) | 9 (9) | 9 (9) | 9 (9) |
+| D6 | 9.4 (8–10) | 10.4 (9–11) | 9.2 (9–10) | 10.2 (10–11) | 10.5 (10–11) | 10.3 (10–11) |
+| D1 | 8.2 (6–11) | 7.4 (6–9) | 8.2 (8–9) | 8.2 (8–9) | 8.5 (8–9) | 8.7 (8–10) |
+| D2 | 10.8 (9–12) | 10 (9–11) | 10.4 (10–11) | 10.4 (10–11) | 9.5 (9–10) | 11 (11) |
+| D3 | 9.6 (9–10) | 10.8 (10–13) | 11.2 (11–12) | 10.8 (10–11) | 12.5 (12–13) | 12.3 (12–13) |
+| D4 | 10.4 (9–11) | 11 (10–12) | 11.6 (11–13) | 11.4 (11–12) | 8.5 (7–10) | 11 (10–12) |
+| B1 | 10.2 (8–12) | 10.2 (8–13) | 11.4 (11–12) | 12 (11–13) | 10 | 12 (11–13) |
+| B2 | 10.2 (9–11) | 11.4 (10–12) | 10.4 (10–11) | 10.6 (10–11) | 11 | 10 (10) |
+
+Cost per case in USD, as mean (min–max). n as above:
+
+| Case | Haiku pre | Haiku post | Sonnet pre | Sonnet post | Opus pre | Opus post |
+| --- | --- | --- | --- | --- | --- | --- |
+| D5 | .0113 (.0099–.0127) | .0109 (.0095–.0125) | .2137 (.2027–.2496) | .2008 (.1995–.2029) | .4529 (.4482–.4576) | .4593 (.4517–.4737) |
+| D6 | .0196 (.0177–.0210) | .0209 (.0193–.0225) | .2264 (.2186–.2470) | .2491 (.2427–.2703) | .5698 (.5517–.5880) | .5805 (.5576–.6183) |
+| D1 | .0100 (.0078–.0130) | .0092 (.0080–.0108) | .1748 (.1631–.2081) | .1728 (.1565–.1886) | .4068 (.3853–.4283) | .4274 (.3829–.5128) |
+| D2 | .0148 (.0127–.0164) | .0138 (.0125–.0150) | .2468 (.2362–.2590) | .2479 (.2314–.2765) | .4990 (.4913–.5068) | .5862 (.5607–.6014) |
+| D3 | .0135 (.0127–.0144) | .0146 (.0124–.0166) | .2691 (.2558–.3063) | .2534 (.2438–.2634) | .6160 (.5785–.6535) | .6559 (.6067–.7360) |
+| D4 | .0154 (.0133–.0171) | .0157 (.0153–.0164) | .3030 (.2830–.3579) | .2912 (.2796–.3094) | .4642 (.3810–.5474) | .6538 (.5632–.7250) |
+| B1 | .0136 (.0114–.0159) | .0136 (.0109–.0181) | .2764 (.2658–.2905) | .2825 (.2593–.3145) | .5223 | .6401 (.5935–.6701) |
+| B2 | .0143 (.0130–.0155) | .0162 (.0142–.0176) | .2542 (.2428–.2727) | .2518 (.2374–.2615) | .5756 | .5276 (.4938–.5464) |
+
+Gold probes, as gold / gold3 / gold4x per run. Each run counts the cases with a
+gold probe (D1–D4 and B1), 5 per run, except Opus pre-fix run2 at 4:
+
+| Model | Pre-fix runs | Pre-fix pooled | Post-fix runs | Post-fix pooled |
+| --- | --- | --- | --- | --- |
+| Haiku | 0/0/3, 0/1/3, 0/0/1, 0/1/3, 0/1/3 | 0/25, 3/25, 13/25 | 0/1/3, 0/0/1, 0/0/2, 0/1/2, 0/1/2 | 0/25, 3/25, 10/25 |
+| Sonnet | 0/1/4, 0/1/5, 0/1/4, 0/1/4, 0/1/4 | 0/25, 5/25, 21/25 | 0/1/4, 0/1/5, 0/1/5, 0/1/5, 0/1/4 | 0/25, 5/25, 23/25 |
+| Opus | 0/1/5, 0/1/4 | 0/9, 2/9, 9/9 | 0/1/5, 0/1/4, 0/1/4 | 0/15, 3/15, 13/15 |
+
+First probe, over model-calling cases:
+
+| Model | Pre-fix | Post-fix |
+| --- | --- | --- |
+| Haiku | `read_failed_assertion` 40/40 | `read_failed_assertion` 40/40 |
+| Sonnet | `read_failure_manifest` 40/40 | `read_failure_manifest` 40/40 |
+| Opus | `read_failure_manifest` 9/14, `read_failed_assertion` 5/14 | `read_failure_manifest` 24/24 |
+
+Finding text. Each cell is the number of submitted findings whose free text
+contains the term at least once, case-insensitive. "Case id" means C1–C3, D1–D6
+or B1–B4 as a whole word:
+
+| Model | Phase | Findings | Case id | `mutation` | `seeded` | `evaluationIdentity` | `transient` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Haiku | pre | 40 | 20 | 17 | 0 | 0 | 13 |
+| Haiku | post | 40 | 0 | 0 | 0 | 0 | 3 |
+| Sonnet | pre | 40 | 34 | 30 | 0 | 0 | 14 |
+| Sonnet | post | 40 | 0 | 0 | 0 | 0 | 7 |
+| Opus | pre | 14 | 14 | 11 | 0 | 0 | 5 |
+| Opus | post | 24 | 0 | 0 | 0 | 0 | 5 |
+
+The 15 post-fix `transient` hits:
+
+- All 15 are in B1 or B2. They are the model's own wording for the 503 or
+  aborted request it observed. Examples:
+  - Sonnet run1 B1: "an injected or transient 503 on the upload POST".
+  - Opus run3 B2: "a transient or order-dependent gap in route registration or mock state".
+- The word appears in zero tool results post-fix. A scan of every post-fix tool
+  result found:
+  - no case id, no `mutation`, no `seeded`, no `transient`, and no fault name;
+  - `evaluationIdentity` only as the `"evaluationIdentity": null` key the fixed
+    view returns.
+
+Mean wall time per case, in seconds. n as above:
+
+| Case | Haiku pre | Haiku post | Sonnet pre | Sonnet post | Opus pre | Opus post |
+| --- | --- | --- | --- | --- | --- | --- |
+| D5 | 69 | 71 | 70 | 69 | 88 | 96 |
+| D6 | 68 | 71 | 69 | 72 | 87 | 100 |
+| D1 | 29 | 32 | 33 | 32 | 44 | 59 |
+| D2 | 75 | 80 | 72 | 73 | 92 | 103 |
+| D3 | 48 | 54 | 52 | 52 | 68 | 86 |
+| D4 | 82 | 83 | 85 | 84 | 90 | 114 |
+| B1 | 72 | 78 | 76 | 77 | 86 | 106 |
+| B2 | 48 | 52 | 51 | 50 | 100 | 73 |
+| B4 | 14 | 16 | 14 | 14 | 14 | 14 |
+| C1 | 6 | 8 | 6 | 6 | 6 | 6 |
+| C2 | 16 | 17 | 16 | 16 | 16 | 16 |
+| C3 | 16 | 18 | 16 | 16 | 16 | 16 |
+| B3 | 16 | 17 | 16 | 16 | 16 | 16 |
+
+Notes:
+
+- Haiku run1 lost its request logs to the `--output` path bug fixed in
+  `d6005e8`. Its requests and cost were rebuilt from its transcripts, one request
+  per `assistant/message` event that carries usage. The rebuilt table is
+  `.qa-artifacts/postfix-haiku-run1.corrected.txt`; the printed one is kept
+  unchanged.
+- Opus sweeps ran at $4.38–$4.82 against the $5.00 sweep ceiling
+  (`EVALUATION_COST_LIMIT_USD` in `qa/investigation/cost.ts`). The most
+  expensive Opus case was $0.7360, against its $2.00 investigation ceiling.
+- The D1 `inconclusive` result from the scripted provider predates the fix and
+  is unexplained.
+
+Observations:
+
+- After the fix, finding text no longer names case ids.
+- For Haiku and Sonnet, classification, requests, cost and probe paths changed
+  little.
+- Opus has only one complete pre-fix sweep, so its change is not characterised.
+- These are observed differences at small n, not significance tests.
+- Pre-fix probe and wording numbers were measured with the identity visible.
+  They appear beside the post-fix numbers to show what changed when it was
+  hidden, not as like-for-like results.
+
 ### Evaluation copies
 
 Each case runs in a detached `git worktree` under the system temp directory, never inside the main worktree, and the main worktree must be clean before one is created. The mutation applier takes a case id only — never a patch — resolves it through a registry, requires its anchor to match exactly once, and re-counts both strings after the write.
