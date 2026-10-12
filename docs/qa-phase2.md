@@ -721,6 +721,129 @@ Limits:
   so only the classifications compare with post-fix runs; see
   [Investigator-view leak and fix](#investigator-view-leak-and-fix-2026-10-10).
 
+## Freeze v7 live results (2026-10-11)
+
+These are the first live sweeps under Freeze v7: all twenty cases, on three
+Anthropic models and DeepSeek. Held-out results appear only as aggregates. The
+full analysis, with per-run and per-case values and a cause for every miss, is
+in `.qa-artifacts/analysis/v7-sweeps.md`.
+
+Run conditions:
+
+| Setting | Value |
+| --- | --- |
+| ResumeMatch | `1f7e1a0` (the Freeze v7 record), `worktreeDirty: false` in every investigation manifest |
+| Adapter | `4041ae20ac9c2d6987e7ef8bf6fdebf9e45854fa`, recorded as `adapterCommit` in every case result |
+| Harness | `015fa1305085bdf7fbac6e738eaf39207ad9b73a`, the checkout's HEAD; case results don't record it |
+| Models | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`, `deepseek-v4-flash` |
+| Overlays (all Freeze v7 rows) | `run-config.anthropic-haiku.yml`, `run-config.anthropic.yml`, `run-config.anthropic-opus.yml`, `run-config.yml` |
+| Effort | Anthropic: no effort parameter is sent, so the documented defaults apply (Haiku 5.5 medium, Sonnet 5.5 high, Opus 5.5 medium), unverifiable here. DeepSeek: `reasoningEffort: max`, from the request header |
+| Prompt caching | Anthropic off (`cacheRetention: none`; 0 cache-hit tokens). DeepSeek provider-side, about 94% of prompt tokens served as cache hits |
+| Rates per 1M tokens (input / output / cache hit) | Haiku 0.10 / 0.50 / 0.01, Sonnet 2 / 10 / 0.10, Opus 4 / 20 / 0.20, DeepSeek 0.44 / 1.32 / 0.014 |
+| Investigation ceiling | Haiku and Sonnet $1.00, Opus $2.00, DeepSeek $0.25 |
+| Sweep limit (`sweepLimitUsd`) | Haiku $5, Sonnet $8, Opus $15, DeepSeek $5 |
+| Sweeps (n) | Haiku 5, Sonnet 5, Opus 3, DeepSeek 3 |
+
+Data integrity, checked before comparing, on all 16 sweeps:
+
+- The table re-rendered from `summary.json` equals the printed table, total
+  line included, and each `<case>.json` equals its summary entry.
+- Request-log lines, `modelRequests` and the transcript's usage events agree in
+  every case.
+- Every cost equals its request log priced at the rates above.
+- No case recorded an error.
+- Every transcript names only its sweep's model.
+
+Per model. A sweep has 15 investigations: 10 public and 5 held-out. Attribution,
+triple and undetermined are counted over graded findings: 10 public and 4
+held-out per sweep. Column set (a) counts every graded finding; set (b) leaves
+out D8 and a held-out case of the same pattern as D8 (see Known issues below).
+
+| Model | n | Classification ok, public | Classification ok, held-out | Attribution (a) | Triple (a) | Undetermined (a) | Attribution (b) | Triple (b) | Undetermined (b) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Haiku 5.5 | 5 | 45/50 | 20/25 | 52/70 | 45/70 | 13/70 | 52/60 | 45/60 | 4/60 |
+| Sonnet 5.5 | 5 | 50/50 | 24/25 | 60/70 | 55/70 | 1/70 | 60/60 | 55/60 | 0/60 |
+| Opus 5.5 | 3 | 30/30 | 15/15 | 36/42 | 34/42 | 0/42 | 36/36 | 34/36 | 0/36 |
+| DeepSeek v4 flash | 3 | 29/30 | 14/15 | 37/42 | 34/42 | 0/42 | 35/36 | 34/36 | 0/36 |
+
+Attribution (a), split:
+
+| Model | Public | Held-out |
+| --- | --- | --- |
+| Haiku 5.5 | 38/50 | 14/20 |
+| Sonnet 5.5 | 45/50 | 15/20 |
+| Opus 5.5 | 27/30 | 9/12 |
+| DeepSeek v4 flash | 28/30 | 9/12 |
+
+Classification:
+
+- **No false confirms.** No benign investigation was classified `confirmed`:
+  0 of 64. That is four per sweep (three public, one held-out) across all
+  16 sweeps.
+- **Every classification miss is `inconclusive`.** There are 13 misses among the
+  240 investigations: Haiku 10, Sonnet 1, DeepSeek 2, Opus 0.
+  - 6 are public, all B5 (Haiku 5, DeepSeek 1). Each was judged before the
+    controlled clock had passed the polling timeout, so the v7 clock gate held
+    the precondition unmet.
+  - 7 are held-out (Haiku 5, Sonnet 1, DeepSeek 1).
+- **The original v7 case is fixed.** Public B5's v6 false confirm does not recur
+  in any model.
+
+The P1-05 clock finding, on public B5 (n=16): the classification was
+`not_reproduced`, as expected, exactly when the investigator had advanced the
+controlled clock past 120 000 ms. Otherwise it was `inconclusive`.
+
+| Model | Past 120 000 ms, `not_reproduced` | At most 120 000 ms, `inconclusive` |
+| --- | --- | --- |
+| Haiku 5.5 | 0 | 5 (one advance each, 8 000–60 000 ms) |
+| Sonnet 5.5 | 5 (one 180 000 ms advance each) | 0 |
+| Opus 5.5 | 3 (one 180 000 ms advance each) | 0 |
+| DeepSeek v4 flash | 2 | 1 (one 60 000 ms advance) |
+
+`wait_for_state` does not move the controlled clock, so a reproduction that
+waits for the timeout report without advancing past the threshold times out.
+Four of Haiku's five B5 findings then read the short window's low poll count as
+polling stopping early, and attributed a product defect.
+
+Cost and size per sweep, as mean (min–max):
+
+| Model | n | Requests | Cost | Mean case wall time per investigation |
+| --- | --- | --- | --- | --- |
+| Haiku 5.5 | 5 | 149.4 (143–154) | $0.2078 ($0.1996–$0.2142) | 70 s |
+| Sonnet 5.5 | 5 | 154.2 (148–163) | $3.7030 ($3.4902–$4.0050) | 72 s |
+| Opus 5.5 | 3 | 150.7 (148–156) | $7.6654 ($7.4046–$8.0170) | 94 s |
+| DeepSeek v4 flash | 3 | 185.7 (182–188) | $0.3629 ($0.3502–$0.3713) | 137 s |
+
+DeepSeek's cost reflects provider-side caching while the Anthropic runs had
+caching off, so this is not a like-for-like price comparison. Case wall time
+includes model latency; it is not the reproduction wall clock, which is still
+not enforced (see [Runner](#runner)).
+
+Known issues, recorded rather than fixed. Both would need a prompt-wording
+change, which would be a future v8; none is proposed here.
+
+- **D8 and a held-out case of the same pattern: the root cause is ambiguous.**
+  - In both, the original failure was caused by the transient fault, and the
+    seeded defect surfaces only as a different failure in the reproduction.
+  - So "the root cause of the recorded failure" can be read two ways: the
+    transient that caused the recorded failure, or the defect the gold grades.
+  - Nearly every finding answered for the transient or abstained. On D8, across
+    16 findings: 10 attributed the transient; 4 were `undetermined`; 2
+    (DeepSeek) blamed the app for not handling the transient error. None named
+    the seeded defect's route and failure mode.
+  - Set (b) above shows how much these two cases move the attribution numbers.
+- **D7 `failureMode`.** 11 of 16 D7 findings named the failure mode after the
+  original run's aborted poll (`aborted_response`). The gold is
+  `stopped_early`: the reproduction stops polling with no abort at all.
+- **Evidence source.** `read_network_events` reads only the original run, and
+  reads are locked once `run_oracle` has run. In several findings a model took
+  the original run's events for the reproduction's, or tried to read the
+  reproduction after the oracle and was refused.
+
+Limits: n is 5 for Haiku and Sonnet and 3 for Opus and DeepSeek, and no
+significance is claimed. Effort for the Anthropic models is their default and
+could not be set or verified.
+
 ## Evaluation identity
 
 A run that belongs to the evaluation corpus carries `evaluationIdentity` in its manifest; a release check carries `null`. It records the case id, the mutation applied, the transient faults configured, a source digest, a build digest, and a worktree label. The label is deliberately not a path: an absolute temp path would carry the operator's home directory into evidence.
