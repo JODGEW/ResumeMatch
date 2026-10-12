@@ -65,3 +65,5 @@ ops/deletion-manifests/
 # Held-out Phase 2 evaluation definitions: kept out of the repository so the
 # investigator cannot be tuned against them.
 qa/investigation/heldout/
+
+.claude/
