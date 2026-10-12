@@ -11,7 +11,7 @@ import { INVESTIGATION_BUDGET, InvestigationSession, type ReproductionDriver } f
 import { createInvestigationDirectory, newInvestigationId } from './paths'
 import type { AllowedAction } from './actions'
 import type { ReproductionOracleResult } from './finding'
-import type { EvidenceManifest, NetworkEvent, SafetyViolation } from '../browser/types'
+import type { EvaluationIdentity, EvidenceManifest, NetworkEvent, SafetyViolation } from '../browser/types'
 
 class FakeDriver implements ReproductionDriver {
   started = 0
@@ -61,6 +61,7 @@ const NARRATIVE = {
   reasoningSummary: 'The terminal response was treated as in progress.',
   evidenceRefs: [] as string[],
   hypotheses: [{ statement: 'Terminal status is misclassified.', evidenceRefs: [] as string[], confidence: 'high' }],
+  rootCause: { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'stopped_early' },
 }
 
 function manifest(): EvidenceManifest {
@@ -251,11 +252,121 @@ describe('evidence containment', () => {
   })
 })
 
+describe('manifest view', () => {
+  const CLEAN = { headCommit: 'a'.repeat(40), worktreeDirty: false, exactCommittedSource: true, releaseGrade: false }
+  const DIRTY = { headCommit: 'a'.repeat(40), worktreeDirty: true, exactCommittedSource: false, releaseGrade: false }
+
+  function identity(caseId: string, seeded: boolean): EvaluationIdentity {
+    return {
+      caseId,
+      mutationApplied: seeded ? caseId : null,
+      transientFaults: seeded ? [] : ['upload_503_once'],
+      sourceDigest: 'e'.repeat(64),
+      buildDigest: 'f'.repeat(64),
+      worktreeLabel: `${'a'.repeat(12)}-${caseId.toLowerCase()}`,
+      approvedRequestHashes: [],
+    }
+  }
+
+  async function view(onDisk: EvidenceManifest): Promise<Record<string, unknown>> {
+    await writeFile(path.join(runDirectory, 'manifest.json'), JSON.stringify(onDisk))
+    return await session.call('read_failure_manifest', {}) as Record<string, unknown>
+  }
+
+  it('shows a seeded and a benign evaluation run identically, as a clean committed release run', async () => {
+    const seeded = await view({ ...manifest(), sourceIdentity: DIRTY, evaluationIdentity: identity('D1', true) })
+    const benign = await view({ ...manifest(), sourceIdentity: CLEAN, evaluationIdentity: identity('B1', false) })
+    expect(seeded.evaluationIdentity).toBeNull()
+    expect(benign.evaluationIdentity).toBeNull()
+    expect(seeded.sourceIdentity).toEqual(CLEAN)
+    expect(seeded).toEqual(benign)
+    expect(JSON.stringify(seeded)).not.toMatch(/\bD1\b|-d1\b|mutation|upload_503_once/i)
+  })
+
+  it('leaves the real identity on disk', async () => {
+    await view({ ...manifest(), sourceIdentity: DIRTY, evaluationIdentity: identity('D1', true) })
+    const persisted = JSON.parse(await readFile(path.join(runDirectory, 'manifest.json'), 'utf8')) as EvidenceManifest
+    expect(persisted.evaluationIdentity?.caseId).toBe('D1')
+    expect(persisted.sourceIdentity).toEqual(DIRTY)
+  })
+
+  it('returns a release run unchanged, dirty worktree included', async () => {
+    const clean = { ...manifest(), sourceIdentity: CLEAN, evaluationIdentity: null }
+    const dirty = { ...manifest(), sourceIdentity: DIRTY, evaluationIdentity: null }
+    expect(await view(clean)).toEqual(clean)
+    expect(await view(dirty)).toEqual(dirty)
+  })
+})
+
 describe('probe arguments', () => {
   it('filters console events by type and bounds the limit', async () => {
     expect(await session.call('read_console_events', { typeFilter: 'error' })).toEqual([{ type: 'error', text: 'boom' }])
     await expect(session.call('read_console_events', { limit: 0 })).rejects.toMatchObject({ code: 'INVALID_ARGUMENTS' })
     await expect(session.call('read_console_events', { grep: 'x' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENTS' })
+  })
+})
+
+describe('budget refusal accounting', () => {
+  const refusal = async (tool: string, args: Record<string, unknown> = {}) => {
+    try {
+      await session.call(tool, args)
+    } catch (error) {
+      return error as { code: string; message: string }
+    }
+    throw new Error(`${tool} was not refused`)
+  }
+
+  it('says a refused probe still used a tool call, how many remain, and that further probes are refused too', async () => {
+    for (let index = 0; index < INVESTIGATION_BUDGET.probes; index += 1) await session.call('read_page_errors', {})
+    const first = await refusal('read_page_errors')
+    expect(first).toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    expect(first.message).toBe(
+      'Budget for probes is exhausted (limit 8). This refused call still used one of the 20 tool calls; 11 remain. '
+      + 'Further probes will also be refused, and each will still use a tool call.',
+    )
+    expect(session.status().remaining.toolCalls).toBe(11)
+    expect((await refusal('read_page_errors')).message).toContain('still used one of the 20 tool calls; 10 remain.')
+    expect(session.status().remaining.toolCalls).toBe(10)
+  })
+
+  it('says a call refused by another per-kind ceiling still used a tool call', async () => {
+    await session.call('start_fresh_reproduction', {})
+    for (let index = 0; index < INVESTIGATION_BUDGET.actions; index += 1) {
+      await session.call('execute_allowed_action', { action: { kind: 'open_route', route: 'results' } })
+    }
+    const refused = await refusal('execute_allowed_action', { action: { kind: 'open_route', route: 'results' } })
+    expect(refused.message).toBe('Budget for actions is exhausted (limit 8). This refused call still used one of the 20 tool calls; 10 remain.')
+    expect(session.status().remaining.toolCalls).toBe(10)
+  })
+
+  it('says a call refused by the 20-call ceiling did not use one, and records the message it returned', async () => {
+    for (let index = 0; index < INVESTIGATION_BUDGET.probes; index += 1) await session.call('read_page_errors', {})
+    for (let index = INVESTIGATION_BUDGET.probes; index < INVESTIGATION_BUDGET.toolCalls; index += 1) await refusal('read_page_errors')
+    expect(session.status().remaining.toolCalls).toBe(0)
+    const refused = await refusal('read_page_errors')
+    expect(refused.message).toBe(
+      'Budget for toolCalls is exhausted (limit 20). This refused call did not use a tool call; none remain, and only submit_finding is available.',
+    )
+    await session.call('submit_finding', { finding: NARRATIVE })
+    expect(session.submittedFinding()?.rejectedCalls.at(-1)).toEqual({ tool: 'read_page_errors', reason: refused.message })
+  })
+
+  it('reports the actual outcome when the wall clock refuses a call', async () => {
+    let now = 1_000
+    const directories = await createInvestigationDirectory(approvedRoot, newInvestigationId())
+    const timed = new InvestigationSession({
+      investigationId: 'inv-clock', findingId: 'f-clock', runDirectory, manifest: manifest(), directories,
+      driver: new FakeDriver(directories.reproductionDirectory), model: { provider: 'fake', modelId: 'fake-1' },
+      checkouts: { resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) },
+      now: () => now,
+    })
+    await timed.call('read_page_errors', {})
+    now += INVESTIGATION_BUDGET.wallClockMs + 1
+    await expect(timed.call('read_page_errors', {})).rejects.toMatchObject({
+      code: 'BUDGET_EXHAUSTED',
+      message: 'Investigation wall-clock budget is exhausted. This refused call did not use a tool call; 19 remain. '
+        + 'Every further call except submit_finding will also be refused.',
+    })
   })
 })
 
@@ -302,7 +413,11 @@ describe('cost gate', () => {
     const { session } = await costSession(0.01)
     session.recordUsage({ cacheHitTokens: 0, cacheMissTokens: 0, completionTokens: 1_000_000 }, new Date('2026-08-20T12:00:00Z'))
     expect(session.status().budgetExhausted).toBe(true)
-    await expect(session.call('start_fresh_reproduction', {})).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
+    await expect(session.call('start_fresh_reproduction', {})).rejects.toMatchObject({
+      code: 'BUDGET_EXHAUSTED',
+      message: 'The investigation cost ceiling is exhausted; only submit_finding remains. This refused call did not use a tool call.',
+    })
+    expect(session.status().remaining.toolCalls).toBe(INVESTIGATION_BUDGET.toolCalls)
     await session.call('submit_finding', { finding: NARRATIVE })
     expect(session.submittedFinding()?.classification).toBe('inconclusive')
     expect(session.submittedFinding()?.usage.costUsd).toBeCloseTo(1.32, 10)

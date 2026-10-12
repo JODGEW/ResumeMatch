@@ -1,0 +1,59 @@
+import type { RootCause } from './finding'
+import type { HeldOutDefinition } from './heldoutDefinitions'
+
+/**
+ * The root cause a correct investigation names, per public case.
+ *
+ * Each answer is determinable from evidence the investigator can see: the
+ * transition log, network events (redacted as recorded), request counts, and
+ * the reproduction's oracle result. `null` marks a case that never reaches an
+ * investigator, so there is nothing to grade. A held-out case's answer lives in
+ * its gitignored definition, not here, and is graded only when that definition
+ * carries one. A case with no answer anywhere is not graded, so a missing
+ * answer can never count as a miss.
+ */
+export const PUBLIC_ROOT_CAUSE_GOLD: ReadonlyMap<string, RootCause | null> = new Map<string, RootCause | null>([
+  // Triage `expected`: no investigation runs.
+  ['C1', null],
+  ['C2', null],
+  ['C3', null],
+  // The product absorbs the S3 500, so the run passes and triage is `expected`.
+  ['B3', null],
+  // `contract-violation:analysis-method-id-query-or-count` on /sample, which
+  // P1-01_NO_REST says must make no API request.
+  ['D1', { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'unexpected_request' }],
+  // `contract-violation:new-upload-body-schema`; the POST is blocked carrying an
+  // unexpected (redacted) field.
+  ['D2', { attribution: 'product_defect', routeTemplate: '/upload', failureMode: 'malformed_request' }],
+  // No `s3-contract` transition and no S3 request at all; CONTRACT_S3_COUNT fails.
+  ['D3', { attribution: 'product_defect', routeTemplate: '/synthetic-upload', failureMode: 'missing_request' }],
+  // The last transition is `analysis:processing` with no abort; the reproduction fails again.
+  ['D4', { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'stopped_early' }],
+  // `upload-response:503`; the reproduction is not reproduced.
+  ['B1', { attribution: 'transient_or_environment', routeTemplate: '/upload', failureMode: 'error_response' }],
+  // `analysis-response:aborted` with no contract violation; the reproduction passes.
+  ['B2', { attribution: 'transient_or_environment', routeTemplate: '/analysis/:analysisId', failureMode: 'aborted_response' }],
+  // The original run matches B2; the reproduction's count_requests shows two
+  // analysis requests ending at processing, and the oracle fails the completed report.
+  ['D7', { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'stopped_early' }],
+  // The original run matches B1; in the reproduction one request is blocked and
+  // CONTRACT_NO_VIOLATIONS fails. The upload was accepted (the page navigated)
+  // and all three polls completed, so the blocked request is the S3 upload.
+  ['D8', { attribution: 'product_defect', routeTemplate: '/synthetic-upload', failureMode: 'malformed_request' }],
+  // contract-violation:analysis-method-id-query-or-count; the analysis request is
+  // blocked carrying an unknown query key instead of userId.
+  ['D9', { attribution: 'product_defect', routeTemplate: '/analysis/:analysisId', failureMode: 'malformed_request' }],
+  // `analysis-response:aborted` with no contract violation; the reproduction reaches the timeout.
+  ['B5', { attribution: 'transient_or_environment', routeTemplate: '/analysis/:analysisId', failureMode: 'aborted_response' }],
+])
+
+/**
+ * The graded answer for one case.
+ * @param caseId - corpus case id.
+ * @param heldOut - the case's held-out definition, when it is held out.
+ * @returns the answer, or null when the case is not graded.
+ */
+export function goldRootCause(caseId: string, heldOut?: HeldOutDefinition): RootCause | null {
+  if (PUBLIC_ROOT_CAUSE_GOLD.has(caseId)) return PUBLIC_ROOT_CAUSE_GOLD.get(caseId) ?? null
+  return heldOut?.caseId === caseId ? heldOut.rootCause ?? null : null
+}

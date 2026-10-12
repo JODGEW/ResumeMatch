@@ -221,3 +221,19 @@ export class CostLedger {
 export function sweepHasBudget(spentUsd: number, limitUsd: number = EVALUATION_COST_LIMIT_USD): boolean {
   return spentUsd < limitUsd
 }
+
+/**
+ * The sweep ceiling an operator chose with `--sweep-cost-limit`, so an expensive
+ * model's sweep is raised or split deliberately rather than stopped part-way.
+ * @param value - the flag's value, or undefined when the flag is absent.
+ * @returns the ceiling in dollars; {@link EVALUATION_COST_LIMIT_USD} without the flag.
+ * @throws when the value is not a positive, finite number of dollars.
+ */
+export function parseSweepCostLimit(value: string | undefined): number {
+  if (value === undefined) return EVALUATION_COST_LIMIT_USD
+  const limitUsd = Number(value)
+  if (value.trim() === '' || !Number.isFinite(limitUsd) || limitUsd <= 0) {
+    throw new Error(`--sweep-cost-limit must be a positive number of dollars, received '${value}'`)
+  }
+  return limitUsd
+}

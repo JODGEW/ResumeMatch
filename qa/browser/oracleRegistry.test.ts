@@ -1,6 +1,10 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import process from 'node:process'
+
 import { describe, expect, it } from 'vitest'
 
-import { oracleById, oraclesForScenario, verifyOraclesForScenario } from './oracleRegistry'
+import { oracleById, oraclesForScenario, PHASE1_URL_MS, PHASE1_VISIBLE_MS, verifyOraclesForScenario } from './oracleRegistry'
 import type { OracleContext } from './oracleRegistry'
 import { createScenario } from './scenarios'
 import type { Page } from '@playwright/test'
@@ -56,6 +60,72 @@ describe('P1-02_RESULTS_NAVIGATION precondition', () => {
     // upload was rejected — the one where "did it navigate" matters.
     expect(oracle?.precondition?.(context({ uploads: 1, violation: 'new-upload-body-schema' }))).toBe(true)
     expect(oracle?.precondition?.(context({ uploads: 0 }))).toBe(false)
+  })
+})
+
+describe('Phase 1 wait chain', () => {
+  it('starts each original failure where Phase 1 started waiting for it, with its summed budget', () => {
+    const chain = (scenarioId: 'P1-01' | 'P1-02' | 'P1-04' | 'P1-05', id: string) => oracleById(scenarioId, id)?.chain
+    // requireUrl 30 s from the click; then requireVisible 8 s per state.
+    expect(chain('P1-02', 'P1-02_RESULTS_NAVIGATION')).toEqual({ after: 'reproduction-click:Analyze Resume', withinMs: 30_000 })
+    expect(chain('P1-02', 'P1-02_PROCESSING_STATE')).toEqual({ after: 'reproduction-click:Analyze Resume', withinMs: 38_000 })
+    expect(chain('P1-02', 'P1-02_COMPLETED_REPORT')).toEqual({ after: 'reproduction-click:Analyze Resume', withinMs: 46_000 })
+    // Conditions get the gate's chain; visible ids on the gate's page add one requireVisible.
+    expect(chain('P1-02', 'CONTRACT_S3_COUNT')).toEqual({ after: 'reproduction-click:Analyze Resume', withinMs: 46_000 })
+    expect(chain('P1-02', 'COMPLETED_JOB_TITLE')).toEqual({ after: 'reproduction-click:Analyze Resume', withinMs: 54_000 })
+    // goto's default 30 s navigation budget, then the first requireVisible.
+    expect(chain('P1-01', 'P1-01_NO_REST')).toEqual({ after: 'reproduction-open:/sample', withinMs: 38_000 })
+    expect(chain('P1-04', 'P1-04_FAILED_STATE')).toEqual({ after: 'reproduction-open:/results/qa-failed-1', withinMs: 46_000 })
+    // The timeout state's real-time wait starts at the controlled-clock advance.
+    expect(chain('P1-05', 'P1-05_TIMEOUT_STATE')).toEqual({ after: 'reproduction-clock:', withinMs: 8_000 })
+  })
+
+  it('gives every id Phase 1 raises a chain and a wait, and none to the one it never raises', () => {
+    for (const scenarioId of ['P1-01', 'P1-02', 'P1-03', 'P1-04', 'P1-05'] as const) {
+      for (const oracle of oraclesForScenario(scenarioId)) {
+        const raisedByPhase1 = oracle.id !== 'CONTRACT_UPLOAD_BODY'
+        expect({ id: oracle.id, chain: oracle.chain !== undefined, settle: oracle.settle !== undefined })
+          .toEqual({ id: oracle.id, chain: raisedByPhase1, settle: raisedByPhase1 })
+      }
+    }
+  })
+
+  it('uses the budgets Phase 1 actually has', async () => {
+    const source = await readFile(path.join(process.cwd(), 'qa', 'browser', 'oracles.ts'), 'utf8')
+    expect(source).toMatch(/export async function requireVisible[\s\S]*?timeout: 8_000/)
+    expect(source).toMatch(/export async function requireUrl[\s\S]*?timeout: 30_000/)
+    expect(PHASE1_VISIBLE_MS).toBe(8_000)
+    expect(PHASE1_URL_MS).toBe(30_000)
+  })
+})
+
+describe('P1-05 controlled-clock fair chance', () => {
+  function clocked(events: string[]): OracleContext {
+    const scenario = createScenario('P1-05')
+    for (const event of events) scenario.recordTransition(event)
+    return { ...context(), scenario }
+  }
+  const OPENED = 'reproduction-open:/results/qa-timeout-1'
+  const timeout = oracleById('P1-05', 'P1-05_TIMEOUT_STATE')
+
+  it('needs more than two minutes of counted advance after the last open (B5 under-advance fails)', () => {
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:30000']))).toBe(false)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:120000']))).toBe(false)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:120001']))).toBe(true)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:60000', 'reproduction-clock:60001']))).toBe(true)
+  })
+
+  it('ignores advances made before the route was opened', () => {
+    expect(timeout?.fairChance?.(clocked(['reproduction-clock:120001', OPENED]))).toBe(false)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:120001', OPENED]))).toBe(false)
+  })
+
+  it('applies to every observation Phase 1 makes after the timeout, and to nothing before it', () => {
+    const gated = oraclesForScenario('P1-05').filter(oracle => oracle.fairChance !== undefined).map(oracle => oracle.id)
+    expect(gated).toEqual(['P1-05_TIMEOUT_STATE', ...verifyOraclesForScenario('P1-05').map(oracle => oracle.id)])
+    for (const scenarioId of ['P1-01', 'P1-02', 'P1-03', 'P1-04'] as const) {
+      expect(oraclesForScenario(scenarioId).filter(oracle => oracle.fairChance !== undefined)).toEqual([])
+    }
   })
 })
 

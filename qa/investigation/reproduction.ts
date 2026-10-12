@@ -2,14 +2,14 @@ import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-import { chromium } from '@playwright/test'
+import { chromium, errors } from '@playwright/test'
 import type { Browser, BrowserContext, Locator, Page } from '@playwright/test'
 
 import { redactText } from '../browser/evidence'
 import { generatedBuildResourcePaths, NetworkPolicy, QA_API_ORIGIN, QA_APP_ORIGIN, QA_S3_ORIGIN } from '../browser/networkPolicy'
 import { OracleFailure } from '../browser/oracles'
-import { oracleById, verifyOraclesForScenario } from '../browser/oracleRegistry'
-import type { OracleContext } from '../browser/oracleRegistry'
+import { oracleById, SWEEP_TIMEOUT_MS, verifyOraclesForScenario } from '../browser/oracleRegistry'
+import type { OracleContext, OracleDefinition } from '../browser/oracleRegistry'
 import { StatefulContractRouter } from '../browser/contractRouter'
 import { createScenario, type ScenarioInstance } from '../browser/scenarios'
 import { installUploadObservation } from '../browser/uploadObservation'
@@ -97,6 +97,8 @@ export class PlaywrightReproduction implements ReproductionDriver {
         return { semanticState: 'attached:qa_synthetic_resume' }
       case 'click_by_role':
         await page.getByRole(action.role, { name: action.name }).first().click({ timeout: ACTION_TIMEOUT_MS })
+        // Phase 1's wait chains for the upload and reuse flows start at this click.
+        this.scenario?.recordTransition(`reproduction-click:${action.name}`)
         return { semanticState: `clicked:${action.name}` }
       case 'wait_for_state': {
         await stateLocator(page, action.state).first().waitFor({ state: 'visible', timeout: ACTION_TIMEOUT_MS })
@@ -135,22 +137,16 @@ export class PlaywrightReproduction implements ReproductionDriver {
   }
 
   async advanceClock(ms: number): Promise<void> {
-    await this.requirePage().clock.runFor(ms)
+    const page = this.requirePage()
+    // The poll timeout is armed in the same step that first renders the status
+    // card, so only an advance begun while it shows counts toward the timeout.
+    const armed = await stateLocator(page, 'processing').first().isVisible()
+    await page.clock.runFor(ms)
+    if (armed) this.scenario?.recordTransition(`reproduction-clock:${ms}`)
   }
 
   /**
-   * Evaluate the whole scenario against the registry and collect every failure.
-   *
-   * Phase 1 stops at its first failed observation while driving, which is right
-   * for a release check but leaves a reproduction unable to say whether the
-   * original failure recurred: an earlier assertion failing first hides it.
-   * Here the original `failedOracle` is evaluated first, then the scenario's
-   * verify set, and every failure is kept. Driver-stage observations belong to
-   * transient steps, so they are swept only when the original run failed one.
-   *
-   * An observation whose precondition transition never appeared is skipped
-   * rather than failed — a reproduction that never drove the scenario is
-   * missing a precondition, not observing a defect.
+   * Evaluate the whole scenario against the registry; see {@link judgeReproduction}.
    * @param sourceFailedOracle - the oracle the original run failed, if any.
    * @returns the collected verdict.
    */
@@ -165,66 +161,7 @@ export class PlaywrightReproduction implements ReproductionDriver {
       networkSummary: () => policy.summary(),
       analysisCountAtTimeout: this.analysisCountAtTimeout,
     }
-    const recorded = new Set(scenario.transitions.map(item => item.event))
-    const met = (oracle: { preconditionTransition: string | null; precondition?(context: OracleContext): boolean }): boolean =>
-      oracle.precondition !== undefined
-        ? oracle.precondition(context)
-        : oracle.preconditionTransition === null || recorded.has(oracle.preconditionTransition)
-
-    const source = sourceFailedOracle === null ? undefined : oracleById(this.scenarioId, sourceFailedOracle)
-    const ordered = [
-      ...source === undefined ? [] : [source],
-      ...verifyOraclesForScenario(this.scenarioId).filter(oracle => oracle !== source),
-    ]
-
-    const failures: RunFailure[] = []
-    const evaluated: string[] = []
-    const skipped: string[] = []
-    for (const oracle of ordered) {
-      if (!met(oracle)) {
-        skipped.push(oracle.id)
-        continue
-      }
-      evaluated.push(oracle.id)
-      try {
-        await oracle.evaluate(page, context)
-      } catch (error) {
-        if (error instanceof OracleFailure) {
-          failures.push({ phase: 'scenario', kind: 'oracle', message: error.message, oracleId: error.oracleId })
-          continue
-        }
-        return {
-          oracleStatus: 'incomplete',
-          failedOracle: null,
-          failures: [{ phase: 'scenario_execution', kind: 'infrastructure', message: error instanceof Error ? error.message : String(error) }],
-          preconditionMet: false,
-          evaluated,
-          skipped,
-        }
-      }
-    }
-
-    // Contract and safety observations are scenario-wide rather than per-id, so
-    // they are applied after the sweep with Phase 1's precedence.
-    if (scenario.contractViolations.length > 0 && !failures.some(item => item.oracleId === 'CONTRACT_UNEXPECTED_REQUEST')) {
-      failures.push({ phase: 'oracle', kind: 'oracle', message: 'Deterministic oracle failed: CONTRACT_UNEXPECTED_REQUEST', oracleId: 'CONTRACT_UNEXPECTED_REQUEST' })
-    }
-    if (policy.safetyViolations.length > 0) {
-      failures.push({ phase: 'oracle', kind: 'oracle', message: 'Deterministic oracle failed: SAFETY_UNEXPECTED_EGRESS', oracleId: 'SAFETY_UNEXPECTED_EGRESS' })
-    }
-
-    // The precondition that decides whether the verdict is comparable is the
-    // one belonging to the original failure; without a registry entry, any
-    // evaluated observation shows the reproduction reached the scenario.
-    const preconditionMet = source === undefined ? evaluated.length > 0 : met(source)
-    return {
-      oracleStatus: failures.length === 0 ? 'passed' : 'failed',
-      failedOracle: failures[0]?.oracleId ?? null,
-      failures,
-      preconditionMet,
-      evaluated,
-      skipped,
-    }
+    return judgeReproduction(page, context, this.scenarioId, sourceFailedOracle, policy.safetyViolations.length)
   }
 
   networkEvents(): NetworkEvent[] {
@@ -242,4 +179,130 @@ export class PlaywrightReproduction implements ReproductionDriver {
     this.context = null
     this.browser = null
   }
+}
+
+/**
+ * Evaluate the whole scenario against the registry and collect every failure.
+ *
+ * Phase 1 stops at its first failed observation while driving, which is right
+ * for a release check but leaves a reproduction unable to say whether the
+ * original failure recurred: an earlier assertion failing first hides it.
+ * Here the original `failedOracle` is evaluated first, then the scenario's
+ * verify set, and every failure is kept. Driver-stage observations belong to
+ * transient steps, so they are swept only when the original run failed one.
+ *
+ * An observation whose precondition transition never appeared is skipped
+ * rather than failed — a reproduction that never drove the scenario is
+ * missing a precondition, not observing a defect.
+ *
+ * The investigator is never told to wait before `run_oracle`, so the original
+ * failure is judged under the waits Phase 1 recorded it under: the sweep waits
+ * until the end of that id's Phase 1 chain, measured from the chain's trigger,
+ * and the original failure's precondition is read only after its wait. The
+ * verify set shares the same deadline, which expires once. A controlled-clock
+ * state that failed without its fair chance leaves the verdict without a met
+ * precondition, so it cannot confirm.
+ * @param page - the reproduction page.
+ * @param context - what the oracles may read besides the page.
+ * @param scenarioId - the scenario under reproduction.
+ * @param sourceFailedOracle - the oracle the original run failed, if any.
+ * @param safetyViolationCount - unexpected egress the network policy recorded.
+ * @returns the collected verdict.
+ */
+export async function judgeReproduction(
+  page: Page,
+  context: OracleContext,
+  scenarioId: ScenarioId,
+  sourceFailedOracle: string | null,
+  safetyViolationCount: number,
+): Promise<ReproductionOracleResult> {
+  const scenario = context.scenario
+  // Read live: a wait can bring a precondition transition into the log.
+  const met = (oracle: { preconditionTransition: string | null; precondition?(context: OracleContext): boolean }): boolean =>
+    oracle.precondition !== undefined
+      ? oracle.precondition(context)
+      : oracle.preconditionTransition === null || scenario.transitions.some(item => item.event === oracle.preconditionTransition)
+
+  const source = sourceFailedOracle === null ? undefined : oracleById(scenarioId, sourceFailedOracle)
+  const ordered = [
+    ...source === undefined ? [] : [source],
+    ...verifyOraclesForScenario(scenarioId).filter(oracle => oracle !== source),
+  ]
+  const deadline = source?.chain === undefined ? undefined : chainDeadline(scenario, source.chain)
+  const settle = async (oracle: OracleDefinition): Promise<void> => {
+    if (oracle.settle === undefined) return
+    const timeoutMs = deadline === undefined ? SWEEP_TIMEOUT_MS : deadline - Date.now()
+    if (timeoutMs <= 0) return
+    try {
+      await oracle.settle(page, timeoutMs)
+    } catch (error) {
+      // A state that never arrives is the check's to report, not the wait's.
+      if (!(error instanceof errors.TimeoutError)) throw error
+    }
+  }
+
+  const failures: RunFailure[] = []
+  const evaluated: string[] = []
+  const skipped: string[] = []
+  for (const oracle of ordered) {
+    try {
+      // Phase 1 checked nothing about the original failure before waiting for it.
+      if (oracle === source) await settle(oracle)
+      if (!met(oracle)) {
+        skipped.push(oracle.id)
+        continue
+      }
+      if (oracle !== source) await settle(oracle)
+      evaluated.push(oracle.id)
+      await oracle.evaluate(page, context)
+    } catch (error) {
+      if (error instanceof OracleFailure) {
+        failures.push({ phase: 'scenario', kind: 'oracle', message: error.message, oracleId: error.oracleId })
+        continue
+      }
+      return {
+        oracleStatus: 'incomplete',
+        failedOracle: null,
+        failures: [{ phase: 'scenario_execution', kind: 'infrastructure', message: error instanceof Error ? error.message : String(error) }],
+        preconditionMet: false,
+        evaluated,
+        skipped,
+      }
+    }
+  }
+
+  // Contract and safety observations are scenario-wide rather than per-id, so
+  // they are applied after the sweep with Phase 1's precedence.
+  if (scenario.contractViolations.length > 0 && !failures.some(item => item.oracleId === 'CONTRACT_UNEXPECTED_REQUEST')) {
+    failures.push({ phase: 'oracle', kind: 'oracle', message: 'Deterministic oracle failed: CONTRACT_UNEXPECTED_REQUEST', oracleId: 'CONTRACT_UNEXPECTED_REQUEST' })
+  }
+  if (safetyViolationCount > 0) {
+    failures.push({ phase: 'oracle', kind: 'oracle', message: 'Deterministic oracle failed: SAFETY_UNEXPECTED_EGRESS', oracleId: 'SAFETY_UNEXPECTED_EGRESS' })
+  }
+
+  // The precondition that decides whether the verdict is comparable is the
+  // one belonging to the original failure; without a registry entry, any
+  // evaluated observation shows the reproduction reached the scenario. A
+  // failure without its fair chance is not comparable; a pass needs none.
+  const sourceFailed = source !== undefined && failures.some(item => item.oracleId === source.id)
+  const preconditionMet = source === undefined
+    ? evaluated.length > 0
+    : met(source) && (!sourceFailed || (source.fairChance?.(context) ?? true))
+  return {
+    oracleStatus: failures.length === 0 ? 'passed' : 'failed',
+    failedOracle: failures[0]?.oracleId ?? null,
+    failures,
+    preconditionMet,
+    evaluated,
+    skipped,
+  }
+}
+
+/**
+ * When an id's Phase 1 wait chain ends: its budget after the last transition
+ * that starts the chain. A chain whose trigger never happened has already ended.
+ */
+function chainDeadline(scenario: ScenarioInstance, chain: NonNullable<OracleDefinition['chain']>): number {
+  const trigger = [...scenario.transitions].reverse().find(item => item.event.startsWith(chain.after))
+  return trigger === undefined ? Date.now() : scenario.startedAt + trigger.relativeTimestampMs + chain.withinMs
 }

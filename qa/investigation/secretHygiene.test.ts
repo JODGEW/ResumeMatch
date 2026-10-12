@@ -5,12 +5,12 @@ import process from 'node:process'
 import { describe, expect, it } from 'vitest'
 
 /**
- * The only process the API key may reach is the harness child. Everything else —
+ * The only process an API key may reach is the harness child. Everything else —
  * the QA launcher, the investigation server, the in-worktree scenario — runs
  * without it, and nothing projects it into an artifact.
  */
-const KEY = 'DEEPSEEK_API_KEY'
-const SECRET_SHAPES = [/\bsk-[A-Za-z0-9_-]{16,}\b/, /\bDEEPSEEK_API_KEY\s*[:=]\s*(?!process\.env)\S/]
+const KEYS = ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY']
+const SECRET_SHAPES = [/\bsk-[A-Za-z0-9_-]{16,}\b/, ...KEYS.map(key => new RegExp(`\\b${key}\\s*[:=]\\s*(?!process\\.env)\\S`))]
 
 async function source(file: string): Promise<string> {
   return readFile(path.join(process.cwd(), file), 'utf8')
@@ -38,7 +38,7 @@ async function projectedFiles(root: string, limit = 400): Promise<string[]> {
   return found
 }
 
-describe('API key never leaves the environment', () => {
+describe.each(KEYS)('%s never leaves the environment', KEY => {
   it('is read only from the environment, and only for the harness child', async () => {
     const runner = await source('qa/investigation/evalRunner/runCase.ts')
     const occurrences = [...runner.matchAll(new RegExp(KEY, 'g'))]
