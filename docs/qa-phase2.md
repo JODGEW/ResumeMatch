@@ -228,8 +228,61 @@ files are gitignored and do not exist on CI.
 
 **Not comparable with v7.** The prompt reaches every investigation, so
 classification and root-cause results recorded under v7 are not comparable with
-v8. A v8 comparison needs full sweeps of all twenty cases. No sweep has been run
-under v8 yet.
+v8. A v8 comparison needs full sweeps of all twenty cases. No full sweep has
+been run under v8 yet; the only v8 runs are the diagnostic pilot described
+below.
+
+**D8's evidence boundary.** D8 drops the file from the S3 multipart POST
+(`qa/investigation/evalCases.ts:163-172`) and also injects `upload_503_once`.
+The original run stops at the 503, so its accepted bundle holds no
+`/synthetic-upload` request. The defect shows only in the reproduction: the
+contract router finds no file entry and records `s3-multipart-schema-or-count`
+(`qa/browser/contractRouter.ts:161`, `:173-174`), the network policy records
+the request as `blocked` with one opaque `multipartFormData` field and aborts
+it (`qa/browser/networkPolicy.ts:94-96`, `:226-228`, `:290`), and the upload
+page absorbs the failure and reaches the completed report
+(`src/pages/Upload.tsx:159-168`).
+
+The investigator cannot read any of that. Every `read_*` tool reads the
+accepted bundle of the original run (`qa/investigation/session.ts:254`,
+resolved at `qa/investigation/serverMain.ts:105`), and `read_network_events`
+takes no source (`session.ts:275-278`). The reproduction is visible only
+through `count_requests` with `source: reproduction`, which returns counts by
+one dimension and no events or fields (`session.ts:285-298`), and through
+`run_oracle`, which reports the generic oracle ids `CONTRACT_NO_VIOLATIONS` and
+`CONTRACT_UNEXPECTED_REQUEST` without the violation code
+(`qa/browser/oracleRegistry.ts:195-197`,
+`qa/investigation/reproduction.ts:276-278`). Once `run_oracle` has run the
+session is `judged` (`session.ts:383-391`) and every read tool is refused with
+`INVALID_STATE` (`session.ts:247-250`; the tools are listed at `:57-60`). Under
+the v8 tool set D8's `routeTemplate` and `failureMode` are therefore not
+observable. `qa/investigation/goldEvidence.ts:10-15` already records that D8's
+defect appears only in the reproduction and that D8 is measured by attribution.
+
+**Scoring D8.** The runner is unchanged: it grades D8 as a full triple, and its
+total line includes D8. Every v8 report gives the triple as two numbers, the raw
+value including D8 and the value excluding D8, and names this boundary as the
+reason for the second. Attribution counts D8 as usual.
+
+**What a correct D8 attribution shows.** It shows that the investigator read an
+application defect from the reproduction's oracle failure, not that it
+identified the defect. The v8 diagnostic pilot ran D8 and D10 three times each
+on Haiku, Sonnet, Opus and DeepSeek; it was run only to diagnose and counts
+toward no v8 result. Two earlier attempts failed before any model replied: in
+one, port 4173 was held by a leftover preview server, and in the other the API
+key was not bound to a workspace, so requests were refused with 400. Neither
+produced a result, so nothing from them was counted or discarded. Eight of the
+pilot's twelve D8 findings attributed `product_defect`, and none named the
+missing file. Each named a duplicate `/upload` or an extra
+`/analysis/:analysisId` poll, and the same oracle result had passed
+`CONTRACT_UPLOAD_COUNT` and `CONTRACT_ANALYSIS_COUNT`, which rule both out.
+
+**Known gap, not fixed: the network-events description.** The
+`read_network_events` description does not say that it reads only the original
+run (`adapter:src/qa-tools.ts:110-118`), while `count_requests` names both
+sources (`:121-128`). In one pilot finding the investigator read the original
+run's events after starting the reproduction and took them for the
+reproduction's. The file is frozen, and v8 leaves it.
 
 `freeze.test.ts` verifies this table.
 
