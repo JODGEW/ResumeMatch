@@ -10,7 +10,7 @@ on:
 
 # Cancel superseded runs only on PRs (rapid iteration). On push to main we must
 # NOT cancel — a run-level cancel would kill an in-flight deploy job mid
-# `sync --delete`, overriding the deploy job's own (deploy-main) concurrency guard.
+# upload, overriding the deploy job's own (deploy-main) concurrency guard.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -121,7 +121,7 @@ jobs:
       contents: read    # declaring `permissions` drops all defaults — checkout needs this back
     concurrency:
       group: deploy-main
-      cancel-in-progress: false   # queue overlapping deploys; never cancel a sync --delete mid-flight
+      cancel-in-progress: false   # queue overlapping deploys; never cancel an upload mid-flight
     env:
       VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID }}
       VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID }}
@@ -188,19 +188,22 @@ jobs:
       # demo-resumes/*.pdf — has a FIXED filename, so a year of immutable would
       # make a swap invisible to returning visitors for a year. Not hypothetical:
       # the three demo PDFs were swapped on 2026-07-24.
+      #
+      # NO --delete on either sync: old hashed assets and _releases/ must stay so an
+      # older index.html still works after a rollback (ops/rollback-frontend.sh).
+      # Assets go up before index.html, so the live index.html never points at
+      # assets that are not uploaded yet.
       - name: Sync assets/ to S3 (immutable, 1-year — content-hashed filenames)
         run: |
-          aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" --delete \
+          aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" \
             --exclude '*' --include 'assets/*' \
             --cache-control 'public, max-age=31536000, immutable'
 
-      # TWO sync passes, not one: --exclude/--include also gate the --delete side,
-      # so pass 1 only deletes within assets/ and this pass only deletes outside it
-      # — together they cover the whole bucket. And a single pass can't apply two
-      # different Cache-Control values anyway. This pass carries default headers.
+      # TWO sync passes, not one: a single pass can't apply two different
+      # Cache-Control values. This pass carries default headers.
       - name: Sync the rest to S3 (default cache — fixed filenames)
         run: |
-          aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" --delete \
+          aws s3 sync dist/ "s3://${{ vars.S3_BUCKET }}" \
             --exclude 'assets/*' --exclude 'index.html'
 
       # index.html gets no-cache in its OWN step. DO NOT fold it into a sync: a
@@ -217,3 +220,11 @@ jobs:
 
       - name: Invalidate CloudFront
         run: aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
+
+      # Rollback source for ops/rollback-frontend.sh. Plain PutObject of the same
+      # local file (no S3-to-S3 copy), so the role needs no new permission. Runs
+      # after the invalidation so a failure here never holds back the live deploy.
+      - name: Store index.html as release ${{ github.sha }}
+        run: |
+          aws s3 cp dist/index.html "s3://${{ vars.S3_BUCKET }}/_releases/${{ github.sha }}/index.html" \
+            --cache-control "no-cache"

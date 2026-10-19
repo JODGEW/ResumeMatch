@@ -379,7 +379,8 @@ half needs a real run):
   `aws cloudfront get-distribution --id <DISTRIBUTION_ID>` (verifies the ID
   resolves). Catches typos in the ARNs.
 - **Trust half** — only a real `main` run tests it (plus the `customization/sub`
-  pre-check above). Enable `--delete` only after reading the gotchas below.
+  pre-check above). Read the gotchas below first; the deploy syncs never use
+  `--delete` (Gotcha #2).
 
 ## Gotchas (read before the first deploy)
 
@@ -389,13 +390,14 @@ half needs a real run):
    **login breaks** with no build failure to warn you. The six secrets above are
    mandatory, not optional.
 
-2. **`--delete` is destructive.** `aws s3 sync dist/ s3://<SITE_BUCKET> --delete`
-   removes anything in the bucket not present in `dist/`. That's correct for a
-   pure static-site bucket. The demo resumes are safe: they ship *inside*
-   `dist/demo-resumes/` from `public/` (verified). The bucket was inventoried
-   (see "Bucket policy" above): beyond build output it held only a stray
-   `.DS_Store`, which the first `--delete` intentionally removes. If you ever put
-   non-build objects in this bucket, scope the sync with `--exclude`.
+2. **The deploy never deletes — do not add `--delete` back.** Both syncs run
+   without `--delete`, so old hashed assets and `_releases/` stay in the bucket
+   and an older index.html keeps working after a rollback (see
+   [Rollback](#rollback)). `--delete` would remove everything not in the current
+   `dist/`, including `_releases/` and every old asset. Old files therefore
+   accumulate; do **not** add an age-based S3 lifecycle/expiration rule to
+   clean them up — an asset the live index.html still uses can be older than any
+   cutoff, and such a rule would delete it.
 
 3. **CloudFront caches; invalidate after sync.** New `dist/` in S3 won't be
    served until the CDN cache is invalidated (`/*`). The deploy job does this;
@@ -435,10 +437,8 @@ half needs a real run):
       default metadata and silently drops the header (a real regression that
       wiped `no-cache` once).
 
-   **Why two `sync` passes, not one:** `--exclude`/`--include` also gate the
-   `--delete` side, so pass 1 only deletes within `assets/` and pass 2 only
-   deletes outside it — together they cover the whole bucket. And one pass cannot
-   apply two different `Cache-Control` values anyway.
+   **Why two `sync` passes, not one:** one pass cannot apply two different
+   `Cache-Control` values.
 
    **No manual backfill needed.** A `Cache-Control` change applies to
    **everything on the next deploy**, not just to files that happen to change.
@@ -495,6 +495,8 @@ breaks this deadlock is temporarily removing `AWS_ROLE_ARN`. Hence this order:
    aws s3 sync /tmp/prod-backup-<date> s3://<SITE_BUCKET> --delete
    aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "/*"
    ```
+   ⚠️ Do **not** use this reverse `sync --delete` any more: it would wipe
+   `_releases/` and old assets. Use [Rollback](#rollback) instead.
 3. **Commit + push to `main`.** Confirm the `deploy` job shows **skipped** (not
    green, not red). If it did *not* skip, stop and read the typo trap below.
 4. **Run `build-verify`.** In the Actions tab, click into the **workflow itself**
@@ -536,6 +538,62 @@ configured yet" skip, with no error anywhere. So when a deploy skips unexpectedl
 tell: the repository variables list is sorted ascending by name, so `AWS_ROLE_ARN`
 should sit **directly after** `AWS_REGION`. If it's anywhere else, the name is
 misspelled.
+
+---
+
+## Rollback
+
+Roll the site back by restoring an earlier `index.html`, without re-running CI.
+This works because the deploy never deletes: every old hashed asset stays in the
+bucket, so an old index.html still finds its bundle. On every deploy, CI also
+stores the new index.html at `_releases/<git sha>/index.html`.
+
+**Scope:** a rollback reverts only `index.html` and therefore the hashed bundle
+(`assets/`). Non-hashed files such as `favicon.svg`, `og-image.png` and
+`demo-resumes/*.pdf` stay at the **newest** deploy's version.
+
+`ops/rollback-frontend.sh` runs locally with **your own** AWS credentials (not
+the CI role). It reads the bucket and distribution from the environment:
+
+```bash
+export FRONTEND_BUCKET=<SITE_BUCKET>
+export CF_DISTRIBUTION_ID=<DISTRIBUTION_ID>
+```
+
+**List releases** (LastModified + key, newest first):
+
+```bash
+ops/rollback-frontend.sh --list
+```
+
+**Roll back to the version live before the bad deploy:** it is the second-newest
+entry in the list (the newest is the current, bad one). Pass its sha:
+
+```bash
+ops/rollback-frontend.sh <git sha>
+```
+
+The script checks that `_releases/<sha>/index.html` exists, copies it to
+`index.html` with `Content-Type: text/html` and `Cache-Control: no-cache` (the
+same headers the deploy uses), then invalidates `/*` like the deploy, so `/` and
+SPA fallback paths cached under their own keys are refreshed too. With no argument it
+prints usage and exits non-zero.
+
+To undo a rollback, run it again with the newer sha, or push a new commit (a
+normal deploy overwrites `index.html`).
+
+**One-time step before the first deploy with this change.** The version live
+before release copies existed has no `_releases/` entry. Save it once, before
+that deploy, so it can be restored with `ops/rollback-frontend.sh pre-releases`:
+
+```bash
+aws s3 cp "s3://$FRONTEND_BUCKET/index.html" "s3://$FRONTEND_BUCKET/_releases/pre-releases/index.html"
+```
+
+> ⚠️ **Never put `--delete` back on the deploy syncs** (or run any
+> `aws s3 sync … --delete` against this bucket). It removes everything not in the
+> current `dist/` — all of `_releases/` and every old hashed asset — after which
+> no rollback works.
 
 ---
 
