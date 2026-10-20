@@ -12,8 +12,12 @@ const ADAPTER_PATH = process.env.RESUMEMATCH_QA_ADAPTER_PATH
 const FREEZE_DOCUMENT = path.join(process.cwd(), 'docs', 'qa-phase2.md')
 const ROW = /^\| `([^`]+)` \| `([0-9a-f]{64})` \|$/gm
 /** Only the current version gates; earlier tables are kept as history. */
-const CURRENT_VERSION = '### Freeze v7'
-/** The version v7 superseded, kept byte-for-byte as the record its sweeps were taken under. */
+const CURRENT_VERSION = '### Freeze v8'
+/** The version v8 superseded, kept byte-for-byte as the record its sweeps were taken under. */
+const V7_VERSION = '### Freeze v7'
+/** sha256 of the Freeze v7 section, from its heading up to the Freeze v6 heading, when v8 superseded it. */
+const V7_SECTION_SHA256 = '0e42f517c9acdbea57256a9d939de916df642096eb14c6afc9c2ce9abafc7564'
+/** The version v7 superseded, kept the same way. */
 const V6_VERSION = '### Freeze v6'
 /** sha256 of the Freeze v6 section, from its heading up to the Freeze v5 heading, when v7 superseded it. */
 const V6_SECTION_SHA256 = '19fcbc194d4f15cab856be239ed2efa6a6a507893f1f37428814022f64a1df99'
@@ -22,7 +26,7 @@ const V5_VERSION = '### Freeze v5'
 /** sha256 of the Freeze v5 section, from its heading up to the Freeze v4 heading, when v6 superseded it. */
 const V5_SECTION_SHA256 = 'b644147ada40e368e96c5ca112fae26e3ac8acf979992820e9c12d4f1cb182c0'
 
-/** The files v6 froze and v7 keeps: the investigator interface, the scoring and cases, and the scenario and evidence model. */
+/** The files v6 froze and v7 and v8 keep: the investigator interface, the scoring and cases, and the scenario and evidence model. */
 const FROZEN_REFERENCES = [
   'adapter:cordis.yml',
   'adapter:prompts/investigator.md',
@@ -121,6 +125,11 @@ describe('freeze record', () => {
 
   it('freezes the investigator interface, the scoring and cases, and the scenario and evidence model', async () => {
     expect((await frozenFiles()).map(file => file.reference).sort()).toEqual(FROZEN_REFERENCES)
+  })
+
+  it('keeps Freeze v7 as readable history, unchanged byte for byte', async () => {
+    expect((await frozenFiles(V7_VERSION)).map(file => file.reference).sort()).toEqual(FROZEN_REFERENCES)
+    expect(createHash('sha256').update(await section(V7_VERSION)).digest('hex')).toBe(V7_SECTION_SHA256)
   })
 
   it('keeps Freeze v6 as readable history, unchanged byte for byte', async () => {
