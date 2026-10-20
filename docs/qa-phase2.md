@@ -228,9 +228,10 @@ files are gitignored and do not exist on CI.
 
 **Not comparable with v7.** The prompt reaches every investigation, so
 classification and root-cause results recorded under v7 are not comparable with
-v8. A v8 comparison needs full sweeps of all twenty cases. No full sweep has
-been run under v8 yet; the only v8 runs are the diagnostic pilot described
-below.
+v8. A v8 comparison needs full sweeps of all twenty cases. The full sweeps
+were completed on 2026-10-19; their results are in
+[Freeze v8 live results](#freeze-v8-live-results-2026-10-19). The diagnostic
+pilot described below ran before them.
 
 **D8's evidence boundary.** D8 drops the file from the S3 multipart POST
 (`qa/investigation/evalCases.ts:163-172`) and also injects `upload_503_once`.
@@ -869,6 +870,225 @@ Limits:
 - Pre-fix: measured with the evaluation identity visible to the investigator,
   so only the classifications compare with post-fix runs; see
   [Investigator-view leak and fix](#investigator-view-leak-and-fix-2026-10-10).
+
+## Freeze v8 live results (2026-10-19)
+
+These are the full sweeps under Freeze v8: all twenty cases, on three Anthropic
+models and DeepSeek, with the same sweep counts as v7. Held-out results appear
+only as aggregates, except D10, which v8 marks exposed. The reporting rules are
+the ones in [Freeze v8](#freeze-v8-2026-10-18): D10 is left out of every
+held-out aggregate, the clean held-out cases are D5, D11 and B6, and the triple
+is given with and without D8. The full analysis, with per-run and per-case
+values, quoted findings and a cause for every miss, is in
+`.qa-artifacts/analysis/v8/report.md`.
+
+Run conditions:
+
+| Setting | Value |
+| --- | --- |
+| ResumeMatch | `7f3f627` (the Freeze v8 record with its D8 boundary), `worktreeDirty: false` in every investigation manifest |
+| Adapter | `649b94a9e6c7897daa7a99f638a865553abac04a`, recorded as `adapterCommit` in every case result |
+| Models | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`, `deepseek-v4-flash` |
+| Run window | 2026-10-19, 12:08–18:27 UTC, in the order Haiku, Sonnet, Opus, DeepSeek |
+| Rates per 1M tokens (input / output / cache hit) | Unchanged from v7: Haiku 0.10 / 0.50 / 0.01, Sonnet 2 / 10 / 0.10, Opus 4 / 20 / 0.20, DeepSeek 0.44 / 1.32 / 0.014 |
+| Prompt caching | Anthropic off (0 cache-hit tokens). DeepSeek provider-side, about 94% of prompt tokens served as cache hits |
+| Sweep limit (`sweepLimitUsd`) | Haiku $5, Sonnet $8, Opus $15, DeepSeek $5; no sweep reached its limit |
+| Sweeps (n) | Haiku 5, Sonnet 5, Opus 3, DeepSeek 3 |
+
+Data integrity, checked before comparing, on all 16 sweeps:
+
+- The printed table equals `summary.json`, total line included, and each
+  `<case>.json` equals its summary entry.
+- Request-log lines, `modelRequests` and the transcript's usage events agree in
+  every case.
+- Every cost equals its request log priced at the rates above.
+- One case recorded an error: Sonnet run 3, D7, `no finding was submitted` (see
+  Known issues below).
+- Every transcript names only its sweep's model.
+- The 80 cases that triage routes away from an investigator (C1–C3, B3 and B4 in
+  every sweep) made no model request and cost $0.
+
+Classification. A sweep has 15 investigations: 10 public, 4 held-out and D10.
+
+| Model | n | Classification ok | Public | Held-out, without D10 | D10 |
+| --- | --- | --- | --- | --- | --- |
+| Haiku 5.5 | 5 | 62/75 | 45/50 | 12/20 | 5/5 |
+| Sonnet 5.5 | 5 | 73/75 | 49/50 | 19/20 | 5/5 |
+| Opus 5.5 | 3 | 45/45 | 30/30 | 12/12 | 3/3 |
+| DeepSeek v4 flash | 3 | 40/45 | 27/30 | 10/12 | 3/3 |
+
+The held-out column covers D5, D6, D11 and B6; D6 has a classification
+expectation but no root-cause gold. The clean held-out columns under Root cause
+cover D5, D11 and B6. Neither includes D10.
+
+- **No false confirms.** No benign investigation was classified `confirmed`:
+  0 of 64. That is four per sweep (three public, one held-out) across all
+  16 sweeps.
+- **20 misses, none from the classification rule.** All are `inconclusive`
+  except one with no classification. 9 are public and 11 held-out. Each public
+  miss comes from how the reproduction was driven or finished:
+  - **P1-05 clock not advanced far enough (6, all B5).** Haiku 5, DeepSeek 1.
+    The reproduction oracle returned `preconditionMet: false`. Haiku advanced
+    the clock by at most 60 000 ms, and its one 120 000 ms advance was refused
+    because no reproduction was active; DeepSeek advanced 29 000 ms in total.
+    Of the 11 B5 runs that matched their expectation, 10 advanced 180 000 ms.
+  - **DeepSeek tool-call budget exhausted (2).** The 20-call limit was spent
+    before `run_oracle` succeeded, and both calls were refused with
+    `BUDGET_EXHAUSTED`.
+  - **No finding (1).** Sonnet run 3, D7; see Known issues below.
+  - **Held-out (11).** Given as a total only; per-model counts are in the
+    table above.
+
+Root cause. Graded findings are 14 per sweep: 10 public and 4 held-out, D10
+among them. The totals include D10, as the runner's total line does; D10 is left
+out of the held-out columns only. The triple without D8 leaves D8 out under the
+[D8 evidence boundary](#freeze-v8-2026-10-18). No model had a correct D8 triple,
+so leaving it out changes only the denominator.
+
+| Model | n | Attribution | Triple, with D8 | Triple, without D8 | Undetermined | Clean held-out attribution | Clean held-out triple | D10 attribution / triple (exposed) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Haiku 5.5 | 5 | 53/70 | 45/70 | 45/65 | 15/70 | 12/15 | 12/15 | 3/5 / 3/5 |
+| Sonnet 5.5 | 5 | 64/70 | 64/70 | 64/65 | 5/70 | 15/15 | 15/15 | 5/5 / 5/5 |
+| Opus 5.5 | 3 | 38/42 | 37/42 | 37/39 | 2/42 | 9/9 | 9/9 | 3/3 / 3/3 |
+| DeepSeek v4 flash | 3 | 41/42 | 36/42 | 36/39 | 0/42 | 9/9 | 9/9 | 3/3 / 3/3 |
+
+- **Sonnet's denominators.** Sonnet run 3, D7 submitted no finding. The runner
+  leaves it out: its denominators give attribution 64/69, triple 64/69, triple
+  without D8 64/64 and undetermined 5/69. The table counts it as a miss, and
+  these strict denominators (70, and 65 without D8) are the ones to report
+  outside this record.
+- **DeepSeek's triple.** Attribution is 41/42 but the triple 36/42. Three of the
+  six triple misses are D8. The other three name the wrong failure mode, once on
+  D9 and twice on B5; one of the B5 findings also has the wrong attribution.
+
+**D10 (exposed).** All 16 reproduction oracles failed `CONTRACT_UPLOAD_COUNT`
+alongside `CONTRACT_NO_VIOLATIONS` and `CONTRACT_UNEXPECTED_REQUEST`. Every one
+of the 14 correct findings cites that upload-count failure, by its id or its
+message. Nine also read the reproduction's route count before reads were
+locked; the other five say they inferred the extra request from the oracle
+alone. None is an unsupported guess. Under v7 no D10 finding was correct. D10 is
+exposed, though: its v7 results were inspected, it motivated the v8 change, and
+its oracle id names the route and the failure directly. Its result is not
+held-out evidence and does not show that the change generalizes.
+
+**D8.** Attribution is correct in 6 of 16 findings (Haiku 2/5, Sonnet 0/5,
+Opus 1/3, DeepSeek 3/3), and the triple in none. All six correct attributions
+name a mechanism the oracle had already ruled out: a duplicate `/upload`
+(Haiku), or an extra `/analysis/:analysisId` poll after completion (Opus,
+DeepSeek). In all 16 runs `CONTRACT_UPLOAD_COUNT`, `CONTRACT_ANALYSIS_COUNT` and
+`CONTRACT_S3_COUNT` were evaluated and passed. Sonnet answered `undetermined` in
+5 of 5, as did Opus in 2 and Haiku in 3. This matches the Freeze v8 record: a
+correct D8 attribution shows that the investigator read an application defect
+from the oracle failure, not that it identified the defect.
+
+Statistics. Each proportion has a Wilson score 95% interval, and models are
+compared pairwise with a two-sided Fisher exact test. Both treat every finding
+as an independent sample, but the same cases repeat in every sweep, so the
+intervals are too narrow and the p-values optimistic. Thirty comparisons were
+made (six model pairs, five measures) with no correction for multiple
+comparisons.
+
+| Model | Attribution | Triple, without D8 |
+| --- | --- | --- |
+| Haiku 5.5 | 53/70 (65–84%) | 45/65 (57–79%) |
+| Sonnet 5.5 | 64/70 (83–96%) | 64/65 (92–100%) |
+| Opus 5.5 | 38/42 (78–96%) | 37/39 (83–99%) |
+| DeepSeek v4 flash | 41/42 (88–100%) | 36/39 (80–97%) |
+
+Correct triples per sweep, which does not depend on treating findings as
+independent:
+
+| Model | Correct triples per sweep |
+| --- | --- |
+| Haiku 5.5 | 10, 8, 10, 8, 9 |
+| Sonnet 5.5 | 13, 13, 12, 13, 13 |
+| Opus 5.5 | 13, 12, 12 |
+| DeepSeek v4 flash | 12, 11, 13 |
+
+- **Holds: Haiku is below the other three.** On the triple, with and without
+  D8, p ≤ 0.017 against each, and the per-sweep counts do not overlap (8–10
+  against 11–13).
+- **Does not hold: any difference among Sonnet, Opus and DeepSeek.** On
+  attribution, triple, triple without D8, classification and clean held-out
+  triple, every pairwise p between them is above 0.05. No ranking of these three
+  is claimed.
+
+Cost:
+
+| Model | n | Total | Per sweep, mean (min–max) | Correct triples | Cost per correct triple |
+| --- | --- | --- | --- | --- | --- |
+| Haiku 5.5 | 5 | $1.0505 | $0.2101 ($0.2060–$0.2219) | 45 | $0.0233 |
+| Sonnet 5.5 | 5 | $20.8132 | $4.1626 ($4.0103–$4.2360) | 64 | $0.3252 |
+| Opus 5.5 | 3 | $21.8200 | $7.2733 ($7.0347–$7.4008) | 37 | $0.5897 |
+| DeepSeek v4 flash | 3 | $1.0916 | $0.3639 ($0.3153–$0.4055) | 36 | $0.0303 |
+
+The four models together cost $44.7752. No D8 triple was correct, so the cost
+per correct triple is the same with or without D8. Sonnet run 3, D7 cost $0.4540
+and produced no finding. As under v7, DeepSeek's cost reflects provider-side
+caching while the Anthropic runs had caching off, so this is not a like-for-like
+price comparison.
+
+Against v7, descriptively. The prompt change reaches every investigation, so
+these results are not comparable with v7's; the table only shows where the
+numbers moved.
+
+| Model | Attribution | Triple | Triple, without D8 | Classification ok |
+| --- | --- | --- | --- | --- |
+| Haiku 5.5 | 52/70 → 53/70 | 45/70 → 45/70 | 45/65 → 45/65 | 65/75 → 62/75 |
+| Sonnet 5.5 | 60/70 → 64/70 | 55/70 → 64/70 | 55/65 → 64/65 | 74/75 → 73/75 |
+| Opus 5.5 | 36/42 → 38/42 | 34/42 → 37/42 | 34/39 → 37/39 | 45/45 → 45/45 |
+| DeepSeek v4 flash | 37/42 → 41/42 | 34/42 → 36/42 | 34/39 → 36/39 | 43/45 → 40/45 |
+
+- **D10:** correct attribution and triple went from 0/16 to 14/16.
+- **D7:** the triple went from 4/16 to 10/16. Sonnet and Opus moved from
+  `aborted_response` to `stopped_early`. Haiku's attribution went from 4/5 to
+  1/5, mostly to `undetermined`.
+- **D8:** the triple is 0 in both. Attribution went from 2/16 to 6/16; Sonnet and
+  Opus moved from the transient to `undetermined`.
+- **Moved down:**
+  - Haiku: D9 triple 2/5 → 0/5; clean held-out triple 14/15 → 12/15.
+  - Opus: B2 attribution 3/3 → 1/3.
+  - DeepSeek: classification 43/45 → 40/45.
+- **Benign cases attributed to `product_defect`:** 5 of 64 in both.
+  - v7: Haiku B5 4, DeepSeek B5 1.
+  - v8: Haiku B5 2, DeepSeek B5 1, Opus B2 2.
+
+Known issues, recorded rather than fixed. v8 changes nothing in response; each
+is left to a later freeze.
+
+- **Sonnet submission format.** 39 of 75 Sonnet investigations had at least one
+  `submit_finding` refused, against 14 of 75 under v7.
+  - 56 of the 57 refusals carried `finding` as a JSON string with one extra
+    closing brace at the end. That string does not parse, so the adapter passes
+    it on unchanged and the server refuses it as "Finding narrative must be an
+    object".
+  - In run 3, D7 used all four attempts (the fourth wrapped the narrative in a
+    second `finding` key), so no finding was recorded. The refused narrative
+    named D7's gold root cause.
+  - Why the rate rose is not established.
+- **B2 and the meaning of a defect.** Opus attributed B2 to `product_defect`
+  (`stopped_early`) in 2 of 3 runs, both classified `not_reproduced`.
+  - Graded against the frozen gold, `transient_or_environment`, they are misses,
+    and the gold is not changed.
+  - This is recorded as a prompt gap. The v8 prompt does not define what counts
+    as the application behaving wrongly, and these findings counted a robustness
+    judgment about the original run as a defect even though the reproduction
+    passed.
+- **Haiku and DeepSeek reproduction and labelling.**
+  - All five Haiku D9 findings named `unexpected_request`, the oracle id's
+    wording, instead of `malformed_request`. One says so directly: "the
+    deterministic oracle reports CONTRACT_UNEXPECTED_REQUEST, so I recorded…".
+  - Haiku's clock advances on P1-05 were too short (see Classification).
+  - DeepSeek exhausted its tool-call budget before a completed oracle 4 times.
+- **Evidence source, again.** The `read_network_events` description gap recorded
+  in Freeze v8 recurred. In at least four Haiku findings, two on D10 and two on
+  D8, the investigator took the original run's events for the reproduction's.
+
+What these results do not show:
+
+- that any investigator identified D8's defect;
+- that D10's result is held-out evidence;
+- a ranking of Sonnet, Opus and DeepSeek.
 
 ## Freeze v7 live results (2026-10-11)
 
