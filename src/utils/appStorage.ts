@@ -27,6 +27,9 @@ const USER_SCOPED_KEYS = [
   // DynamoDB migration, scrubbed here for accounts that never completed it
   // (hooks/useApplications.ts)
   'resumematch_tracker_applications',
+  // Account that started that migration; retries only run for this account
+  // (hooks/useApplications.ts)
+  'resumematch_tracker_migration_owner',
   // "New" badge ids for completed analyses (utils/newAnalyses.ts)
   'resumematch_new_analyses',
 ];

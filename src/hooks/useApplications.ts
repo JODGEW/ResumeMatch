@@ -6,10 +6,73 @@ import * as api from '../api/applications';
 import { extractApiErrorMessage } from '../api/errors';
 
 const STORAGE_KEY = 'resumematch_tracker_applications';
+// Email of the account that started the localStorage migration. While it is set,
+// leftover records are retried on each load by that account only.
+const MIGRATION_OWNER_KEY = 'resumematch_tracker_migration_owner';
+// True while a migration loop runs in this page. Leaving Tracker does not cancel
+// the loop, so a remount must not start a second one over the same records.
+let migrationInFlight = false;
+
+/**
+ * Migrate legacy localStorage applications to the API and return the list to show.
+ *
+ * A first migration starts only when the API has no applications. Each record is
+ * removed from storage as soon as its create succeeds; failed records stay and are
+ * retried on the next load, as long as the same account is signed in. Both keys
+ * are removed once no records remain.
+ */
+export async function syncLocalApplications(remote: Application[], userEmail: string): Promise<Application[]> {
+  if (migrationInFlight) return remote;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  const local: Application[] = raw ? JSON.parse(raw) : [];
+  if (local.length === 0) return remote;
+
+  const owner = localStorage.getItem(MIGRATION_OWNER_KEY);
+  if (owner !== null && owner !== userEmail) {
+    console.warn('Tracker migration belongs to a different account; leaving local records untouched');
+    return remote;
+  }
+  if (owner === null) {
+    if (remote.length > 0) {
+      // Clean up localStorage if API has data (migration already done)
+      localStorage.removeItem(STORAGE_KEY);
+      return remote;
+    }
+    localStorage.setItem(MIGRATION_OWNER_KEY, userEmail);
+  }
+
+  const migrated: Application[] = [];
+  let remaining = local;
+  migrationInFlight = true;
+  for (const app of local) {
+    try {
+      const { id, createdAt, updatedAt, outreachWorth, ...payload } = app;
+      void id;
+      void createdAt;
+      void updatedAt;
+      void outreachWorth;
+      const created = await api.createApplication(payload);
+      remaining = remaining.filter(r => r !== app);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+      created.outreachWorth = calculateOutreachScore(created).worth;
+      migrated.push(created);
+    } catch (err) {
+      // Message only: an axios error carries the request body, i.e. the record.
+      console.warn('Tracker migration: create failed, will retry on next load:', err instanceof Error ? err.message : 'unknown error');
+    }
+  }
+  migrationInFlight = false;
+  if (remaining.length === 0) {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(MIGRATION_OWNER_KEY);
+  }
+  return [...migrated, ...remote];
+}
 
 export function useApplications() {
   const { user } = useAuth();
-  const isDemo = user?.email === 'demo123@resumeapp.com';
+  const userEmail = user?.email;
+  const isDemo = userEmail === 'demo123@resumeapp.com';
 
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(!isDemo);
@@ -18,43 +81,13 @@ export function useApplications() {
 
   // Fetch applications from API on mount (non-demo only)
   useEffect(() => {
-    if (isDemo || hasFetched.current) return;
+    if (isDemo || !userEmail || hasFetched.current) return;
     hasFetched.current = true;
 
-    async function fetchAndMigrate() {
+    async function fetchAndMigrate(email: string) {
       try {
         const remote = await api.getApplications();
-
-        // One-time localStorage migration: if API is empty but localStorage has data
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const local: Application[] = raw ? JSON.parse(raw) : [];
-
-        if (remote.length === 0 && local.length > 0) {
-          // Migrate localStorage data to DynamoDB
-          const migrated: Application[] = [];
-          for (const app of local) {
-            try {
-              const { id, createdAt, updatedAt, outreachWorth, ...payload } = app;
-              void id;
-              void createdAt;
-              void updatedAt;
-              void outreachWorth;
-              const created = await api.createApplication(payload);
-              created.outreachWorth = calculateOutreachScore(created).worth;
-              migrated.push(created);
-            } catch {
-              // Skip individual failures, keep going
-            }
-          }
-          setApplications(migrated);
-          localStorage.removeItem(STORAGE_KEY);
-        } else {
-          setApplications(remote);
-          // Clean up localStorage if API has data (migration already done)
-          if (remote.length > 0 && local.length > 0) {
-            localStorage.removeItem(STORAGE_KEY);
-          }
-        }
+        setApplications(await syncLocalApplications(remote, email));
       } catch (err) {
         setError(extractApiErrorMessage(err, 'Failed to load applications'));
       } finally {
@@ -62,8 +95,8 @@ export function useApplications() {
       }
     }
 
-    fetchAndMigrate();
-  }, [isDemo]);
+    fetchAndMigrate(userEmail);
+  }, [isDemo, userEmail]);
 
   const addApplication = useCallback(async (
     data: Omit<Application, 'id' | 'createdAt' | 'updatedAt' | 'outreachWorth'>,
