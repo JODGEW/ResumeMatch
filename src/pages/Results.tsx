@@ -367,6 +367,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
   const loading = sample || demoAnalysis ? false : poll.loading;
   const error = sample || demoAnalysis ? null : poll.error;
   const timedOut = sample || demoAnalysis ? false : poll.timedOut;
+  const uploadMissing = sample || demoAnalysis ? false : poll.uploadMissing;
   const status = normalizeAnalysisStatus(analysis?.status);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [resumeLoading, setResumeLoading] = useState(false);
@@ -503,6 +504,14 @@ export function Results({ sample = false }: { sample?: boolean }) {
   }
 
   if (!analysis || isInProgress(status)) {
+    if (uploadMissing) {
+      return (
+        <ProgressPage>
+          <AnalysisProgressCard mode="upload_missing" />
+        </ProgressPage>
+      );
+    }
+
     if (!timedOut) {
       return (
         <ProgressPage>

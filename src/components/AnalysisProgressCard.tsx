@@ -5,7 +5,7 @@ import { markAnalysisNew } from '../utils/newAnalyses';
 import { Mascot } from './Mascot';
 import './AnalysisProgressCard.css';
 
-export type AnalysisProgressMode = 'active' | 'finalizing' | 'complete' | 'timeout' | 'failed';
+export type AnalysisProgressMode = 'active' | 'finalizing' | 'complete' | 'timeout' | 'failed' | 'upload_missing';
 
 // Single source of truth for the completion beat: Results.tsx holds the
 // complete card for exactly this long, and AnalysisProgressCard.css derives
@@ -181,38 +181,57 @@ export function AnalysisProgressCard({
     );
   }
 
-  // Reached when usePolling gives up (POLL_TIMEOUT_MS, currently 2 minutes) with
-  // the row still non-terminal. Deliberately claims nothing about whether work is
-  // still happening: a worker that dies without writing a terminal state leaves
-  // the row in 'processing' forever, and nothing reclaims it, so "it's still
-  // running in the background" — what this card used to say — is a promise the
-  // system cannot keep. Say what we know (we stopped looking, it hadn't
-  // finished) and give the one action that always works.
+  // Reached when usePolling sees the row still in pending_upload after
+  // PENDING_UPLOAD_LIMIT_MS: the S3 POST never arrived, so nothing will run.
+  if (mode === 'upload_missing') {
+    return (
+      <section className="analysis-progress-card" role="alert">
+        <div className="analysis-progress-card__mascot" aria-hidden="true">
+          <Mascot state="error" size={112} />
+        </div>
+        <h2>Your resume didn't upload</h2>
+        <p className="analysis-progress-card__desc">
+          The file did not reach us, so this analysis can't start. Please try again.
+        </p>
+        <div className="analysis-progress-card__actions">
+          <Link to="/upload" className="btn btn-primary">
+            Start a new analysis
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  // Reached when usePolling gives up (POLL_TIMEOUT_MS, currently 4 minutes) with
+  // the row still non-terminal. This card used to promise nothing, because a
+  // worker that died left the row in 'processing' forever. Since 2026-08-10 the
+  // scheduled reclaimStaleAnalyses sweep marks such rows failed (see its
+  // DEPLOY.md in the backend repo), so the row does reach a terminal state in
+  // History, and resubmitting only starts a second analysis of the same inputs.
+  // A row stuck in pending_upload never gets here: usePolling reports it as
+  // upload_missing first.
   if (mode === 'timeout') {
     return (
       <section className="analysis-progress-card" role="status">
         <div className="analysis-progress-card__mascot" aria-hidden="true">
           <Mascot state="timeout" size={112} />
         </div>
-        <h2>This is taking longer than it should</h2>
+        <h2>This is taking longer than usual</h2>
         <p className="analysis-progress-card__desc">
-          We checked for two minutes and it hasn't finished. We can't tell from here whether it's
-          still running or has stopped.
+          We checked for four minutes and it hasn't finished yet. It may still be running. Check
+          History in a few minutes to see the result. Please don't submit the same resume and job
+          description again, because that starts a second analysis.
         </p>
-        <div className="analysis-progress-card__notice">
-          <p className="analysis-progress-card__notice-primary">
-            If it does finish, the report shows up in{' '}
-            <Link to="/history" state={{ pendingAnalysisId: analysisId }}>History</Link>. If nothing
-            appears there in the next few minutes, it isn't coming — run the analysis again.
-          </p>
-        </div>
         <div className="analysis-progress-card__actions">
-          <Link to="/upload" className="btn btn-primary">
-            Start a new analysis
+          <Link to="/history" state={{ pendingAnalysisId: analysisId }} className="btn btn-primary">
+            Go to History
           </Link>
           <button type="button" className="btn btn-outline" onClick={() => window.location.reload()}>
             Check again
           </button>
+          <Link to="/upload" className="btn btn-outline">
+            Start a new analysis
+          </Link>
         </div>
       </section>
     );
@@ -283,7 +302,7 @@ export function AnalysisProgressCard({
           <>
             <p className="apc__footer-note">
               {longRunning
-                ? 'This is taking longer than usual — you can still safely leave; your report saves automatically and will appear in your History.'
+                ? 'Still working on it. You can safely leave this page. Your report saves automatically, and you can find it in History later.'
                 : 'You can safely leave — your report saves automatically and will appear in your History.'}
             </p>
             <p className="apc__footer-meta">Usually about 30 seconds · {elapsed}s elapsed</p>

@@ -1,11 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getAnalysis } from '../api/analysis';
 import { extractApiErrorMessage } from '../api/errors';
 import type { Analysis } from '../types';
 
 const LOAD_FAILED = "We couldn't load this analysis. Please refresh the page.";
 
-const POLL_TIMEOUT_MS = 120_000; // 2 minutes
+export const POLL_TIMEOUT_MS = 240_000; // 4 minutes
+// A row still in pending_upload this long after polling starts means the S3 POST
+// never landed: analyzeResume moves it to processing as soon as the file arrives.
+// This is what catches a real network failure that Upload let through as a
+// CORS-unreadable response (both surface as a fetch TypeError).
+export const PENDING_UPLOAD_LIMIT_MS = 60_000;
+export const MAX_CONSECUTIVE_FAILURES = 5;
+const MAX_BACKOFF_MS = 30_000;
 
 export type NormalizedAnalysisStatus =
   | 'pending'
@@ -39,69 +46,114 @@ export function isInProgress(status: unknown): boolean {
     || normalized === 'unknown';
 }
 
+// Network errors (no response) and 5xx are worth another try; a 4xx will not
+// change on retry.
+function isRetryable(err: unknown): boolean {
+  const status = (err as { response?: { status?: number } })?.response?.status;
+  return typeof status !== 'number' || status >= 500;
+}
+
+export interface PollingHandlers {
+  onData: (data: Analysis) => void;
+  onError: (err: unknown) => void;
+  onTimeout: () => void;
+  onUploadMissing: () => void;
+}
+
+/**
+ * Fetches once, then keeps polling every `intervalMs` while the analysis is in
+ * progress. Each outcome that ends polling (terminal status, error, timeout,
+ * missing upload) fires at most one handler and clears every timer. The
+ * returned function stops polling the same way and silences late responses.
+ */
+export function startPolling(
+  fetchAnalysis: () => Promise<Analysis>,
+  handlers: PollingHandlers,
+  intervalMs: number,
+): () => void {
+  const startedAt = Date.now();
+  let stopped = false;
+  let failures = 0;
+  let nextPoll: ReturnType<typeof setTimeout> | undefined;
+
+  function stop() {
+    stopped = true;
+    clearTimeout(nextPoll);
+    clearTimeout(deadline);
+  }
+
+  const deadline = setTimeout(() => {
+    stop();
+    handlers.onTimeout();
+  }, POLL_TIMEOUT_MS);
+
+  async function poll() {
+    try {
+      const data = await fetchAnalysis();
+      if (stopped) return;
+      failures = 0;
+      handlers.onData(data);
+      if (!isInProgress(data.status)) {
+        stop();
+      } else if (
+        normalizeAnalysisStatus(data.status) === 'pending_upload'
+        && Date.now() - startedAt >= PENDING_UPLOAD_LIMIT_MS
+      ) {
+        stop();
+        handlers.onUploadMissing();
+      } else {
+        nextPoll = setTimeout(poll, intervalMs);
+      }
+    } catch (err) {
+      if (stopped) return;
+      failures += 1;
+      if (!isRetryable(err) || failures >= MAX_CONSECUTIVE_FAILURES) {
+        stop();
+        handlers.onError(err);
+        return;
+      }
+      nextPoll = setTimeout(poll, Math.min(intervalMs * 2 ** failures, MAX_BACKOFF_MS));
+    }
+  }
+
+  void poll();
+  return stop;
+}
+
 export function usePolling(analysisId: string | null, intervalMs = 3000) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [uploadMissing, setUploadMissing] = useState(false);
 
   useEffect(() => {
     setAnalysis(null);
     setError(null);
     setTimedOut(false);
+    setUploadMissing(false);
     setLoading(Boolean(analysisId));
 
     if (!analysisId) return;
 
-    let cancelled = false;
-
-    async function poll() {
-      try {
-        const data = await getAnalysis(analysisId!);
-        if (cancelled) return;
+    return startPolling(() => getAnalysis(analysisId), {
+      onData: data => {
         setAnalysis(data);
         setLoading(false);
-        if (!isInProgress(data.status)) {
-          clearInterval(timerRef.current);
-          clearTimeout(timeoutRef.current);
-        }
-      } catch (err) {
-        if (cancelled) return;
+      },
+      onError: err => {
         setError(extractApiErrorMessage(err, LOAD_FAILED));
         setLoading(false);
-        clearInterval(timerRef.current);
-        clearTimeout(timeoutRef.current);
-      }
-    }
-
-    // Fetch once first, only start polling if still in progress
-    (async () => {
-      try {
-        const data = await getAnalysis(analysisId);
-        if (cancelled) return;
-        setAnalysis(data);
+      },
+      onTimeout: () => {
+        setTimedOut(true);
         setLoading(false);
-        if (isInProgress(data.status)) {
-          timerRef.current = setInterval(poll, intervalMs);
-          timeoutRef.current = setTimeout(() => {
-            clearInterval(timerRef.current);
-            setTimedOut(true);
-          }, POLL_TIMEOUT_MS);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setError(extractApiErrorMessage(err, LOAD_FAILED));
+      },
+      onUploadMissing: () => {
+        setUploadMissing(true);
         setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      clearInterval(timerRef.current);
-      clearTimeout(timeoutRef.current);
-    };
+      },
+    }, intervalMs);
   }, [analysisId, intervalMs]);
 
   const hasStaleAnalysis = Boolean(analysisId && analysis && analysis.analysisId !== analysisId);
@@ -111,5 +163,6 @@ export function usePolling(analysisId: string | null, intervalMs = 3000) {
     loading: loading || hasStaleAnalysis,
     error,
     timedOut,
+    uploadMissing,
   };
 }

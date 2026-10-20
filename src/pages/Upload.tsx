@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { FileDropzone } from '../components/FileDropzone';
 import { LastResumeCard } from '../components/LastResumeCard';
-import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, fetchLastResume } from '../api/upload';
+import { requestUploadUrl, requestUploadWithReuse, uploadFileToS3, uploadNextStep, fetchLastResume } from '../api/upload';
 import { extractApiErrorMessage } from '../api/errors';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import '../components/LastResumeCard.css';
@@ -157,14 +157,22 @@ export function Upload() {
         const { presignedUrl, presignedFields, analysisId } = await requestUploadUrl(file.name, jobDescription);
 
         setStage('uploading');
+        let uploadErr: unknown = null;
         try {
           await uploadFileToS3(presignedUrl, presignedFields, file);
-        } catch (uploadErr) {
-          // S3 presigned POST may fail to return a readable response (CORS)
-          // but the file upload itself often succeeds. The backend already has
-          // the analysis record in 'processing' state. Navigate to results and
-          // let polling determine if the upload actually went through.
-          console.warn('S3 upload response error (file may have uploaded successfully):', uploadErr);
+        } catch (err) {
+          uploadErr = err;
+        }
+
+        if (uploadNextStep(uploadErr) === 'fail') {
+          console.error('S3 upload failed:', uploadErr);
+          setError('Upload failed. Please try again.');
+          setStage('idle');
+          return;
+        }
+        if (uploadErr) {
+          // CORS-unreadable S3 response; polling flags it if the file never landed.
+          console.warn('S3 upload response unreadable (file may have uploaded successfully):', uploadErr);
         }
 
         saveLastResume(analysisId, file.name);

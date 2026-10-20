@@ -47,3 +47,18 @@ export async function uploadFileToS3(
     throw new Error(`S3 upload failed: ${response.status}`);
   }
 }
+
+/**
+ * What the Upload page does once uploadFileToS3 settles: 'proceed' saves the
+ * resume as the last one used and navigates to Results; 'fail' shows an error
+ * and stays put. `uploadErr` is what uploadFileToS3 threw, or null if it resolved.
+ *
+ * The only tolerated failure is a TypeError from fetch: the S3 presigned POST
+ * can store the file and still leave the browser unable to read the response
+ * (CORS). A real network failure throws the same TypeError; usePolling catches
+ * that case when the row never leaves pending_upload. A non-2xx response or
+ * any other error means the file did not reach S3.
+ */
+export function uploadNextStep(uploadErr: unknown): 'proceed' | 'fail' {
+  return uploadErr === null || uploadErr instanceof TypeError ? 'proceed' : 'fail';
+}
