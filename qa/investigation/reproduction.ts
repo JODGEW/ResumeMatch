@@ -31,7 +31,7 @@ function stateLocator(page: Page, state: SemanticState): Locator {
     case 'processing': return page.getByRole('status')
     case 'completed_report': return page.getByRole('heading', { name: 'QA Synthetic Software Engineer' })
     case 'failed_report': return page.getByRole('heading', { name: 'Analysis could not be completed' })
-    case 'timeout_report': return page.getByRole('heading', { name: 'This is taking longer than it should' })
+    case 'timeout_report': return page.getByRole('heading', { name: 'This is taking longer than usual' })
   }
 }
 

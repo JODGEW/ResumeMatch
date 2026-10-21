@@ -78,7 +78,7 @@ test('P1-04: backend terminal failure renders recovery state without a score', a
   })
 })
 
-test('P1-05: polling times out after two controlled minutes', async () => {
+test('P1-05: polling times out after four controlled minutes', async () => {
   const result = await runReleaseCheck('P1-05')
 
   expect(result).toMatchObject({

@@ -50,6 +50,7 @@ export interface EvalCase {
  * classification in the 2026-10-08 sweep at `9c5e6d7` (docs/qa-phase2.md).
  * D7, D8, D9 and B5 were added in slice 4; their triage and original failed
  * oracle were measured with the scripted provider in the slice 5 pilot.
+ * Freeze v9 retired B3 and made B5 the absorbed-fault case (docs/qa-phase2.md).
  */
 export const EVAL_CASES: readonly EvalCase[] = [
   {
@@ -101,12 +102,15 @@ export const EVAL_CASES: readonly EvalCase[] = [
     goldFirstProbe: 'count_requests',
   },
   {
+    // Only the first poll schedules a successor, so P1-02 polls twice
+    // (pending_upload, then processing) and stops. Since Freeze v9; the v8
+    // anchor was the setInterval call that f3af895 removed.
     id: 'D4', kind: 'seeded_defect', scenarioId: 'P1-02',
     summary: 'Polling stops after the first processing response',
     mutation: {
       file: 'src/hooks/usePolling.ts',
-      find: 'timerRef.current = setInterval(poll, intervalMs);',
-      replace: 'timerRef.current = setTimeout(poll, intervalMs) as ReturnType<typeof setInterval>;',
+      find: 'if (failures === 0) schedule(intervalMs);',
+      replace: 'if (failures === 0 && started === 1) schedule(intervalMs);',
     },
     expectedTriage: 'investigate', expectedClassification: 'confirmed',
     goldFirstProbe: 'read_scenario_transition_log',
@@ -128,15 +132,9 @@ export const EVAL_CASES: readonly EvalCase[] = [
     transientFaults: ['analysis_interrupted_once'],
     expectedTriage: 'investigate', expectedClassification: 'not_reproduced',
   },
-  {
-    // The upload page swallows a failed S3 response on purpose and navigates
-    // anyway, so this fault reaches no oracle: the run passes and triage never
-    // reaches an investigator. Measured 2026-08-23; see docs/qa-phase2.md.
-    id: 'B3', kind: 'benign_transient', scenarioId: 'P1-02',
-    summary: 'S3 accepts the object but its response fails; the product continues regardless',
-    transientFaults: ['s3_response_500_once'],
-    expectedTriage: 'expected', expectedClassification: null,
-  },
+  // B3 (S3 accepts the object but its response fails; the product continues
+  // regardless) was retired in Freeze v9: since f3af895 the upload page reports a
+  // readable S3 500 instead of continuing. B5 now holds its absorbed-fault role.
   {
     // The original run is B2's: the second poll is aborted, so the report never
     // completes. Only a fresh reproduction shows that polling also stops at
@@ -185,15 +183,15 @@ export const EVAL_CASES: readonly EvalCase[] = [
     expectedTriage: 'investigate', expectedClassification: 'confirmed',
   },
   {
-    // The second poll is aborted, polling stops, and the timeout report never
-    // appears; a reproduction that advances the controlled clock reaches it.
-    // Measured in the slice 5 pilot (2026-10-11, a327a4c): triage investigate,
-    // original failed oracle P1-05_TIMEOUT_STATE.
-    // Measured in the committed scripted pilot (2026-10-11, c51bc38): not_reproduced.
+    // The absorbed-fault case since Freeze v9: the product retries the aborted
+    // poll, the timeout report still appears, every oracle passes, and triage
+    // never reaches an investigator. Until v9 the abort stopped polling and the
+    // case expected investigate / not_reproduced (slice 5 pilot, 2026-10-11,
+    // a327a4c: original failed oracle P1-05_TIMEOUT_STATE).
     id: 'B5', kind: 'benign_transient', scenarioId: 'P1-05',
-    summary: 'One analysis poll in the timeout scenario is interrupted; a fresh reproduction reaches the timeout',
+    summary: 'One analysis poll in the timeout scenario is interrupted; the product retries and the timeout report still appears',
     transientFaults: ['analysis_interrupted_once'],
-    expectedTriage: 'investigate', expectedClassification: 'not_reproduced',
+    expectedTriage: 'expected', expectedClassification: null,
   },
 ]
 

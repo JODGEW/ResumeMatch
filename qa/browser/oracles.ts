@@ -94,7 +94,7 @@ export async function verifyUsableCompletedReport(
   await requireVisible(page.getByRole('heading', { name: /Missing Keywords\s*2/ }), 'COMPLETED_MISSING_KEYWORDS')
   await requireVisible(page.getByText('Fault isolation', { exact: true }).first(), 'COMPLETED_MISSING_KEYWORD_VALUE')
   requireCondition(await page.getByRole('heading', { name: 'Analysis could not be completed' }).count() === 0, 'COMPLETED_NO_FAILURE', 'Failure report rendered')
-  requireCondition(await page.getByRole('heading', { name: 'This is taking longer than it should' }).count() === 0, 'COMPLETED_NO_TIMEOUT', 'Timeout report rendered')
+  requireCondition(await page.getByRole('heading', { name: 'This is taking longer than usual' }).count() === 0, 'COMPLETED_NO_TIMEOUT', 'Timeout report rendered')
   requireCondition(scenario.counters.upload === 1, 'CONTRACT_UPLOAD_COUNT', 'Expected exactly one upload request')
   requireCondition(scenario.counters.lastResume === 1, 'CONTRACT_LAST_RESUME_COUNT', 'Expected exactly one last-resume request')
   requireCondition(scenario.counters.s3 === (expectS3 ? 1 : 0), 'CONTRACT_S3_COUNT', 'Unexpected S3 request count')
@@ -114,14 +114,17 @@ export async function verifyBackendFailedReport(page: Page, scenario: ScenarioIn
 }
 
 export async function verifyPollingTimeout(page: Page, scenario: ScenarioInstance, countAtTimeout: number): Promise<void> {
-  await requireVisible(page.getByRole('heading', { name: 'This is taking longer than it should' }), 'P1-05_TIMEOUT_TITLE')
-  await requireVisible(page.getByText(/We checked for two minutes and it hasn't finished/), 'P1-05_TWO_MINUTE_MESSAGE')
+  await requireVisible(page.getByRole('heading', { name: 'This is taking longer than usual' }), 'P1-05_TIMEOUT_TITLE')
+  await requireVisible(page.getByText("We checked for four minutes and it hasn't finished yet. It may still be running. Check History in a few minutes to see the result. Please don't submit the same resume and job description again, because that starts a second analysis.", { exact: true }), 'P1-05_TWO_MINUTE_MESSAGE')
   await requireVisible(page.getByRole('link', { name: 'Start a new analysis' }), 'P1-05_START_NEW')
   await requireVisible(page.getByRole('button', { name: 'Check again' }), 'P1-05_CHECK_AGAIN')
   requireCondition(await page.locator('.results-score-row').count() === 0, 'P1-05_NO_COMPLETED_REPORT', 'Completed report rendered')
   requireCondition(await page.getByRole('heading', { name: 'Analysis could not be completed' }).count() === 0, 'P1-05_NO_FAILED_REPORT', 'Backend-failed report rendered')
   requireCondition(countAtTimeout >= 3, 'P1-05_ANALYSIS_COUNT', 'Multiple three-second polling attempts did not occur')
-  requireCondition(countAtTimeout >= 40 && countAtTimeout <= 42, 'P1-05_POLLING_INTERVAL', `Expected about 40 controlled polling requests, received ${countAtTimeout}`)
+  // A normal run counts 80 polls over the 240 s timeout. In B5 the aborted poll's error can be
+  // handled before the 6-second poll starts; the retry then lands the count at 78 or 79, which
+  // is correct product behavior.
+  requireCondition(countAtTimeout >= 78 && countAtTimeout <= 80, 'P1-05_POLLING_INTERVAL', `Expected 78 to 80 controlled polling requests, received ${countAtTimeout}`)
   requireCondition(scenario.counters.analysis === countAtTimeout, 'P1-05_POLLING_STOPPED', 'Polling continued after timeout')
   requireCondition(scenario.contractViolations.length === 0, 'P1-05_CONTRACT', 'Scenario contract was violated')
 }
