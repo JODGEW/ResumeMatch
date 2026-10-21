@@ -15,17 +15,17 @@ describe('evaluation corpus', () => {
   // Thirteen, not the original twelve: B4 replaces B2 in the held-out slot while
   // B2 stays in the corpus as a public benign case. Seventeen since slice 4 added
   // D7, D8, D9 and B5 to the public half. Twenty since step 5 added D10, D11 and
-  // B6 to the held-out half.
-  it('holds three clean, eleven seeded, and six benign cases across both halves', () => {
-    expect(EVAL_CASES.length + HELD_OUT_CASES.length).toBe(20)
+  // B6 to the held-out half. Nineteen since Freeze v9 retired B3.
+  it('holds three clean, eleven seeded, and five benign cases across both halves', () => {
+    expect(EVAL_CASES.length + HELD_OUT_CASES.length).toBe(19)
     expect(EVAL_CASES.filter(item => item.kind === 'clean')).toHaveLength(3)
     const seeded = EVAL_CASES.filter(item => item.kind === 'seeded_defect').length
       + HELD_OUT_CASES.filter(item => item.kind === 'seeded_defect').length
     const benign = EVAL_CASES.filter(item => item.kind === 'benign_transient').length
       + HELD_OUT_CASES.filter(item => item.kind === 'benign_transient').length
-    expect({ seeded, benign }).toEqual({ seeded: 11, benign: 6 })
+    expect({ seeded, benign }).toEqual({ seeded: 11, benign: 5 })
     const ids = [...EVAL_CASES.map(item => item.id), ...HELD_OUT_CASE_IDS]
-    expect(new Set(ids).size).toBe(20)
+    expect(new Set(ids).size).toBe(19)
   })
 
   it('holds out D5, D6, D10, D11, B4, and B6', () => {
@@ -68,11 +68,15 @@ describe('held-out isolation gate', () => {
 })
 
 describe('public corpus rules', () => {
-  it('expects B3 to pass its oracle rather than reach an investigator', () => {
-    const b3 = EVAL_CASES.find(item => item.id === 'B3')
-    expect({ triage: b3?.expectedTriage, classification: b3?.expectedClassification, gold: b3?.goldFirstProbe })
+  it('has retired B3, whose absorbed S3 500 the product no longer absorbs', () => {
+    expect(EVAL_CASES.map(item => item.id)).not.toContain('B3')
+  })
+
+  it('expects B5 to pass its oracle rather than reach an investigator', () => {
+    const b5 = EVAL_CASES.find(item => item.id === 'B5')
+    expect({ triage: b5?.expectedTriage, classification: b5?.expectedClassification, gold: b5?.goldFirstProbe })
       .toEqual({ triage: 'expected', classification: null, gold: undefined })
-    expect(b3?.transientFaults).toEqual(['s3_response_500_once'])
+    expect(b5?.transientFaults).toEqual(['analysis_interrupted_once'])
   })
 
   it('never expects a confirmed finding for a clean or benign case', () => {
@@ -135,7 +139,7 @@ describe('case resolution across both halves', () => {
     })
     expect(shape('B5')).toEqual({
       kind: 'benign_transient', scenario: 'P1-05', file: undefined, faults: ['analysis_interrupted_once'],
-      triage: 'investigate', classification: 'not_reproduced', gold: undefined,
+      triage: 'expected', classification: null, gold: undefined,
     })
     // A mutation must actually change the line, and none may touch the route the example narrative uses.
     for (const id of ['D7', 'D8', 'D9']) {

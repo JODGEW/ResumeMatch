@@ -28,8 +28,8 @@ export const PHASE1_URL_MS = 30_000
  */
 const PLAYWRIGHT_DEFAULT_MS = 30_000
 
-/** `POLL_TIMEOUT_MS` in `src/hooks/usePolling.ts`; Phase 1 advances the clock 120 001 ms past it. */
-const POLL_TIMEOUT_MS = 120_000
+/** `POLL_TIMEOUT_MS` in `src/hooks/usePolling.ts`; Phase 1 advances the clock 240 001 ms past it. */
+const POLL_TIMEOUT_MS = 240_000
 
 /** What a registry oracle may read besides the page. */
 export interface OracleContext {
@@ -178,7 +178,7 @@ function completedReportOracles(scenarioId: ScenarioId, expectedAnalysisId: stri
       condition(await page.getByRole('heading', { name: 'Analysis could not be completed' }).count() === 0, 'COMPLETED_NO_FAILURE', 'Failure report rendered')
     }),
     at('COMPLETED_NO_TIMEOUT', async page => {
-      condition(await page.getByRole('heading', { name: 'This is taking longer than it should' }).count() === 0, 'COMPLETED_NO_TIMEOUT', 'Timeout report rendered')
+      condition(await page.getByRole('heading', { name: 'This is taking longer than usual' }).count() === 0, 'COMPLETED_NO_TIMEOUT', 'Timeout report rendered')
     }),
     at('CONTRACT_UPLOAD_COUNT', async (_page, ctx) => {
       condition(ctx.scenario.counters.upload === 1, 'CONTRACT_UPLOAD_COUNT', 'Expected exactly one upload request')
@@ -326,7 +326,7 @@ const TIMEOUT_PROCESSING = { after: TIMEOUT_OPENED, withinMs: PLAYWRIGHT_DEFAULT
 /** Phase 1's requireVisible after its clock advance; the verify set adds one more for visible ids. */
 const TIMEOUT_GATE = { after: CLOCK_ADVANCED, withinMs: PHASE1_VISIBLE_MS }
 const TIMEOUT_SHOWN = { after: CLOCK_ADVANCED, withinMs: TIMEOUT_GATE.withinMs + PHASE1_VISIBLE_MS }
-const TIMEOUT_HEADING = (page: Page) => page.getByRole('heading', { name: 'This is taking longer than it should' })
+const TIMEOUT_HEADING = (page: Page) => page.getByRole('heading', { name: 'This is taking longer than usual' })
 
 /** More than the poll timeout advanced, counting only advances since the route was last opened. */
 function clockedPastTimeout(context: OracleContext): boolean {
@@ -348,7 +348,7 @@ const P1_05: OracleDefinition[] = [
   { id: 'P1-05_PROCESSING_STATE', scenarioId: 'P1-05', stage: 'driver', preconditionTransition: TIMEOUT_OPENED, chain: TIMEOUT_PROCESSING, ...seen('P1-05_PROCESSING_STATE', page => page.getByRole('heading', { name: 'Resume analysis in progress' }), [loaded('load')]) },
   afterTimeout({ id: 'P1-05_TIMEOUT_STATE', stage: 'driver', chain: TIMEOUT_GATE, ...seen('P1-05_TIMEOUT_STATE', TIMEOUT_HEADING) }),
   afterTimeout({ id: 'P1-05_TIMEOUT_TITLE', stage: 'verify', chain: TIMEOUT_SHOWN, ...seen('P1-05_TIMEOUT_TITLE', TIMEOUT_HEADING) }),
-  afterTimeout({ id: 'P1-05_TWO_MINUTE_MESSAGE', stage: 'verify', chain: TIMEOUT_SHOWN, ...seen('P1-05_TWO_MINUTE_MESSAGE', page => page.getByText(/We checked for two minutes and it hasn't finished/)) }),
+  afterTimeout({ id: 'P1-05_TWO_MINUTE_MESSAGE', stage: 'verify', chain: TIMEOUT_SHOWN, ...seen('P1-05_TWO_MINUTE_MESSAGE', page => page.getByText("We checked for four minutes and it hasn't finished yet. It may still be running. Check History in a few minutes to see the result. Please don't submit the same resume and job description again, because that starts a second analysis.", { exact: true })) }),
   afterTimeout({ id: 'P1-05_START_NEW', stage: 'verify', chain: TIMEOUT_SHOWN, ...seen('P1-05_START_NEW', page => page.getByRole('link', { name: 'Start a new analysis' })) }),
   afterTimeout({ id: 'P1-05_CHECK_AGAIN', stage: 'verify', chain: TIMEOUT_SHOWN, ...seen('P1-05_CHECK_AGAIN', page => page.getByRole('button', { name: 'Check again' })) }),
   afterTimeout({ id: 'P1-05_NO_COMPLETED_REPORT', stage: 'verify', chain: TIMEOUT_GATE, settle: shown(TIMEOUT_HEADING), evaluate: async page => condition(await page.locator('.results-score-row').count() === 0, 'P1-05_NO_COMPLETED_REPORT', 'Completed report rendered') }),
@@ -358,7 +358,10 @@ const P1_05: OracleDefinition[] = [
     id: 'P1-05_POLLING_INTERVAL', stage: 'verify', chain: TIMEOUT_GATE, settle: shown(TIMEOUT_HEADING),
     evaluate: async (_page, ctx) => {
       const count = ctx.analysisCountAtTimeout ?? ctx.scenario.counters.analysis
-      condition(count >= 40 && count <= 42, 'P1-05_POLLING_INTERVAL', `Expected about 40 controlled polling requests, received ${count}`)
+      // A normal run counts 80 polls over the 240 s timeout. In B5 the aborted poll's error can be
+      // handled before the 6-second poll starts; the retry then lands the count at 78 or 79, which
+      // is correct product behavior.
+      condition(count >= 78 && count <= 80, 'P1-05_POLLING_INTERVAL', `Expected 78 to 80 controlled polling requests, received ${count}`)
     },
   }),
   afterTimeout({ id: 'P1-05_POLLING_STOPPED', stage: 'verify', chain: TIMEOUT_GATE, settle: shown(TIMEOUT_HEADING), evaluate: async (_page, ctx) => condition(ctx.scenario.counters.analysis === (ctx.analysisCountAtTimeout ?? ctx.scenario.counters.analysis), 'P1-05_POLLING_STOPPED', 'Polling continued after timeout') }),

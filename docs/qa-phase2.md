@@ -92,7 +92,7 @@ A finding that names `classification`, `reproductionOracleResult`, `rejectedCall
 
 The corpus is split in two. `qa/investigation/evalCases.ts` holds the public half — three clean cases, seven seeded defects anchored to exact single-occurrence source strings, and four benign transient cases — with their mutations and faults, and gold first probes for D1–D4 and B1. Their graded root causes and evidence sets live in `rootCauseGold.ts` and `goldEvidence.ts`. `qa/investigation/evalCases.heldout.ts` holds D5, D6, D10, D11, B4, and B6 as expectations only: no mutation, no fault, no gold probe. Their definitions live in the gitignored `qa/investigation/heldout/` directory and load only under an explicit `--held-out` opt-in, and a gate test fails if any held-out id appears in the public file. Since `cd8c186` a held-out definition may also carry its case's gold root cause and evidence set; a case without them is not graded.
 
-That made thirteen cases, not the original twelve. B2 was implemented and executed during Phase 2 development, so it can no longer serve as held out; it stays in the corpus as a public benign case and carries no gold probe, and B4 takes the held-out slot. B4 interrupts the last-resume lookup once in the reuse scenario — a route and a scenario no public benign case covers, failing as a missing element rather than a failed navigation or a stalled poll. Commit `a327a4c` added D7, D8, D9 and B5 to the public half, for seventeen cases. Step 5 added held-out D10, D11 and B6 after Freeze v6, for twenty.
+That made thirteen cases, not the original twelve. B2 was implemented and executed during Phase 2 development, so it can no longer serve as held out; it stays in the corpus as a public benign case and carries no gold probe, and B4 takes the held-out slot. B4 interrupts the last-resume lookup once in the reuse scenario — a route and a scenario no public benign case covers, failing as a missing element rather than a failed navigation or a stalled poll. Commit `a327a4c` added D7, D8, D9 and B5 to the public half, for seventeen cases. Step 5 added held-out D10, D11 and B6 after Freeze v6, for twenty. Freeze v9 retired B3, leaving nineteen; the counts above describe the corpus as it stood at v8.
 
 ### Runner
 
@@ -183,12 +183,207 @@ attributed to a specific investigator rather than to a moving one.
 every `npm test`. A frozen file cannot change without this record changing in
 the same commit, which is the point: the change becomes visible in review
 instead of drifting silently. Only the current version gates; earlier tables
-are history, and the test also checks that the Freeze v7, v6 and v5 sections
+are history, and the test also checks that the Freeze v8, v7, v6 and v5 sections
 are unchanged.
 An `adapter:` path resolves inside the adapter checkout, located by
 `RESUMEMATCH_QA_ADAPTER_PATH` or its default; when that checkout is absent the
 nine adapter rows are reported as unverified and the 28 repository rows are
 still enforced.
+
+### Freeze v9 (2026-10-20)
+
+Superseding v8 after two product commits that changed behavior v8's cases and
+oracles encoded: `f3af895` (upload failures are shown, transient polling errors
+are retried, a slow analysis is no longer called failed) and `3a0b7e2` (polling
+keeps a fixed cadence regardless of response latency). Both are on this branch
+below the commit that adds this section. The Freeze v8 table below is kept byte
+for byte as history; its line saying `freeze.test.ts` verifies it describes the
+gate as it stood until v9.
+
+**The product changes.**
+
+- The upload page stays on the page and shows `Upload failed. Please try again.`
+  for a non-2xx S3 response or any error other than the `TypeError` a browser
+  throws when it cannot read a cross-origin response. Only that `TypeError` is
+  tolerated, because the object may have been stored.
+- Polling retries a network error or a 5xx with backoff (6, 12, 24, then 30
+  seconds) and gives up after 5 failures in a row; a 4xx stops it at once. A row
+  still in `pending_upload` 60 seconds in shows an upload-failed card. The poll
+  timeout is 240 seconds, not 120, and its card now says the analysis may still be
+  running instead of calling it failed.
+- Under `3a0b7e2` each poll is due one interval after the previous one started,
+  not after its response landed, and a response older than the last applied one
+  is ignored. The chained-timeout version in `f3af895` made P1-05's poll count
+  depend on response latency: 41 to 79 polls in 240 s across the measurement runs. The fixed
+  cadence makes it 80.
+
+**What moved since v8.** Five repository files; the other 32 rows carry their v8
+hashes (23 repository files and all nine adapter files). The adapter, the
+harness, `session.ts`, `budget.ts`, the finding schema, the graders and both
+gold files are unchanged.
+
+| File | v8 sha256 | v9 sha256 |
+| --- | --- | --- |
+| `qa/investigation/reproduction.ts` | `4de416f40f815a33190f4043ad6221f62440015ad7bfdae5846d4eb791203acc` | `e00d35f8b40e8acdd79827e32240b5b4a7c90a803b15b143c06eb5837179fcab` |
+| `qa/investigation/evalCases.ts` | `cb7cecae87ebe23f85c355c40e726635c58b5f1fec4c30f1521db312905e1b92` | `1547587325780ccdebedad2b852d1000c8e17fecd4e69c77c948cd9b07e4a925` |
+| `qa/browser/oracleRegistry.ts` | `1b46cf267f2c3acae7f5239476b4678d50a99ee082dd4f56e72b4c896a774e55` | `2ba84aca0cd762751f5f8507f64778b9acae9cf8543dba9d5b65441f457d2f41` |
+| `qa/browser/runReleaseCheck.ts` | `1bb6ee6c67a08dfdbce5929b837492bb9b34c57d188d1c1b770a596315c7ac4e` | `db0a84e86e780dc0493ffb8bd2750166987d4ddbc843cc169c1cec3cd84a5910` |
+| `qa/browser/oracles.ts` | `b76a8b3d33268b5f9f608679fb07186fcd51bcac7f277f5cf763ed60cdcf5ec4` | `0668f60307b5051adacc92c88b40ac2165e9a0bf6103d75479a497df5fce48a5` |
+
+**Case changes.**
+
+- **D4, redefined with the same observable behavior.** The v8 anchor
+  `timerRef.current = setInterval(poll, intervalMs);` no longer exists. The v9
+  anchor is `if (failures === 0) schedule(intervalMs);` in
+  `src/hooks/usePolling.ts`, replaced by
+  `if (failures === 0 && started === 1) schedule(intervalMs);`, so only the first
+  poll schedules a successor. The applier's counts on `3a0b7e2` were anchor 1,
+  anchor 0 after the write, replacement 1. In P1-02 that gives exactly two analysis
+  requests (`pending_upload`, then `processing`) and none after, with
+  `analysis:processing` as the last transition and no abort. That is what
+  `rootCauseGold.ts` and `goldEvidence.ts` say for D4, so both files and their
+  hashes are unchanged. D7's anchor `if (!isInProgress(data.status)) {` still
+  matches exactly once.
+- **B3 retired.** B3 injected a failing S3 response after the object was accepted
+  and expected the page to carry on, so triage stayed `expected` with no model
+  calls. Since `f3af895` a readable S3 500 is a real failure: the page shows the
+  upload error and does not navigate, so by the code B3's run would now fail
+  `P1-02_RESULTS_NAVIGATION` and be investigated; it was not run. The behavior it relied on was
+  fixed, so the case is removed from the active corpus rather than redefined. Its
+  `['B3', null]` entry in `rootCauseGold.ts` is kept but unused, because that file
+  is frozen and unchanged. The `s3_response_500_once` fault stays defined in the
+  harness and its tests; no corpus case uses it. The corpus is nineteen cases:
+  three clean, eleven seeded and five benign. No case now covers the
+  `TypeError` path or a readable S3 failure on the upload page.
+- **B5 is the absorbed-fault case.** Under v8 the interrupted second poll stopped
+  polling, the timeout report never appeared, and B5 expected `investigate` with
+  `not_reproduced`. Now the product retries the aborted poll, the timeout report
+  still appears, every oracle passes, triage is `expected`, and no model is called.
+  B5 takes over B3's role: the corpus's only case proving that an injected fault
+  the product absorbs does not manufacture work for a model. Its entries in
+  `rootCauseGold.ts` and `goldEvidence.ts` are unchanged and unused, because no
+  investigation runs.
+- **P1-05 waits four minutes.** `runReleaseCheck.ts` advances the controlled clock
+  240 001 ms; the timeout heading is `This is taking longer than usual` in
+  `runReleaseCheck.ts`, `oracles.ts`, `oracleRegistry.ts` and `reproduction.ts`;
+  `POLL_TIMEOUT_MS` in `oracleRegistry.ts` is 240 000. The oracle id
+  `P1-05_TWO_MINUTE_MESSAGE` is kept but now checks the new body sentence exactly:
+  `We checked for four minutes and it hasn't finished yet. It may still be
+  running. Check History in a few minutes to see the result. Please don't submit
+  the same resume and job description again, because that starts a second
+  analysis.` `P1-05_POLLING_INTERVAL` accepts 78 to 80 polls at the timeout, where
+  v8 accepted 40 to 42. A normal run counts 80. In B5 the aborted poll's error can
+  be handled before the 6-second poll starts, and the retry then lands the count at
+  78 or 79, which is correct product behavior. Measured under `3a0b7e2`: 15 normal
+  P1-05 runs and 15 in-place B5 runs all counted 80.
+- **C1 to C3.** `COMPLETED_NO_TIMEOUT` (`oracles.ts`, `oracleRegistry.ts`) checks
+  for the new timeout heading. Against the old heading it passed whatever the page
+  did.
+- **Clock cap unchanged.** One `advance_controlled_clock` is still capped at
+  180 000 ms with two advances per investigation (`session.ts`, `budget.ts`), so a
+  P1-05 reproduction needs both advances to pass the 240-second timeout. In v8 a
+  180 000 ms advance was enough, and 10 of the 11 B5 runs that matched their
+  expectation advanced that far; it now falls short of 240 000 ms.
+
+**Deleted end-to-end tests.** `tests/e2e/investigation.e2e.ts` lost
+`B5 with the clock advanced too little for the timeout is inconclusive, not confirmed`
+and `B5 with the clock advanced past the timeout does not reproduce`, with the
+`timeoutReproduction` helper only they used and the `scenarioId` parameter of
+`failingRun`. Both started from a failing P1-05 original run produced by B5's
+interrupted poll, which the product now absorbs. What they covered end to end was a
+real investigation session on a failing P1-05 run: an under-advanced clock gives
+`preconditionMet: false` and `inconclusive`, and a sufficiently advanced one gives
+`not_reproduced`. The rule itself is still covered by unit tests, in
+`oracleRegistry.test.ts` (more than 240 000 ms counted since the route was last
+opened) and `reproduction.test.ts` (a B5-shaped reproduction judged under the
+controlled clock). Nothing now drives `advance_controlled_clock` through a session
+against a failing P1-05 original run, because the corpus no longer produces one.
+
+**Comparability.** v9 results are not comparable with v8 for D4 (a different
+mutation with the same behavior), B3 (gone), B5 (investigated under v8, not under
+v9), C1 to C3 (a changed oracle), and every P1-05 case. The product changed under
+all of them too: the original runs and reproductions of D1, D7, D8, D9, B1 and B2
+run against the new retry and cadence code, which can change their evidence. A
+sweep has 14 investigations, not 15, and 13 graded root causes, not 14, because B5
+no longer reaches an investigator. A v9 comparison needs full sweeps of all
+nineteen cases.
+
+**v8's citations.** The Freeze v8 section and the v8 live results cite
+`src/pages/Upload.tsx:159-168`, `src/hooks/usePolling.ts` and `qa/` lines as they
+stood at the v8 commit. Those lines have moved or changed behavior, and the
+hash-locked text is not edited; read the citations as describing the v8 commit.
+
+**Held-out exposure.** No held-out definition was read in this step. The sweep ran
+with its output redirected to files, and only the case id, triage, expected triage
+and match were read from the results; no mutation text reached the report. In the
+planning step before it, a script loaded the held-out definitions and printed only
+yes or no facts and field names, not mutation text or gold answers. Those facts
+were that D5, D6, D10 and D11 anchor to files the product change touched and still
+match once, and that no held-out case injects the faults whose behavior changed.
+D10 stays exposed from v8.
+
+**Validation so far.** A fake-provider triage sweep of all nineteen cases (thirteen
+public, six held-out) on ResumeMatch `0403cdd4a5863d69da4b3977291b313a534809ff`,
+adapter `649b94a9e6c7897daa7a99f638a865553abac04a`, harness
+`015fa1305085bdf7fbac6e738eaf39207ad9b73a`, ResumeMatch build under Node 18.20.4
+and the harness under Node 22.23.1. Every case matched its expected triage. C1 to
+C3, B4 and B5 made no model request. The scripted provider's classifications mean
+nothing and are not recorded. There is no real-model run for v9 yet.
+
+`freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `360f051fd50f5241dba85babda0a23a8ec9923a8028352cf59697baf3ef6d1bc` |
+| `adapter:src/qa-tools.ts` | `745117fa998d5da7db885087c3f5af9a10b7af2e0e6bead80d5d41ab225fa5a4` |
+| `adapter:cordis.yml` | `cb14edabb8f2c819268d03b166c190f80ffc02dd058d046f9b1ed86a71d1ba45` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `adapter:run-config.anthropic.yml` | `996694916d76eb5346a80ff8cd365bb1c5e435474fddcc3468c3c1f2795bc83c` |
+| `adapter:run-config.anthropic-haiku.yml` | `b6aff68226e9e27b29edd9d266fce103417eaa2b51cfe4b00a88f55c379787c3` |
+| `adapter:run-config.anthropic-opus.yml` | `fbcdf5976d914b6f605462c9c6673232a6e9ff614fb9f0cbe9d1e97bd938d9f2` |
+| `adapter:src/system-prompt.ts` | `f4eae4af1f8739cf140ecd33990836bd53c19e5359f3c3dbab5ec0225f820f3b` |
+| `adapter:src/pricing.ts` | `1559e8e4160ab6747d3d1aac916e2321869cd7e2ff7dad911b1b3297c30f2b32` |
+| `qa/investigation/finding.ts` | `973cd66da05b2bd257b748be6d128828745ab23ae4cafdb349582a06a24e780f` |
+| `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
+| `qa/investigation/budget.ts` | `b2a5feef1fec034e3c1c3685a7762e5b45eba46a2469929e1bc8f3c88e61161d` |
+| `qa/investigation/session.ts` | `d7d85c06b10091f3c2c367784be2cbc003a436b76260983979ece7b056987b66` |
+| `qa/investigation/errors.ts` | `8890d8f41bec0034be479ac2d5cf5bb8d6132541fd4daf308068e53868b7e9ec` |
+| `qa/investigation/evidenceReader.ts` | `92c30372a3e70d16c409dd2a493e2c620a855ed59c5e0e660264491517513acb` |
+| `qa/investigation/reproduction.ts` | `e00d35f8b40e8acdd79827e32240b5b4a7c90a803b15b143c06eb5837179fcab` |
+| `qa/investigation/cost.ts` | `1fe360e99eecdfe402ad951d8eb3d86981f849d5a01c0433496440b5993c8438` |
+| `qa/investigation/evalRunner/runCase.ts` | `d02e2251ef8b51455b4dca0dbec58082d5e1bd81ce085b3c5f7c0bcad14d8fee` |
+| `qa/investigation/evalCases.ts` | `1547587325780ccdebedad2b852d1000c8e17fecd4e69c77c948cd9b07e4a925` |
+| `qa/browser/oracleRegistry.ts` | `2ba84aca0cd762751f5f8507f64778b9acae9cf8543dba9d5b65441f457d2f41` |
+| `qa/investigation/triage.ts` | `4f7153b63d43d02beacd52d928ba7f4643462fc6c24c1e575d684b03b9f88f27` |
+| `qa/investigation/rootCauseGold.ts` | `a15441a3e5944bf0f26533cf7dd13196ecd6ce8e98a6e59ba6285ddc81703dc3` |
+| `qa/investigation/rootCauseScore.ts` | `dbe5a364f0297e33f6529794912a4a6bb82677cad233f569782e1d9aadb9aa1e` |
+| `qa/investigation/goldEvidence.ts` | `a84ba136e4d3663d28965f7cbe36f3738da7d5583562252194ce5a5ff45b6fa1` |
+| `qa/investigation/goldProbe.ts` | `b3421e9d9288bf1c19b2e2d7c94116b1aca47e95916bc3ff5a8a702fa1a7b27d` |
+| `qa/investigation/heldoutDefinitions.ts` | `2116fe94c802f0901ca29188f07ad296b618ddb61184cc6c6c01f3dbd51733af` |
+| `qa/investigation/evalRunner/mutation.ts` | `2c24d0dea1599dd8867a625a6c6a94a7bcd3b9d235a943a849a0cf08f7190a50` |
+| `tests/e2e/evalCase.e2e.ts` | `c93916d905ca5cfd5b05404389225cc1949b4fd0f6402b528666321981963983` |
+| `qa/browser/scenarios.ts` | `1f146807f83623881da0a64a792794a75c08b50966b95d127f2167d840a004cc` |
+| `qa/browser/contractRouter.ts` | `92242a3db70e1d5bd0f30b3908b14b250e476d2c93537df6311d9b67668c4c67` |
+| `qa/browser/networkPolicy.ts` | `77f4734ffa4281b351476d3f678f099220fbf83aeec18bfc48f929d75f52d977` |
+| `qa/browser/evidence.ts` | `e2cce31f7d5f34d7ad333a4a48f2de25fbf778ea906d943c40def17ccd1a2d62` |
+| `qa/browser/uploadObservation.ts` | `eb45c67b874e07b8b30b5763a56d86eedd62b0da229bac8008998f9c6f2efb7c` |
+| `qa/browser/runReleaseCheck.ts` | `db0a84e86e780dc0493ffb8bd2750166987d4ddbc843cc169c1cec3cd84a5910` |
+| `qa/browser/oracles.ts` | `0668f60307b5051adacc92c88b40ac2165e9a0bf6103d75479a497df5fce48a5` |
+| `qa/browser/artifactValidator.ts` | `5d0d53c5327afeb08d83c6fdba4df14af56a41672aaa71d7d2539f013f9efeee` |
+| `qa/fixtures/data.ts` | `f39559c24e52b45512bc7639c8f30058702099aa841051912aed2dd6031fe305` |
+
+#### Frozen at
+
+| Checkout | Commit |
+| --- | --- |
+| ResumeMatch | `0403cdd4a5863d69da4b3977291b313a534809ff` |
+| DeepSeek Harness | `015fa1305085bdf7fbac6e738eaf39207ad9b73a` |
+| `resumematch-qa-tools` adapter | `649b94a9e6c7897daa7a99f638a865553abac04a` |
+
+The ResumeMatch commit is the one the hashes were taken at; the commit that adds
+this section changes only this document, its test, and `docs/qa-mvp.md`, none of
+which is frozen. The 28 repository rows changed in five files since v8 and the
+nine adapter rows are unchanged since v8.
 
 ### Freeze v8 (2026-10-18)
 
@@ -1658,6 +1853,12 @@ Both measured on this machine at commit `f111fd3`, macOS 25.5, Node 18.20.4, Vit
 - **Dot entries are excluded from `buildDigest`.** The only difference between the two otherwise identical builds was a `.DS_Store` the file browser dropped into `.qa-dist`. Left in, it would change the evaluation identity and read as source drift.
 
 ### Declared boundary: a fault the product absorbs
+
+> **Superseded by Freeze v9.** B3 is retired: since `f3af895` the upload page
+> reports a readable S3 500 instead of continuing, so the behavior described below
+> no longer exists. The absorbed-fault role passed to B5, whose interrupted poll
+> the product now retries. See [Freeze v9](#freeze-v9-2026-10-20). The text below
+> describes B3 as it stood at the v8 commit.
 
 B3 injects a failing S3 response after the object is accepted. The upload page
 catches that failure on purpose and navigates anyway

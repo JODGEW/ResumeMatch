@@ -65,6 +65,12 @@ export interface PollingHandlers {
  * progress. Each outcome that ends polling (terminal status, error, timeout,
  * missing upload) fires at most one handler and clears every timer. The
  * returned function stops polling the same way and silences late responses.
+ *
+ * Polls keep a fixed cadence: the next one is due `intervalMs` after the
+ * previous one started, however long its response takes, so responses can
+ * overlap and arrive out of order. Each poll carries a sequence number, and a
+ * response older than the last one applied is dropped. A failure replaces the
+ * cadence with backoff; the next success resumes it.
  */
 export function startPolling(
   fetchAnalysis: () => Promise<Analysis>,
@@ -74,6 +80,8 @@ export function startPolling(
   const startedAt = Date.now();
   let stopped = false;
   let failures = 0;
+  let started = 0;
+  let applied = 0;
   let nextPoll: ReturnType<typeof setTimeout> | undefined;
 
   function stop() {
@@ -82,16 +90,27 @@ export function startPolling(
     clearTimeout(deadline);
   }
 
+  // The only place a poll is scheduled, so at most one is ever pending.
+  function schedule(delayMs: number) {
+    clearTimeout(nextPoll);
+    nextPoll = setTimeout(poll, delayMs);
+  }
+
   const deadline = setTimeout(() => {
     stop();
     handlers.onTimeout();
   }, POLL_TIMEOUT_MS);
 
   async function poll() {
+    const seq = ++started;
+    const pollStartedAt = Date.now();
+    // While backing off, the retry's own outcome decides what comes next.
+    if (failures === 0) schedule(intervalMs);
     try {
       const data = await fetchAnalysis();
-      if (stopped) return;
-      failures = 0;
+      // A terminal status stops polling, so nothing late can overwrite it.
+      if (stopped || seq < applied) return;
+      applied = seq;
       handlers.onData(data);
       if (!isInProgress(data.status)) {
         stop();
@@ -101,18 +120,19 @@ export function startPolling(
       ) {
         stop();
         handlers.onUploadMissing();
-      } else {
-        nextPoll = setTimeout(poll, intervalMs);
+      } else if (failures > 0) {
+        failures = 0;
+        schedule(Math.max(0, pollStartedAt + intervalMs - Date.now()));
       }
     } catch (err) {
-      if (stopped) return;
+      if (stopped || seq < applied) return;
       failures += 1;
       if (!isRetryable(err) || failures >= MAX_CONSECUTIVE_FAILURES) {
         stop();
         handlers.onError(err);
         return;
       }
-      nextPoll = setTimeout(poll, Math.min(intervalMs * 2 ** failures, MAX_BACKOFF_MS));
+      schedule(Math.min(intervalMs * 2 ** failures, MAX_BACKOFF_MS));
     }
   }
 

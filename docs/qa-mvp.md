@@ -39,7 +39,7 @@ This is not an OS firewall or process sandbox. Phase 1 does **not** claim to pre
 | P1-02 | Real upload UI; ordered browser `FormData` entries and every `File` are observed before application fetch; exactly one `file` entry, one occurrence of each presigned text field, no duplicates/extras, exact values, filename, MIME, nonzero size, `%PDF-` signature, fixture size and SHA-256; ordered completed result and score `84` inside `.progress-ring__value`. |
 | P1-03 | Existing synthetic resume reused; completed result; both router counter and normalized network summary prove no S3 request. |
 | P1-04 | `processing → failed`; terminal error and recovery UI; no score. |
-| P1-05 | Playwright clock `runFor` executes about forty three-second polls over two controlled minutes; timeout UI appears; polling then remains stopped; no completed or backend-failed report. |
+| P1-05 | Playwright clock `runFor` executes about eighty three-second polls (78 to 80) over four controlled minutes; timeout UI appears; polling then remains stopped; no completed or backend-failed report. |
 | P1-06 | External page fetch, same-origin unexpected fetch, and Playwright-supported page WebSocket are routed, recorded, and intentionally fail the oracle; an exact allowed font request is locally fulfilled. |
 
 Each call creates fresh scenario counters and IDs. The contract router has no generic-success fallback. Popup/new-page console and page-error listeners are attached from the browser-context page lifecycle.

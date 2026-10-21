@@ -35,15 +35,6 @@ function uploadReproduction(scenarioId: ScenarioId, options: { waitForReport: bo
   ]
 }
 
-/** A timeout-scenario reproduction that advances the controlled clock by `ms` once processing is showing. */
-function timeoutReproduction(ms: number): ToolCall[] {
-  return [
-    ['execute_allowed_action', { action: { kind: 'open_route', route: 'results' } }],
-    ['execute_allowed_action', { action: { kind: 'wait_for_state', state: 'processing' } }],
-    ['advance_controlled_clock', { ms }],
-  ]
-}
-
 async function investigate(
   manifest: EvidenceManifest,
   runDirectory: string,
@@ -71,14 +62,14 @@ async function investigate(
   return { finding: finding as Finding, directory: directories.directory }
 }
 
-async function failingRun(fault: TransientFault, scenarioId: ScenarioId = 'P1-02') {
+async function failingRun(fault: TransientFault) {
   // A run that injects a fault must declare it: without an evaluation identity
   // the validator judges the bundle under the strict release allowlist and
   // rejects the transient response, so the run never becomes investigable.
-  const result = await runReleaseCheck(scenarioId, {
+  const result = await runReleaseCheck('P1-02', {
     transientFaults: [fault],
     evaluationIdentity: {
-      caseId: scenarioId === 'P1-05' ? 'B5' : fault === 'upload_503_once' ? 'B1' : 'B2',
+      caseId: fault === 'upload_503_once' ? 'B1' : 'B2',
       mutationApplied: null,
       transientFaults: [fault],
       sourceDigest: await sourceDigest(process.cwd()),
@@ -141,28 +132,6 @@ test('B2 judged right after the click: the completed report gets Phase 1\'s wait
 
   const { finding } = await investigate(manifest, runDirectory, uploadReproduction('P1-02', { waitForReport: false }))
   expect(finding.reproductionOracleResult?.failures).toEqual([])
-  expect(finding.classification).toBe('not_reproduced')
-})
-
-test('B5 with the clock advanced too little for the timeout is inconclusive, not confirmed', async () => {
-  test.setTimeout(120_000)
-  const { manifest, runDirectory } = await failingRun('analysis_interrupted_once', 'P1-05')
-  expect(manifest.failedOracle).toBe('P1-05_TIMEOUT_STATE')
-
-  const { finding } = await investigate(manifest, runDirectory, timeoutReproduction(30_000))
-  expect(finding.reproductionOracleResult?.failures.map(item => item.oracleId)).toContain('P1-05_TIMEOUT_STATE')
-  expect(finding.reproductionOracleResult?.preconditionMet).toBe(false)
-  expect(finding.classification).toBe('inconclusive')
-})
-
-test('B5 with the clock advanced past the timeout does not reproduce', async () => {
-  test.setTimeout(120_000)
-  const { manifest, runDirectory } = await failingRun('analysis_interrupted_once', 'P1-05')
-
-  const { finding } = await investigate(manifest, runDirectory, [
-    ...timeoutReproduction(120_001),
-    ['execute_allowed_action', { action: { kind: 'wait_for_state', state: 'timeout_report' } }],
-  ])
   expect(finding.classification).toBe('not_reproduced')
 })
 

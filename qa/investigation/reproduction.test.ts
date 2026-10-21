@@ -147,7 +147,7 @@ describe('judging a B5-shaped reproduction under the controlled clock', () => {
     const scenario = createScenario('P1-05')
     scenario.recordTransition(TIMEOUT_OPENED)
     scenario.recordTransition(`reproduction-clock:${ms}`)
-    scenario.counters.analysis = 41
+    scenario.counters.analysis = 80
     return scenario
   }
 
@@ -162,15 +162,15 @@ describe('judging a B5-shaped reproduction under the controlled clock', () => {
   it('does not block a not_reproduced verdict: the gate only stands between a failure and a confirmation', async () => {
     const { page } = fakePage({ pathname: '/results/qa-timeout-1', visible: true })
     const scenario = advanced(30_000)
-    const result = await judgeReproduction(page, { ...contextFor(scenario), analysisCountAtTimeout: 41 }, 'P1-05', 'P1-05_TIMEOUT_STATE', 0)
+    const result = await judgeReproduction(page, { ...contextFor(scenario), analysisCountAtTimeout: 80 }, 'P1-05', 'P1-05_TIMEOUT_STATE', 0)
     expect(result.preconditionMet).toBe(true)
     expect(classify({ policyBlocked: false, failedOracle: 'P1-05_TIMEOUT_STATE', reproductionOracleResult: result })).toBe('not_reproduced')
   })
 
-  it('is not_reproduced when more than two minutes were advanced and the timeout appeared', async () => {
+  it('is not_reproduced when more than four minutes were advanced and the timeout appeared', async () => {
     const { page } = fakePage({ pathname: '/results/qa-timeout-1', visible: true })
-    const scenario = advanced(120_001)
-    const result = await judgeReproduction(page, { ...contextFor(scenario), analysisCountAtTimeout: 41 }, 'P1-05', 'P1-05_TIMEOUT_STATE', 0)
+    const scenario = advanced(240_001)
+    const result = await judgeReproduction(page, { ...contextFor(scenario), analysisCountAtTimeout: 80 }, 'P1-05', 'P1-05_TIMEOUT_STATE', 0)
     expect(result.preconditionMet).toBe(true)
     expect(classify({ policyBlocked: false, failedOracle: 'P1-05_TIMEOUT_STATE', reproductionOracleResult: result })).toBe('not_reproduced')
   })

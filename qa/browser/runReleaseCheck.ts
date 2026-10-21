@@ -142,8 +142,8 @@ async function executeScenario(
     await page.goto(`${QA_APP_ORIGIN}/results/qa-timeout-1`)
     await requireVisible(page.getByRole('heading', { name: 'Resume analysis in progress' }), 'P1-05_PROCESSING_STATE')
     await evidence.checkpoint(page, 'timeout-processing')
-    await page.clock.runFor(120_001)
-    await requireVisible(page.getByRole('heading', { name: 'This is taking longer than it should' }), 'P1-05_TIMEOUT_STATE')
+    await page.clock.runFor(240_001)
+    await requireVisible(page.getByRole('heading', { name: 'This is taking longer than usual' }), 'P1-05_TIMEOUT_STATE')
     const countAtTimeout = scenario.counters.analysis
     await page.clock.runFor(9_000)
     await evidence.checkpoint(page, 'polling-timeout')

@@ -108,16 +108,16 @@ describe('P1-05 controlled-clock fair chance', () => {
   const OPENED = 'reproduction-open:/results/qa-timeout-1'
   const timeout = oracleById('P1-05', 'P1-05_TIMEOUT_STATE')
 
-  it('needs more than two minutes of counted advance after the last open (B5 under-advance fails)', () => {
+  it('needs more than four minutes of counted advance after the last open (under-advance fails)', () => {
     expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:30000']))).toBe(false)
-    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:120000']))).toBe(false)
-    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:120001']))).toBe(true)
-    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:60000', 'reproduction-clock:60001']))).toBe(true)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:180000']))).toBe(false)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:180000', 'reproduction-clock:60000']))).toBe(false)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:180000', 'reproduction-clock:60001']))).toBe(true)
   })
 
   it('ignores advances made before the route was opened', () => {
-    expect(timeout?.fairChance?.(clocked(['reproduction-clock:120001', OPENED]))).toBe(false)
-    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:120001', OPENED]))).toBe(false)
+    expect(timeout?.fairChance?.(clocked(['reproduction-clock:180000', 'reproduction-clock:60001', OPENED]))).toBe(false)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:180000', 'reproduction-clock:60001', OPENED]))).toBe(false)
   })
 
   it('applies to every observation Phase 1 makes after the timeout, and to nothing before it', () => {
