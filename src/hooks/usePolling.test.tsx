@@ -165,7 +165,8 @@ describe('startPolling', () => {
 
     await vi.advanceTimersByTimeAsync(INTERVAL);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(vi.getTimerCount()).toBe(1);
+    // The deadline, and the next poll the in-flight one scheduled when it started.
+    expect(vi.getTimerCount()).toBe(2);
 
     stop();
     expect(vi.getTimerCount()).toBe(0);
@@ -175,6 +176,91 @@ describe('startPolling', () => {
     expect(h.onData).toHaveBeenCalledTimes(1);
     expect(h.onTimeout).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+// A fetch whose responses settle only when the test says so, in any order.
+function deferredFetch() {
+  const calls: Array<{ resolve: (a: Analysis) => void; reject: (e: unknown) => void }> = [];
+  const fetch = vi.fn(() => new Promise<Analysis>((resolve, reject) => { calls.push({ resolve, reject }); }));
+  return { fetch, calls };
+}
+
+describe('fixed cadence', () => {
+  it('polls every interval however long responses take, a deterministic 80 times in 240s', async () => {
+    const fetch = vi.fn(() => new Promise<Analysis>(() => {}));
+    const h = handlers();
+    startPolling(fetch, h, INTERVAL);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(INTERVAL - 1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(POLL_TIMEOUT_MS - INTERVAL);
+    // Polls start at 0, 3s, ... 237s; the deadline at 240s fires first and stops the next.
+    expect(fetch).toHaveBeenCalledTimes(POLL_TIMEOUT_MS / INTERVAL);
+    expect(fetch).toHaveBeenCalledTimes(80);
+    expect(h.onTimeout).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('ignores a late processing response once completed was handled', async () => {
+    const { fetch, calls } = deferredFetch();
+    const h = handlers();
+    startPolling(fetch, h, INTERVAL);
+    await vi.advanceTimersByTimeAsync(INTERVAL);
+    expect(calls).toHaveLength(2);
+
+    calls[1].resolve(row('completed'));
+    await vi.advanceTimersByTimeAsync(0);
+    calls[0].resolve(row('processing'));
+    await vi.advanceTimersByTimeAsync(POLL_TIMEOUT_MS);
+
+    expect(h.onData.mock.calls.map(([data]) => data.status)).toEqual(['completed']);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('ignores an earlier-started poll whose response lands after a later one', async () => {
+    const { fetch, calls } = deferredFetch();
+    const h = handlers();
+    startPolling(fetch, h, INTERVAL);
+    await vi.advanceTimersByTimeAsync(INTERVAL);
+
+    calls[1].resolve(row('processing'));
+    await vi.advanceTimersByTimeAsync(0);
+    calls[0].resolve(row('pending_upload'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.onData.mock.calls.map(([data]) => data.status)).toEqual(['processing']);
+
+    // An earlier poll's failure is just as stale: it neither counts nor backs off.
+    await vi.advanceTimersByTimeAsync(2 * INTERVAL);
+    expect(calls).toHaveLength(4);
+    calls[3].resolve(row('processing'));
+    await vi.advanceTimersByTimeAsync(0);
+    calls[2].reject(serverError());
+    await vi.advanceTimersByTimeAsync(INTERVAL);
+    expect(fetch).toHaveBeenCalledTimes(5);
+    expect(h.onError).not.toHaveBeenCalled();
+  });
+
+  it('backs off on a 5xx, then resumes the fixed cadence after a success', async () => {
+    const fetch = script(row('processing'), serverError(), row('processing'));
+    const h = handlers();
+    startPolling(fetch, h, INTERVAL);
+
+    // 0s ok; 3s fails; the 6s cadence poll is replaced by a retry at 3s + 6s.
+    await vi.advanceTimersByTimeAsync(3 * INTERVAL - 1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    // The retry succeeded, so polls fall back to every interval: 12s, 15s, 18s.
+    await vi.advanceTimersByTimeAsync(3 * INTERVAL);
+    expect(fetch).toHaveBeenCalledTimes(6);
+    expect(h.onError).not.toHaveBeenCalled();
   });
 });
 
