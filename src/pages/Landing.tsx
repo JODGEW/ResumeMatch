@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ThemeToggle } from '../components/ThemeToggle';
+import { ThemeIcon, ThemeToggle } from '../components/ThemeToggle';
 import { LogoMark } from '../components/LogoMark';
 import { Mascot } from '../components/Mascot';
 import { useAuth } from '../auth/AuthContext';
@@ -9,6 +9,12 @@ import { SuggestionsCard, InterviewCard } from './landing/WorkflowCards';
 import { LandingFooter } from './landing/LandingFooter';
 import { ArrowRightIcon, ListCheckIcon, TrustCheckIcon } from './landing/icons';
 import { siteConfig } from '../config/site';
+import {
+  cycleThemePreference,
+  nextThemeLabel,
+  nextThemePreference,
+  useThemePreference,
+} from '../utils/theme';
 import './Landing.css';
 
 const sectionLinks = [
@@ -87,6 +93,7 @@ const faqs = [
 
 export function Landing() {
   const { user } = useAuth();
+  const themePref = useThemePreference();
   const [menuOpen, setMenuOpen] = useState(false);
   // Hero mascot celebrates while the hero's primary CTA is hovered or
   // keyboard-focused.
@@ -126,8 +133,13 @@ export function Landing() {
             >
               {user ? 'Open app' : 'Sign in'}
             </Link>
-            <Link to={ctaHref} className="landing-btn landing-btn--solid landing-btn--nav">
-              Analyze my resume
+            <Link
+              to={ctaHref}
+              className="landing-btn landing-btn--solid landing-btn--nav"
+              aria-label="Analyze my resume"
+            >
+              <span className="landing-nav__cta-full">Analyze my resume</span>
+              <span className="landing-nav__cta-short">Analyze</span>
             </Link>
             <ThemeToggle />
             <button
@@ -162,6 +174,10 @@ export function Landing() {
             >
               {user ? 'Open app' : 'Sign in'}
             </Link>
+            <button type="button" className="landing-nav__mobile-theme" onClick={cycleThemePreference}>
+              <ThemeIcon preference={nextThemePreference(themePref)} size={16} />
+              {nextThemeLabel(themePref)}
+            </button>
           </nav>
         )}
       </header>

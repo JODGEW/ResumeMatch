@@ -240,6 +240,28 @@
   display: none;
 }
 
+.landing-nav__cta-short {
+  display: none;
+}
+
+.landing-nav__mobile-theme {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 510;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.landing-nav__mobile-theme:hover {
+  color: var(--text-primary);
+}
+
 @media (max-width: 880px) {
   .landing-nav__links {
     display: none;
@@ -282,8 +304,26 @@
     gap: 6px;
   }
 
-  .landing-nav__actions .landing-btn--sm {
-    padding: 8px 12px;
+  .landing-nav__actions .landing-btn--nav {
+    padding: 7px 12px;
+  }
+
+  .landing-nav__cta-full {
+    display: none;
+  }
+
+  .landing-nav__cta-short {
+    display: inline;
+  }
+
+  /* Hidden, not unmounted: ThemeToggle owns the system-theme listener that
+     keeps 'auto' in sync, and this page has no other instance of it. */
+  .landing-nav .theme-toggle {
+    display: none;
+  }
+
+  .landing-nav__mobile-theme {
+    display: flex;
   }
 
   .landing-nav__mobile {
@@ -790,6 +830,22 @@
     padding: 5px 7px;
     gap: 4px;
     font-size: 11.5px;
+  }
+}
+
+/* The real tab row scrolls on phones; this decorative one cannot, so Tracker was
+   clipped below 390px. Dropping the icons keeps all four labels in view. */
+@media (max-width: 480px) {
+  .landing-preview__shell {
+    padding: 0 12px;
+  }
+
+  .landing-preview__tab {
+    padding: 5px;
+  }
+
+  .landing-preview__tab svg {
+    display: none;
   }
 }
 
