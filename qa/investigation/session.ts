@@ -374,7 +374,7 @@ export class InvestigationSession {
     const args = requireObject(input, 'advance_controlled_clock')
     requireKnownKeys(args, ['ms'], 'advance_controlled_clock')
     const ms = Number(args.ms)
-    if (!Number.isInteger(ms) || ms < 1 || ms > 180_000) throw new InvestigationError('INVALID_ARGUMENTS', 'ms must be an integer between 1 and 180000')
+    if (!Number.isInteger(ms) || ms < 1 || ms > 300_000) throw new InvestigationError('INVALID_ARGUMENTS', 'ms must be an integer between 1 and 300000')
     this.spend('clockAdvances', 'advance_controlled_clock')
     await this.options.driver.advanceClock(ms)
     return { advancedMs: ms }

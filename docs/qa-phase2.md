@@ -183,12 +183,162 @@ attributed to a specific investigator rather than to a moving one.
 every `npm test`. A frozen file cannot change without this record changing in
 the same commit, which is the point: the change becomes visible in review
 instead of drifting silently. Only the current version gates; earlier tables
-are history, and the test also checks that the Freeze v8, v7, v6 and v5 sections
-are unchanged.
+are history, and the test also checks that the Freeze v9, v8, v7, v6 and v5
+sections are unchanged.
 An `adapter:` path resolves inside the adapter checkout, located by
 `RESUMEMATCH_QA_ADAPTER_PATH` or its default; when that checkout is absent the
 nine adapter rows are reported as unverified and the 28 repository rows are
 still enforced.
+
+### Freeze v10 (2026-11-07)
+
+Superseding v9 after its live sweeps: Opus 3, Sonnet 5 and Haiku 5, all at
+ResumeMatch `bb0bad7a91115dcbf5cd51a5aa84dee450670054` and adapter
+`649b94a9e6c7897daa7a99f638a865553abac04a`. The Freeze v9 table below is kept
+byte for byte as history. Its line saying `freeze.test.ts` verifies it describes
+the gate as it stood until v10.
+
+**The change.** One `advance_controlled_clock` call may now advance the
+controlled clock by up to 300 000 ms; the previous ceiling was 180 000 ms. Two
+files changed:
+
+- the bound and its refusal message in `qa/investigation/session.ts`;
+- the `ms` parameter description in `adapter:src/qa-tools.ts`, which now reads
+  `1 to 300000`.
+
+Nothing else changed. The investigation still gets two advances
+(`budget.ts`). The P1-05 precondition is unchanged: more than 240 000 ms must be
+counted since the route was last opened (`clockedPastTimeout`,
+`qa/browser/oracleRegistry.ts`). Oracle ids and text are unchanged, including
+`P1-05_TWO_MINUTE_MESSAGE`. The prompt, the finding schema, the graders, the
+gold files and the cases are unchanged.
+
+**Why.** v9 raised `POLL_TIMEOUT_MS` to 240 000 but kept the per-advance ceiling
+at 180 000 ms. In the 13 v9 live sweeps D6 was never `confirmed`: 12 runs were
+`inconclusive` and Sonnet run 4 submitted no finding. All 13 reproduction
+oracles returned `preconditionMet: false`.
+
+- No investigation used its second advance.
+- The largest total was 180 000 ms: Opus 3 of 3 runs and Sonnet 3 of 5. Sonnet's
+  other two runs advanced 120 000 ms, and Haiku advanced 30 000 ms at most.
+- Under v8, with a 120 000 ms timeout, the same single 180 000 ms advance met the
+  precondition, and D6 was `confirmed` in 10 of its 16 v8 runs.
+
+**The v9 decision that kept the ceiling is void.** The v9 record lists it as
+"Clock cap unchanged", a user decision. That decision rested on one premise: a
+single advance can pass the poll timeout, as one could under v8. v9's own
+timeout change broke that premise. The v9 record noted the consequence only for
+B5, which no longer reaches an investigator. The user voided the decision on
+2026-11-07. With a 300 000 ms ceiling one advance again passes the 240 000 ms
+timeout, as a 180 000 ms advance passed the 120 000 ms timeout under v8.
+
+**Other limits checked.** These were checked by reading the code. None of them
+stops a single 300 000 ms advance:
+
+- `INVESTIGATION_BUDGET.reproductionWallClockMs` is defined but not enforced
+  (see Runner).
+- Playwright 1.57's `clock.runFor` loops over due timers with no count or size
+  ceiling.
+- The adapter and the harness declare `ms` only as an integer and pass it on
+  unchanged.
+- The tool-call and wall-clock budgets are unchanged. They count real time and
+  calls, not controlled-clock time.
+
+**D6 is public from v10.** Its definition was read on 2026-11-07 during the v9
+diagnosis, and its v9 results were inspected. Under v10 it runs as usual, but it
+is left out of every held-out aggregate, as D10 has been since v8. The clean
+held-out cases are D5, D11 and B6. This section records that and changes nothing
+else: D6's definition stays in `qa/investigation/heldout/` and still loads only
+under `--held-out`, and `evalCases.heldout.ts` is unchanged. The runner does not
+know about it, so its printed total line still counts D6.
+
+**v9 results stand.** The 13 v9 sweeps ran under v9 and remain v9 results. This
+section does not rescore or reinterpret any of them, D6 included.
+
+**Comparability.** The tool description reaches every investigation, so v10
+results are not comparable with v9's. A v10 comparison needs full sweeps of all
+nineteen cases. A run of D6 alone is diagnostic. The session change itself
+reaches only P1-05, and D6 is the only P1-05 case that reaches an investigator.
+
+**Known gap, not fixed.** The scripted provider's `TIMEOUT_SCRIPT` in the adapter
+(`src/fake-provider.ts`) still advances 120 001 ms and then 9 000 ms. That
+sequence was written for v8's 120-second timeout, so a keyless P1-05
+investigation never meets the precondition. The adapter test that checks the
+script (`tests/qa-tools.spec.ts`) still describes a 1–180000 range and a
+120000 ms timeout. Neither file is frozen, and v10 leaves both.
+
+**What moved since v9.** Two files. The other 35 rows carry their v9 hashes.
+
+| File | v9 sha256 | v10 sha256 |
+| --- | --- | --- |
+| `qa/investigation/session.ts` | `d7d85c06b10091f3c2c367784be2cbc003a436b76260983979ece7b056987b66` | `77e6778ffef883372c7e30b78529632291e4f6867e92a0f13841b6a9bd7a3d77` |
+| `adapter:src/qa-tools.ts` | `745117fa998d5da7db885087c3f5af9a10b7af2e0e6bead80d5d41ab225fa5a4` | `e13a600f3d195cdd42c98f5614cf408d0b432cec809c2df06c9d799ad7811420` |
+
+**Validation so far.**
+
+- `qa/investigation/session.test.ts`: 0 and 300 001 are refused with
+  `INVALID_ARGUMENTS`, and 300 000 is accepted.
+- `qa/browser/oracleRegistry.test.ts`: a single 300 000 ms advance after the
+  route opens meets the P1-05 precondition.
+- No sweep has run under v10. The runner refuses a dirty ResumeMatch or adapter
+  checkout, and the hashes were taken before either change was committed.
+- No real-model run has been made.
+
+`freeze.test.ts` verifies this table.
+
+| File | sha256 |
+| --- | --- |
+| `adapter:prompts/investigator.md` | `360f051fd50f5241dba85babda0a23a8ec9923a8028352cf59697baf3ef6d1bc` |
+| `adapter:src/qa-tools.ts` | `e13a600f3d195cdd42c98f5614cf408d0b432cec809c2df06c9d799ad7811420` |
+| `adapter:cordis.yml` | `cb14edabb8f2c819268d03b166c190f80ffc02dd058d046f9b1ed86a71d1ba45` |
+| `adapter:run-config.yml` | `3d31f6c336e23ab9ec1211daec51b73b1d1f404a80c057ef643202234bb0000e` |
+| `adapter:run-config.anthropic.yml` | `996694916d76eb5346a80ff8cd365bb1c5e435474fddcc3468c3c1f2795bc83c` |
+| `adapter:run-config.anthropic-haiku.yml` | `b6aff68226e9e27b29edd9d266fce103417eaa2b51cfe4b00a88f55c379787c3` |
+| `adapter:run-config.anthropic-opus.yml` | `fbcdf5976d914b6f605462c9c6673232a6e9ff614fb9f0cbe9d1e97bd938d9f2` |
+| `adapter:src/system-prompt.ts` | `f4eae4af1f8739cf140ecd33990836bd53c19e5359f3c3dbab5ec0225f820f3b` |
+| `adapter:src/pricing.ts` | `1559e8e4160ab6747d3d1aac916e2321869cd7e2ff7dad911b1b3297c30f2b32` |
+| `qa/investigation/finding.ts` | `973cd66da05b2bd257b748be6d128828745ab23ae4cafdb349582a06a24e780f` |
+| `qa/investigation/actions.ts` | `77bed40cdf1ec736f82964f1c6bbb970cdf533bb99c05b1e969499e281f009ab` |
+| `qa/investigation/budget.ts` | `b2a5feef1fec034e3c1c3685a7762e5b45eba46a2469929e1bc8f3c88e61161d` |
+| `qa/investigation/session.ts` | `77e6778ffef883372c7e30b78529632291e4f6867e92a0f13841b6a9bd7a3d77` |
+| `qa/investigation/errors.ts` | `8890d8f41bec0034be479ac2d5cf5bb8d6132541fd4daf308068e53868b7e9ec` |
+| `qa/investigation/evidenceReader.ts` | `92c30372a3e70d16c409dd2a493e2c620a855ed59c5e0e660264491517513acb` |
+| `qa/investigation/reproduction.ts` | `e00d35f8b40e8acdd79827e32240b5b4a7c90a803b15b143c06eb5837179fcab` |
+| `qa/investigation/cost.ts` | `1fe360e99eecdfe402ad951d8eb3d86981f849d5a01c0433496440b5993c8438` |
+| `qa/investigation/evalRunner/runCase.ts` | `d02e2251ef8b51455b4dca0dbec58082d5e1bd81ce085b3c5f7c0bcad14d8fee` |
+| `qa/investigation/evalCases.ts` | `1547587325780ccdebedad2b852d1000c8e17fecd4e69c77c948cd9b07e4a925` |
+| `qa/browser/oracleRegistry.ts` | `2ba84aca0cd762751f5f8507f64778b9acae9cf8543dba9d5b65441f457d2f41` |
+| `qa/investigation/triage.ts` | `4f7153b63d43d02beacd52d928ba7f4643462fc6c24c1e575d684b03b9f88f27` |
+| `qa/investigation/rootCauseGold.ts` | `a15441a3e5944bf0f26533cf7dd13196ecd6ce8e98a6e59ba6285ddc81703dc3` |
+| `qa/investigation/rootCauseScore.ts` | `dbe5a364f0297e33f6529794912a4a6bb82677cad233f569782e1d9aadb9aa1e` |
+| `qa/investigation/goldEvidence.ts` | `a84ba136e4d3663d28965f7cbe36f3738da7d5583562252194ce5a5ff45b6fa1` |
+| `qa/investigation/goldProbe.ts` | `b3421e9d9288bf1c19b2e2d7c94116b1aca47e95916bc3ff5a8a702fa1a7b27d` |
+| `qa/investigation/heldoutDefinitions.ts` | `2116fe94c802f0901ca29188f07ad296b618ddb61184cc6c6c01f3dbd51733af` |
+| `qa/investigation/evalRunner/mutation.ts` | `2c24d0dea1599dd8867a625a6c6a94a7bcd3b9d235a943a849a0cf08f7190a50` |
+| `tests/e2e/evalCase.e2e.ts` | `c93916d905ca5cfd5b05404389225cc1949b4fd0f6402b528666321981963983` |
+| `qa/browser/scenarios.ts` | `1f146807f83623881da0a64a792794a75c08b50966b95d127f2167d840a004cc` |
+| `qa/browser/contractRouter.ts` | `92242a3db70e1d5bd0f30b3908b14b250e476d2c93537df6311d9b67668c4c67` |
+| `qa/browser/networkPolicy.ts` | `77f4734ffa4281b351476d3f678f099220fbf83aeec18bfc48f929d75f52d977` |
+| `qa/browser/evidence.ts` | `e2cce31f7d5f34d7ad333a4a48f2de25fbf778ea906d943c40def17ccd1a2d62` |
+| `qa/browser/uploadObservation.ts` | `eb45c67b874e07b8b30b5763a56d86eedd62b0da229bac8008998f9c6f2efb7c` |
+| `qa/browser/runReleaseCheck.ts` | `db0a84e86e780dc0493ffb8bd2750166987d4ddbc843cc169c1cec3cd84a5910` |
+| `qa/browser/oracles.ts` | `0668f60307b5051adacc92c88b40ac2165e9a0bf6103d75479a497df5fce48a5` |
+| `qa/browser/artifactValidator.ts` | `5d0d53c5327afeb08d83c6fdba4df14af56a41672aaa71d7d2539f013f9efeee` |
+| `qa/fixtures/data.ts` | `f39559c24e52b45512bc7639c8f30058702099aa841051912aed2dd6031fe305` |
+
+#### Frozen at
+
+| Checkout | Commit |
+| --- | --- |
+| ResumeMatch | working tree at `63af734f40039bb9675ada00418c0130b5f5a5d0` with this change uncommitted |
+| DeepSeek Harness | `015fa1305085bdf7fbac6e738eaf39207ad9b73a` |
+| `resumematch-qa-tools` adapter | working tree at `649b94a9e6c7897daa7a99f638a865553abac04a` with the `src/qa-tools.ts` change uncommitted |
+
+The hashes are file contents, so committing the change does not alter them. The
+frozen repository files are identical at `bb0bad7` and `63af734`; the only
+difference between those two commits is `src/pages/Landing.tsx` and
+`src/pages/Landing.css`. The commits that record this change in each checkout
+did not exist when this section was written.
 
 ### Freeze v9 (2026-10-20)
 
