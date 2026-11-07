@@ -267,6 +267,19 @@ investigation never meets the precondition. The adapter test that checks the
 script (`tests/qa-tools.spec.ts`) still describes a 1–180000 range and a
 120000 ms timeout. Neither file is frozen, and v10 leaves both.
 
+**That gap was closed after the freeze, on 2026-11-07.** The paragraph above
+describes the adapter as it was when this section was written.
+
+- Adapter commit `4bb6986e825090035ed5d15e4c0b9c59e92b7f12` changed the first
+  advance in `TIMEOUT_SCRIPT` from 120 001 ms to 240 001 ms and kept the second
+  at 9 000 ms. This matches Phase 1's `page.clock.runFor(240_001)` and
+  `runFor(9_000)` in `runReleaseCheck.ts`.
+- The same commit moved the script's test to a 1–300000 range and a 240000 ms
+  timeout.
+- No other step of the script changed.
+- Neither file is frozen, so the table below is unchanged. The fake-provider
+  sweep under Validation ran with this commit.
+
 **What moved since v9.** Two files. The other 35 rows carry their v9 hashes.
 
 | File | v9 sha256 | v10 sha256 |
@@ -283,6 +296,37 @@ script (`tests/qa-tools.spec.ts`) still describes a 1–180000 range and a
 - No sweep has run under v10. The runner refuses a dirty ResumeMatch or adapter
   checkout, and the hashes were taken before either change was committed.
 - No real-model run has been made.
+
+The list above is as written before the commits. The commits that followed:
+
+| Checkout | Commit |
+| --- | --- |
+| ResumeMatch | `04c4fd7d5dd12a98be362d2ac9fc988c85ee6e8d`, branch `eval/freeze-v10`, the v10 change on top of `bb0bad7` |
+| Adapter | `931306549663624f038da48edc1dcdc0923e1b41` (this change), then `4bb6986e825090035ed5d15e4c0b9c59e92b7f12` (the scripted timeout drive, see above) |
+
+**Fake-provider triage sweep (2026-11-07).** One fake-provider sweep ran on all
+nineteen cases: thirteen public and six held-out, with `--held-out`.
+
+- Adapter: `4bb6986e825090035ed5d15e4c0b9c59e92b7f12`, recorded as
+  `adapterCommit` in every case result.
+- ResumeMatch: `04c4fd7d5dd12a98be362d2ac9fc988c85ee6e8d`. The result files do
+  not record this commit; two facts identify it. It is the only commit in any
+  ref that contains the 300 000 ms ceiling, and the sweep's D6 reproduction was
+  allowed a 240 001 ms advance, which the v9 ceiling refuses.
+- Harness checkout HEAD is `015fa1305085bdf7fbac6e738eaf39207ad9b73a`. That is
+  read from the checkout; the result files do not record it.
+- Every case matched its expected triage, 19 of 19. No case recorded an error.
+- C1 to C3, B4 and B5 made no model request.
+- D6's reproduction drove the corrected script: it advanced 240 001 ms, then
+  9 000 ms, and the reproduction oracle returned `preconditionMet: true`.
+- The scripted provider's classifications mean nothing and are not recorded.
+- The runner printed a total of $0.0003. That figure is the scripted provider's
+  placeholder usage (one input and one output token per request, 149 requests)
+  priced at the runner's default rates. No model was called.
+
+The D6-only real-model diagnostic that followed is recorded in
+[Freeze v10 D6 diagnostic](#freeze-v10-d6-diagnostic-2026-11-07). It is not a
+v10 result. No full real-model sweep has run under v10.
 
 `freeze.test.ts` verifies this table.
 
@@ -1215,6 +1259,182 @@ Limits:
 - Pre-fix: measured with the evaluation identity visible to the investigator,
   so only the classifications compare with post-fix runs; see
   [Investigator-view leak and fix](#investigator-view-leak-and-fix-2026-10-10).
+
+## Freeze v10 D6 diagnostic (2026-11-07)
+
+This is a single-case diagnostic, not a v10 result. D6 ran alone under v10,
+five times on each of three Anthropic models. It checks whether the 300 000 ms
+ceiling lets an investigation meet the P1-05 precondition. Nothing else was run.
+No full real-model sweep has run under v10, and these 15 investigations are not
+v10's classification or root-cause figures. D6 is public from v10 (see
+[Freeze v10](#freeze-v10-2026-11-07)), so this section names it.
+
+Run conditions:
+
+| Setting | Value |
+| --- | --- |
+| ResumeMatch | `04c4fd7d5dd12a98be362d2ac9fc988c85ee6e8d`, recorded as `headCommit` in all 15 original-run manifests, `worktreeDirty: false` |
+| Adapter | `4bb6986e825090035ed5d15e4c0b9c59e92b7f12`, recorded as `adapterCommit` in every result |
+| Models | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`; each transcript names only its run's model |
+| Run window | 2026-11-07, 18:45–19:02 UTC, in the order Opus, Sonnet, Haiku |
+| Rates per 1M tokens (input / output / cache hit) | Unchanged from v8: Haiku 0.10 / 0.50 / 0.01, Sonnet 2 / 10 / 0.10, Opus 4 / 20 / 0.20; 0 cache-hit tokens |
+| Sweep limit (`sweepLimitUsd`) | Opus $15, Sonnet $8, Haiku $5 |
+
+Data integrity checks:
+
+- Each case file equals its summary entry.
+- Each request log has as many lines as `modelRequests`.
+- Each cost equals its request log priced at the rates above.
+- Each printed total equals its case cost.
+- Every run triaged D6 as `investigate`.
+
+The "Clock advances" column below lists every `advance_controlled_clock` call
+the transcript records. A dash means the run made none.
+
+| Model | Run | Classification | Clock advances (ms) | `preconditionMet` | Cost |
+| --- | --- | --- | --- | --- | --- |
+| Opus 5.5 | 1 | `confirmed` | 300 000 | true | $0.6778 |
+| Opus 5.5 | 2 | `confirmed` | 300 000 | true | $0.7267 |
+| Opus 5.5 | 3 | `confirmed` | 300 000 | true | $0.7649 |
+| Opus 5.5 | 4 | `confirmed` | 300 000 | true | $0.5889 |
+| Opus 5.5 | 5 | `confirmed` | 300 000 | true | $0.5866 |
+| Sonnet 5.5 | 1 | `confirmed` | 300 000 | true | $0.4308 |
+| Sonnet 5.5 | 2 | no finding | 300 000 | true | $0.6637 |
+| Sonnet 5.5 | 3 | `inconclusive` | — | false | $0.6314 |
+| Sonnet 5.5 | 4 | `inconclusive` | — | false | $0.3291 |
+| Sonnet 5.5 | 5 | `confirmed` | 300 000 | true | $0.6249 |
+| Haiku 5.5 | 1 | `inconclusive` | 30 000 | false | $0.0288 |
+| Haiku 5.5 | 2 | `inconclusive` | 10 000 | false | $0.0248 |
+| Haiku 5.5 | 3 | `inconclusive` | 60 000 | false | $0.0314 |
+| Haiku 5.5 | 4 | `inconclusive` | 60 000 | false | $0.0254 |
+| Haiku 5.5 | 5 | `inconclusive` | 15 000 | false | $0.0225 |
+
+- **Totals.** Opus 5 of 5 `confirmed` ($3.3449). Sonnet 2 of 5 `confirmed`
+  ($2.6799). Haiku 0 of 5 ($0.1330). All 15 runs cost $6.1578.
+- **Clock use.** Every run that advanced made exactly one advance, and none used
+  its second. Every advance of 300 000 ms met the precondition.
+  - In Opus run 5 and Sonnet runs 1, 2 and 5, the clock was advanced without
+    first waiting for the processing state. The precondition was still met.
+  - Sonnet runs 3 and 4 never advanced the clock. Both waited for the timeout
+    state, the wait failed, and both then ran the oracle.
+  - Haiku's advances were 10 000 to 60 000 ms.
+- **Every reproduction oracle failed `P1-05_TIMEOUT_STATE`,** whether or not its
+  precondition was met. Every `wait_for_state: timeout_report` call failed
+  (`REPRODUCTION_FAILED`), including those made after a 300 000 ms advance.
+- **Refused submissions.** All the refused `submit_finding` calls carried
+  `finding` as a JSON string with one extra closing brace, and were refused as
+  "Finding narrative must be an object". This is the shape recorded under the
+  Freeze v8 live results.
+  - Sonnet run 2: all four attempts refused, so no finding was recorded.
+  - Sonnet run 3: three refused, then one accepted.
+  - Sonnet run 5: two refused, then one accepted.
+  - Opus run 3: one refused, then one accepted.
+- **Other refused calls.** Opus run 2 and Haiku run 4 each had one
+  `count_requests` call refused by the probe ceiling (`BUDGET_EXHAUSTED`).
+- **D6 has no root-cause gold,** so no root cause is graded.
+- **Against v9.** Under v9 no D6 run met the precondition (13 of 13
+  `preconditionMet: false`; see
+  [Freeze v9 live results](#freeze-v9-live-results-2026-11-07)). The two
+  freezes differ in more than the ceiling: the tool description changed, and
+  these are five runs of one case. This comparison is descriptive only.
+
+## Freeze v9 live results (2026-11-07)
+
+These are the real-model sweeps under Freeze v9: all nineteen cases, on three
+Anthropic models. They are recorded after Freeze v10 superseded v9. They sit in
+this section, not in the Freeze v9 section, because `freeze.test.ts` keeps that
+section byte for byte. Nothing here changes how v9 was scored. The v9 rules
+stand: D10 is exposed (since v8).
+
+D6's definition was read on 2026-11-07, during the diagnosis of the results
+below, and D6 is public from v10. D6 ran as an ordinary held-out case in these
+sweeps. Every figure is therefore given twice, with D6 and without it. No
+held-out aggregate is given here.
+
+Run conditions:
+
+| Setting | Value |
+| --- | --- |
+| ResumeMatch | `bb0bad7a91115dcbf5cd51a5aa84dee450670054`, recorded as `headCommit` in all 182 original-run manifests, `worktreeDirty: false` |
+| Adapter | `649b94a9e6c7897daa7a99f638a865553abac04a`, recorded as `adapterCommit` in every case result |
+| Models | `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`; each transcript names only its sweep's model |
+| Run window | 2026-11-07, 05:03–09:28 UTC |
+| Rates per 1M tokens (input / output / cache hit) | Unchanged from v8: Haiku 0.10 / 0.50 / 0.01, Sonnet 2 / 10 / 0.10, Opus 4 / 20 / 0.20; prompt caching off, 0 cache-hit tokens |
+| Sweep limit (`sweepLimitUsd`) | Haiku $5, Sonnet $8, Opus $15; no sweep reached its limit |
+| Sweeps (n) | Haiku 5, Sonnet 5, Opus 3 |
+
+Data integrity, checked on all 13 sweeps:
+
+- The printed total equals `summary.json`, and each `<case>.json` equals its
+  summary entry.
+- Request-log lines equal `modelRequests` in every case.
+- Every cost equals its request log priced at the rates above.
+- Two cases recorded an error, `no finding was submitted`: Sonnet run 3, D7,
+  and Sonnet run 4, D6.
+
+What each column counts:
+
+- **Seeded confirmed:** seeded cases expected `confirmed` that were
+  `confirmed`. That is nine per sweep with D6 and eight without. D8 and D10 are
+  expected `inconclusive` and were `inconclusive` in all 13 sweeps.
+- **Benign confirmed:** investigated benign cases (B1, B2 and B6) classified
+  `confirmed`.
+- **Zero-call requests:** model requests made by the cases that triage routes
+  away from an investigator (C1–C3, B4 and B5).
+- **No finding:** investigations that ended with no accepted finding.
+
+| Model | D6 | n | Triage matched | Classification ok | Seeded confirmed | Benign confirmed | Zero-call requests | No finding | Cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Opus 5.5 | with | 3 | 57/57 | 54/57 | 24/27 | 0/9 | 0 (15 cases) | 0 | $19.9374 |
+| Opus 5.5 | without | 3 | 54/54 | 54/54 | 24/24 | 0/9 | 0 (15 cases) | 0 | $17.9927 |
+| Sonnet 5.5 | with | 5 | 95/95 | 89/95 | 39/45 | 0/15 | 0 (25 cases) | 2 | $19.5619 |
+| Sonnet 5.5 | without | 5 | 90/90 | 89/90 | 39/40 | 0/15 | 0 (25 cases) | 1 | $17.7605 |
+| Haiku 5.5 | with | 5 | 95/95 | 88/95 | 39/45 | 0/15 | 0 (25 cases) | 0 | $1.0214 |
+| Haiku 5.5 | without | 5 | 90/90 | 88/90 | 39/40 | 0/15 | 0 (25 cases) | 0 | $0.8883 |
+
+Cost per sweep:
+
+| Model | With D6 | Without D6 |
+| --- | --- | --- |
+| Opus 5.5 | $6.6996, $6.3129, $6.9249 | $6.0186, $5.6494, $6.3248 |
+| Sonnet 5.5 | $3.8060, $3.8924, $4.2067, $3.9732, $3.6837 | $3.5110, $3.5750, $3.7721, $3.5240, $3.3784 |
+| Haiku 5.5 | $0.2067, $0.2011, $0.2110, $0.2040, $0.1985 | $0.1801, $0.1787, $0.1790, $0.1767, $0.1737 |
+
+The three models together cost $40.5207 with D6 and $36.6415 without it.
+
+**Misses.** There are 16 classification misses with D6 and 3 without it.
+
+- D6 accounts for 13: 12 `inconclusive` and Sonnet run 4 with no finding.
+- One is public: Sonnet run 3, D7, no finding.
+- Two are held-out cases other than D6, given here as a total only.
+- No benign investigation was classified `confirmed`.
+
+**Why D6 was 0 of 13.**
+
+- In all 13 sweeps the reproduction oracle failed `P1-05_TIMEOUT_STATE` but
+  returned `preconditionMet: false`, so the rule classifies it `inconclusive`.
+  The P1-05 precondition counts more than 240 000 ms of advance after the route
+  opens (`clockedPastTimeout`, `qa/browser/oracleRegistry.ts`). Under v9 one
+  advance was capped at 180 000 ms (`qa/investigation/session.ts`), so meeting
+  it took two advances.
+- Each investigation made at most one advance:
+  - Opus: 180 000 ms in all 3 runs.
+  - Sonnet: 180 000 ms in runs 1, 4 and 5, and 120 000 ms in runs 2 and 3.
+  - Haiku: 15 000, 30 000, 10 000 and 10 000 ms in runs 1, 2, 4 and 5, and no
+    advance in run 3.
+- No investigation used its second advance.
+- Under v8, with a 120 000 ms timeout, the same single 180 000 ms advance met
+  the precondition.
+- The original run failed `P1-05_TIMEOUT_STATE` in all 13 sweeps, and artifact
+  validation passed in all 13.
+- Freeze v10 raised the per-advance ceiling to 300 000 ms in response. This
+  section does not rescore v9.
+
+**Refused submissions.** Both no-finding cases had all four `submit_finding`
+attempts refused with `INVALID_ARGUMENTS`. In both, the first three attempts
+carried `finding` as a JSON string with one extra closing brace ("Finding
+narrative must be an object"), and the fourth wrapped the narrative in a second
+`finding` key ("Unsupported finding fields: finding").
 
 ## Freeze v8 live results (2026-10-19)
 
