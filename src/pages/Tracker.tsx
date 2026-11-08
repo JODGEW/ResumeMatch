@@ -932,7 +932,7 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
                 {app.jobPostingUrl}
               </a>
             ) : (
-              <span className="tracker-detail__job-url">{app.jobPostingUrl}</span>
+              <span className="tracker-detail__job-url tracker-detail__job-url--plain">{app.jobPostingUrl}</span>
             )}
           </div>
         )}
