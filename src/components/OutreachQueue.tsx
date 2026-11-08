@@ -3,6 +3,7 @@ import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
 import { getFollowUpDue, splitReason, isOutreachNotNeeded } from '../pages/Tracker';
 import { findContact } from '../api/outreach';
+import { safeHttpUrl } from '../utils/safeUrl';
 import type { FoundContact, LookupMethod } from '../api/outreach';
 import './OutreachQueue.css';
 
@@ -221,6 +222,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
         const lookup = lookups[app.id] || 'idle';
         const hasContact = !!app.contact?.name;
         const pendingContact = pendingContacts[app.id];
+        const pendingLinkedinUrl = safeHttpUrl(pendingContact?.linkedinUrl);
         const retry = retries[app.id] || 'idle';
         const domainInput = domainInputs[app.id] || '';
         const notFoundMethod = notFoundMethods[app.id];
@@ -325,10 +327,10 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                     {verifyState === 'valid' && (
                       <span className="outreach-queue__contact-verified">verified</span>
                     )}
-                    {pendingContact.linkedinUrl && (
+                    {pendingLinkedinUrl && (
                       <a
                         className="outreach-queue__contact-link"
-                        href={pendingContact.linkedinUrl}
+                        href={pendingLinkedinUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -339,7 +341,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                   </div>
                   {verifyState === 'invalid' && (
                     <span className="outreach-queue__contact-bounce">
-                      {pendingContact.linkedinUrl
+                      {pendingLinkedinUrl
                         ? 'This address failed verification and will likely bounce. The LinkedIn profile is the better channel.'
                         : 'This address failed verification and will likely bounce.'}
                     </span>

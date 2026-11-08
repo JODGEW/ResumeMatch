@@ -10,6 +10,8 @@ import { KanbanView } from '../components/KanbanView';
 import { OutreachQueue } from '../components/OutreachQueue';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { Mascot } from '../components/Mascot';
+import { safeHttpUrl } from '../utils/safeUrl';
+import { pickTrackerPrefill } from '../utils/trackerPrefill';
 import './Tracker.css';
 
 type Filter = 'all' | 'worth' | 'follow_up' | 'awaiting' | 'completed' | 'rejected';
@@ -909,6 +911,8 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
   // extra row of space when one is actually rendered.
   const pipelineHinted = appSteps.some(step => getAppStageAction(app, step, !isRejected && step === app.applicationStatus));
   const timelineHinted = TIMELINE_STEPS.some((step, i) => getOutreachStageAction(app, step, i === statusIndex, followUp));
+  const safeJobPostingUrl = safeHttpUrl(app.jobPostingUrl);
+  const safeContactLinkedinUrl = safeHttpUrl(app.contact?.linkedinUrl);
 
 
   return (
@@ -918,14 +922,18 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
         {app.jobPostingUrl && (
           <div>
             <div className="tracker-detail__section-title">Job posting</div>
-            <a
-              href={app.jobPostingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="tracker-detail__job-url"
-            >
-              {app.jobPostingUrl}
-            </a>
+            {safeJobPostingUrl ? (
+              <a
+                href={safeJobPostingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tracker-detail__job-url"
+              >
+                {app.jobPostingUrl}
+              </a>
+            ) : (
+              <span className="tracker-detail__job-url">{app.jobPostingUrl}</span>
+            )}
           </div>
         )}
 
@@ -1122,7 +1130,7 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
               <div className="tracker-detail__contact-body">
                 <div className="tracker-detail__contact-name">{app.contact.name}</div>
                 <div className="tracker-detail__contact-role">{app.contact.role} &middot; {app.contact.source}</div>
-                {(app.contact.email || app.contact.linkedinUrl) && (
+                {(app.contact.email || safeContactLinkedinUrl) && (
                   <div className="tracker-detail__contact-links">
                     {app.contact.email && (
                       <a className="tracker-detail__contact-link" href={`mailto:${app.contact.email}`}>
@@ -1133,8 +1141,8 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
                         {app.contact.email}
                       </a>
                     )}
-                    {app.contact.linkedinUrl && (
-                      <a className="tracker-detail__contact-link" href={app.contact.linkedinUrl} target="_blank" rel="noopener noreferrer">
+                    {safeContactLinkedinUrl && (
+                      <a className="tracker-detail__contact-link" href={safeContactLinkedinUrl} target="_blank" rel="noopener noreferrer">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
                         LinkedIn
                       </a>
@@ -1401,7 +1409,7 @@ export function Tracker() {
         setModalState({ open: true });
         clearPrefill();
         // We'll pass the prefill data through the modal's initial state
-        setPrefillData(data);
+        setPrefillData(pickTrackerPrefill(data));
       } catch {
         clearPrefill();
       }
@@ -1891,6 +1899,7 @@ export function Tracker() {
               const scoring = calculateOutreachScore(app);
               const followUp = getFollowUpDue(app);
               const isExpanded = expandedId === app.id;
+              const safeJobPostingUrl = safeHttpUrl(app.jobPostingUrl);
 
               return (
                 <div
@@ -1920,8 +1929,8 @@ export function Tracker() {
                     <div className="tracker-card__main">
                       <div className="tracker-card__title">
                         <span className="tracker-card__company">{app.companyName}</span>
-                        {app.jobPostingUrl && (
-                          <a className="tracker-card__link" href={app.jobPostingUrl} target="_blank" rel="noopener noreferrer" title="Open job posting" onClick={e => e.stopPropagation()}>
+                        {safeJobPostingUrl && (
+                          <a className="tracker-card__link" href={safeJobPostingUrl} target="_blank" rel="noopener noreferrer" title="Open job posting" onClick={e => e.stopPropagation()}>
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                               <path d="M4.5 2H2.5C1.95 2 1.5 2.45 1.5 3v6.5c0 .55.45 1 1 1H9c.55 0 1-.45 1-1V7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                               <path d="M7 1.5h3.5V5M6 6l4.5-4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
