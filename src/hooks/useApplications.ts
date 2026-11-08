@@ -105,6 +105,7 @@ export function useApplications() {
       const created = await api.createApplication(data);
       created.outreachWorth = calculateOutreachScore(created).worth;
       setApplications(prev => [created, ...prev]);
+      setError(null);
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Failed to add application'));
       throw err;
@@ -141,6 +142,7 @@ export function useApplications() {
 
     try {
       await api.updateApplication(id, resolvedEnriched);
+      setError(null);
     } catch (err) {
       // Revert on failure — re-fetch from server
       setError(extractApiErrorMessage(err, 'Failed to update application'));
@@ -160,6 +162,7 @@ export function useApplications() {
 
     try {
       await api.deleteApplication(id);
+      setError(null);
     } catch (err) {
       // Revert on failure
       setApplications(prev);
