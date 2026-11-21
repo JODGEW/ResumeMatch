@@ -1247,39 +1247,9 @@
   }
 }
 
-/* Interview session embed */
-.landing-session__meta-line {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.landing-session__dot {
-  color: var(--text-tertiary);
-}
-
-.landing-session__type {
-  font-size: 9.5px;
-  font-weight: 510;
-  color: var(--text-muted);
-  background: var(--surface-inset);
-  border: 1px solid var(--border-standard);
-  border-radius: 4px;
-  padding: 1px 6px;
-}
-
-.landing-session__head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
+/* Interview session embed — mirrors InterviewResults (.ir-head, .ir-jd,
+   .ir-tabs, .ir-assessment__head, .ir-overall) at thumbnail scale. */
 .landing-session__role {
-  flex: 1;
-  min-width: min(200px, 100%);
   font-size: 15px;
   font-weight: 590;
   color: var(--text-primary);
@@ -1287,43 +1257,47 @@
   line-height: 1.35;
 }
 
-.landing-session__match {
-  font-size: 11px;
-  font-weight: 510;
-  /* --warn is 3.84:1 on --warn-tint-bg; --pill-warn-text is 5.04:1. */
-  color: var(--pill-warn-text);
-  background: var(--warn-tint-bg);
-  border: 1px solid var(--warn-tint-border);
-  border-radius: 9999px;
-  padding: 2px 9px;
-  white-space: nowrap;
-}
-
+/* Same separator rule as .ir-head__meta: each item after the first hangs a
+   "·" in the gap to its left, and the clipped edge hides the one that would
+   start a wrapped line. */
 .landing-session__meta {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
-  align-items: flex-start;
-  margin-top: 10px;
+  gap: 3px 12px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.landing-session__meta > * {
+  position: relative;
+}
+
+.landing-session__meta > * + *::before {
+  content: "\00b7";
+  content: "\00b7" / "";
+  position: absolute;
+  right: 100%;
+  width: 12px;
+  text-align: center;
+  color: var(--text-muted);
 }
 
 .landing-session__file {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
-.landing-session__stamp {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-top: 3px;
+.landing-session__match {
+  color: var(--text-muted);
 }
 
 .landing-chip-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-top: 12px;
 }
 
 .landing-chip-btn svg,
@@ -1340,44 +1314,49 @@
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 510;
-  padding: 5px 11px;
+  padding: 4px 10px;
   border-radius: 6px;
 }
 
 .landing-chip-btn--primary {
   background: var(--accent);
-  border: none;
-  color: #fff;
+  border-color: var(--accent);
+  color: var(--text-on-accent);
 }
 
-.landing-session__context {
-  border-top: 1px solid var(--border-subtle);
-  margin-top: 16px;
-  padding-top: 14px;
+/* .ir-jd__toggle: full-width row, label left, hint and chevron right. */
+.landing-session__jd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-standard);
+  border-radius: 8px;
+  padding: 8px 12px;
 }
 
-.landing-session__context .landing-chip-btn svg,
-.landing-tab svg {
+.landing-session__jd-label {
+  font-size: 11.5px;
+  font-weight: 510;
+  color: var(--text-secondary);
+}
+
+.landing-session__jd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex-shrink: 0;
-}
-
-.landing-chip-btn {
-  padding: 4px 10px;
-}
-
-.landing-session__context-title {
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-weight: 590;
+  font-size: 10.5px;
   color: var(--text-tertiary);
-  margin-bottom: 8px;
 }
 
 .landing-tabs {
   display: flex;
   gap: 2px;
-  margin-top: 16px;
+  margin-top: 14px;
+  background: var(--surface-inset);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   padding: 2px;
@@ -1439,189 +1418,121 @@
   font-weight: 510;
 }
 
+/* .ir-overall: one bordered box, ring | summary, costliest row along the
+   bottom under a hairline. */
 .landing-overall {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px 16px;
+  align-items: center;
   margin-top: 12px;
+  background: var(--surface-panel);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 12px 16px;
-  background: var(--surface-inset);
+  padding: 14px 16px;
+}
+
+.landing-overall__ring {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+
+.landing-overall__ring svg {
+  display: block;
+}
+
+.landing-overall__value {
+  position: absolute;
+  inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.landing-overall__main {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-/* margin-left:auto pins the callout to the right edge without the score column
-   having to stretch; both sides may shrink, so a narrow card compresses rather
-   than wrapping the callout onto its own line. */
-.landing-overall__focus {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  background: var(--pill-danger-bg);
-  border: 1px solid var(--pill-danger-border);
-  border-radius: 8px;
-  padding: 8px 10px;
-}
-
-.landing-overall__focus-text {
-  min-width: 0;
-}
-
-.landing-overall__focus-label {
-  font-size: 9px;
-  font-weight: 590;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--pill-danger-text);
-  margin-bottom: 4px;
-}
-
-.landing-overall__focus-name {
-  font-size: 11.5px;
-  font-weight: 590;
-  line-height: 1.25;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1;
   color: var(--text-primary);
 }
 
-.landing-overall__focus-loss {
-  flex: 0 0 auto;
-  font-size: 13px;
-  font-weight: 590;
-  letter-spacing: -0.2px;
-  color: var(--pill-danger-text);
-  white-space: nowrap;
-}
-
-.landing-overall__title {
-  font-size: 11px;
-  font-weight: 510;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-
-.landing-overall__row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.landing-overall__ring-value {
-  fill: var(--text-primary);
-  font-size: 14px;
-  font-weight: 510;
-}
-
 .landing-overall__grade {
-  font-size: 15px;
+  margin-top: 3px;
+  font-size: 9.5px;
   font-weight: 590;
+  letter-spacing: 0;
   /* scoreColor(77) in InterviewResults — >=60 lands on --score-good. */
   color: var(--score-good);
 }
 
-/* Spacing comes from the stack's gap — a margin here would double it. */
-.landing-overall__stack {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.landing-overall__label {
+  margin-bottom: 4px;
+  font-size: 9px;
+  font-weight: 590;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
-.landing-overall__note {
+.landing-overall__summary p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.landing-overall__cost {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.landing-overall__cost-label {
+  flex: none;
   font-size: 10px;
   color: var(--text-muted);
 }
 
-.landing-tiles {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.landing-tile {
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 10px 4px;
-  text-align: center;
-  background: var(--surface-inset);
-}
-
-.landing-tile--focus {
-  background: var(--pill-danger-bg);
-  border-color: var(--pill-danger-border);
-}
-
-.landing-tile__value {
-  font-size: 12px;
+.landing-overall__cost b {
   font-weight: 590;
+  color: var(--text-primary);
 }
 
-.landing-tile__value--good {
-  color: var(--score-good);
-}
-
-.landing-tile__value--high {
-  color: var(--score-high);
-}
-
-.landing-tile__label {
-  font-size: 8.5px;
-  line-height: 1.3;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-.landing-tile__weight {
-  font-size: 8.5px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-/* Narrow-card fallbacks, mirroring InterviewResults' own mobile rules: the tile
-   grid steps 5 → 3 → 2 columns, and the costliest-category callout goes
-   full-width once it has wrapped below the score.
+/* Narrow-card fallback, mirroring .ir-overall at max-width:640px: the box
+   stacks (ring centred, then summary, then the costliest row).
 
    Keyed to the card, not the viewport, because .landing-grid--pair makes the
    card width non-monotonic in viewport width: a 900px viewport puts two ~414px
-   cards side by side, narrower than the single ~700px card at 750px. Viewport
-   breakpoints would have to be written as two disjoint ranges and would rot the
-   moment the pair grid's own breakpoint moves. */
+   cards side by side, narrower than the single ~700px card at 750px. */
 .landing-work-card__embed {
   container-type: inline-size;
 }
 
-/* A five-across row needs ~73px per tile: the longest label word,
-   "Communication", measures ~63px at 8.5px plus 8px padding and 2px border.
-   Five of those plus four 6px gaps is ~389px, so below 400px of card content
-   the word spills past the tile border — at a 390px viewport the tile is 53.6px
-   wide and the label overhangs it by ~9px on each side. */
 @container (max-width: 400px) {
-  .landing-tiles {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .landing-overall {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
   }
 
-  /* Once wrapped below the ring, margin-left:auto leaves the callout stranded
-     against the right edge with dead space beside it — same reasoning as
-     .ir-overall__focus at max-width:768px. */
-  .landing-overall__focus {
-    flex: 1 1 100%;
-    margin-left: 0;
+  .landing-overall__summary,
+  .landing-overall__cost {
+    width: 100%;
   }
-}
 
-/* Same arithmetic for three across: 3 × 73px + two gaps ≈ 231px. Reached on
-   360px-and-under phones. */
-@container (max-width: 240px) {
-  .landing-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .landing-overall__cost {
+    flex-direction: column;
+    gap: 2px;
   }
 }
 

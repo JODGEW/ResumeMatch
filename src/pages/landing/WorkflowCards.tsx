@@ -20,21 +20,6 @@ const SUGGESTIONS = [
   },
 ];
 
-// Mirrors InterviewResults: scoreColor() is >=80 high, >=60 good, else mid,
-// and each tile is labelled "weight N%".
-//
-// `focus` mirrors findCostliestCategory() — the biggest weighted gap to 100.
-// For these five that is STAR Framework Usage: (100-75)*25 = 625, ahead of Role
-// Relevance at 520 and Specificity at 500. Its loss is round(625/100) = 6 pts,
-// which is what the callout above the tiles states.
-const SCORE_TILES = [
-  { value: '78%', tone: 'good', label: 'Communication Structure', weight: 'weight 20%', focus: false },
-  { value: '75%', tone: 'good', label: 'STAR Framework Usage', weight: 'weight 25%', focus: true },
-  { value: '80%', tone: 'high', label: 'Specificity & Metrics', weight: 'weight 25%', focus: false },
-  { value: '74%', tone: 'good', label: 'Role Relevance', weight: 'weight 20%', focus: false },
-  { value: '82%', tone: 'high', label: 'Self-Awareness', weight: 'weight 10%', focus: false },
-] as const;
-
 export function SuggestionsCard() {
   return (
     <article className="landing-work-card">
@@ -92,61 +77,53 @@ export function InterviewCard() {
         </p>
       </div>
       <div className="landing-work-card__embed">
-        <div className="landing-session__head">
-          <div className="landing-session__role">Full-Stack Software Development Engineer — Bramble Commerce</div>
-          <span className="landing-session__match">61% Match</span>
-        </div>
+        <div className="landing-session__role">Full-Stack Software Development Engineer @ Bramble Commerce</div>
+        {/* Same "·" rule as .ir-head__meta: drawn by CSS, clipped at line starts. */}
         <div className="landing-session__meta">
-          <div className="landing-session__meta-line">
-            <span className="landing-session__file">casey_morgan_resume.pdf</span>
-            <span className="landing-session__dot">·</span>
-            <span className="landing-session__stamp">Jul 12, 2026 · 6:12 PM</span>
-            <span className="landing-session__dot">·</span>
-            <span className="landing-session__type">Behavioral</span>
-            <span className="landing-session__stamp">10 questions</span>
-          </div>
-          <div className="landing-chip-row">
-            <span className="landing-chip-btn landing-chip-btn--primary">
-              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M2.5 8a5.5 5.5 0 1 1 1.6 3.9M2.5 12v-3h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
-              Interview again
-            </span>
-            <span className="landing-chip-btn">
-              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
-              Interview report
-            </span>
-            <span className="landing-chip-btn">
-              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-                <rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
-                <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2H4a1.5 1.5 0 0 0-1.5 1.5V10" stroke="currentColor" strokeWidth="1.3" fill="none" />
-              </svg>
-              Copy transcript
-            </span>
-          </div>
+          <span className="landing-session__file">casey_morgan_resume.pdf</span>
+          <span>Jul 12, 2026</span>
+          <span>6:12 PM</span>
+          <span>Behavioral</span>
+          <span>10 questions</span>
+          <span>19 min</span>
+          <span className="landing-session__match">Resume match 61%</span>
         </div>
-        <div className="landing-session__context">
-          <div className="landing-session__context-title">Analysis &amp; Context</div>
-          <div className="landing-chip-row">
-            <span className="landing-chip-btn">
-              <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
-                <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" fill="none" />
-              </svg>
-              View full analysis
-              <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M5 11L11 5M6 5h5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
-            </span>
-            <span className="landing-chip-btn">
-              Job description
-              <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
-            </span>
-          </div>
+        <div className="landing-chip-row">
+          <span className="landing-chip-btn landing-chip-btn--primary">
+            <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2.5 8a5.5 5.5 0 1 1 1.6 3.9M2.5 12v-3h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+            Interview again
+          </span>
+          <span className="landing-chip-btn">
+            <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+            Interview report
+          </span>
+          <span className="landing-chip-btn">
+            <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none" />
+              <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2H4a1.5 1.5 0 0 0-1.5 1.5V10" stroke="currentColor" strokeWidth="1.3" fill="none" />
+            </svg>
+            Copy transcript
+          </span>
+          <span className="landing-chip-btn">
+            <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
+              <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" fill="none" />
+            </svg>
+            View full analysis
+          </span>
+        </div>
+        <div className="landing-session__jd">
+          <span className="landing-session__jd-label">Job Description</span>
+          <span className="landing-session__jd-hint">
+            View full posting
+            <svg width="9" height="9" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+          </span>
         </div>
         <div className="landing-tabs">
           <span className="landing-tab landing-tab--active">
@@ -172,49 +149,51 @@ export function InterviewCard() {
           </span>
           <span className="landing-session__ai-link">Show details</span>
         </div>
+        {/* Mirrors .ir-overall: ring with score and rating inside, summary beside
+            it, and the costliest row under a hairline. STAR Framework Usage is
+            what findCostliestCategory() returns for the sample session:
+            (100-75)*25 = 625, ahead of Role Relevance at 520, so round(625/100)
+            = 6 pts. */}
         <div className="landing-overall">
-          <div className="landing-overall__main">
-            <div className="landing-overall__title">Overall Score</div>
-            <div className="landing-overall__row">
-              <svg width="56" height="56" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="26" fill="none" className="lp-stroke-track" strokeWidth="5" />
-                <circle
-                  cx="32"
-                  cy="32"
-                  r="26"
-                  fill="none"
-                  className="lp-stroke-score-good"
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  strokeDasharray="125.8 37.6"
-                  transform="rotate(-90 32 32)"
-                />
-                <text x="32" y="37" textAnchor="middle" className="landing-overall__ring-value">
-                  77%
-                </text>
-              </svg>
-              <div className="landing-overall__stack">
-                <div className="landing-overall__grade">Good</div>
-                <div className="landing-overall__note">77% overall across 5 scoring categories</div>
-              </div>
-            </div>
+          <div className="landing-overall__ring">
+            <svg width="72" height="72" viewBox="0 0 64 64" aria-hidden="true">
+              <circle cx="32" cy="32" r="27" fill="none" className="lp-stroke-track" strokeWidth="5" />
+              <circle
+                cx="32"
+                cy="32"
+                r="27"
+                fill="none"
+                className="lp-stroke-score-good"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray="130.6 39"
+                transform="rotate(-90 32 32)"
+              />
+            </svg>
+            <span className="landing-overall__value">
+              77%
+              <span className="landing-overall__grade">Good</span>
+            </span>
           </div>
-          <div className="landing-overall__focus">
-            <div className="landing-overall__focus-text">
-              <div className="landing-overall__focus-label">Costing you the most</div>
-              <div className="landing-overall__focus-name">STAR Framework Usage</div>
-            </div>
-            <div className="landing-overall__focus-loss">&minus;6 pts</div>
+          <div className="landing-overall__summary">
+            <div className="landing-overall__label">Summary</div>
+            <p>
+              The candidate demonstrates solid full-stack fundamentals, genuine ownership of past
+              features, and a credible learning-under-pressure track record backed by concrete
+              metrics. Answers follow a mostly clear STAR structure with specific technical
+              detail—notably the PostgreSQL optimization deep-dive—though depth thins out on AWS
+              experience and mentorship, and some responses contain minor redundancy. Overall, a
+              strong junior-to-mid candidate whose honesty about gaps and consistent use of
+              measurable outcomes make them a competitive fit for the role.
+            </p>
           </div>
-        </div>
-        <div className="landing-tiles">
-          {SCORE_TILES.map((tile) => (
-            <div key={tile.label} className={`landing-tile${tile.focus ? ' landing-tile--focus' : ''}`}>
-              <div className={`landing-tile__value landing-tile__value--${tile.tone}`}>{tile.value}</div>
-              <div className="landing-tile__label">{tile.label}</div>
-              <div className="landing-tile__weight">{tile.weight}</div>
-            </div>
-          ))}
+          <div className="landing-overall__cost">
+            <span className="landing-overall__cost-label">Costing you the most</span>
+            <span>
+              <b>STAR Framework Usage&nbsp;&middot;&nbsp;&minus;6&nbsp;pts.</b> Its weight and gap drag
+              the overall score down more than any other category.
+            </span>
+          </div>
         </div>
       </div>
     </article>
