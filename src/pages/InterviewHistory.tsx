@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getSession, listSessions, type SessionSummary } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
+import { formatDuration } from '../utils/interviewFormat';
 import { resolveSessionIdentity } from '../utils/sessionIdentity';
 import { useAuth } from '../auth/AuthContext';
 import { Mascot } from '../components/Mascot';
@@ -47,11 +48,6 @@ function parseMatchScore(score?: number | string): number | null {
 
 function formatQuestionCount(count: number): string {
   return count === 1 ? '1 question' : `${count} questions`;
-}
-
-function formatDuration(seconds?: number): string | null {
-  if (seconds == null || !Number.isFinite(seconds)) return null;
-  return `${Math.max(1, Math.round(seconds / 60))} min`;
 }
 
 /** Keeps the items that are present; the "·" separators between them are drawn by CSS. */

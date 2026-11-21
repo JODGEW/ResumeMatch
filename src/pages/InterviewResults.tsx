@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment, type ReactNode } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getAnalysis } from '../api/analysis';
 import { endInterview, getSession, type AssessmentCategory, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { clearInterviewPointer } from '../utils/interviewPointer';
 import { scoreColor } from '../utils/interviewScore';
+import { formatDuration } from '../utils/interviewFormat';
 import { useAuth } from '../auth/AuthContext';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SESSION_ID } from '../types/sampleInterviewSession';
@@ -94,7 +95,8 @@ function clearPendingInterviewFinalization(sessionId: string): void {
   }
 }
 
-function formatDuration(secs: number): string {
+/** m:ss, used only by the downloaded report. The header uses formatDuration ("N min"). */
+function formatClockDuration(secs: number): string {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
@@ -130,11 +132,14 @@ function getSessionTitle(session: SessionResponse): string {
   return `${formatInterviewType(session.interviewType)} Practice Session (No job selected)`;
 }
 
-/** Role / company split so the heading can render the em dash as its own token. */
+/** Role / company split so the heading can join them with " @ ". */
 function getSessionHeading(session: SessionResponse): { role: string; company: string | null } {
   if (session.roleName && session.companyName) {
     return { role: session.roleName, company: session.companyName };
   }
+  // Legacy rows carry only "Role @ Company" in jobTitle; keep its "@" for the heading.
+  const jobTitleParts = !session.roleName ? session.jobTitle?.match(/^(.+?)\s+@\s+(.+)$/) : null;
+  if (jobTitleParts) return { role: jobTitleParts[1], company: jobTitleParts[2] };
   return { role: getSessionTitle(session), company: null };
 }
 
@@ -150,12 +155,10 @@ function formatMatchScore(score?: number | string): string | null {
   return numeric == null ? null : `${numeric}% Match`;
 }
 
-function getMatchScoreTier(score: number): 'high' | 'good' | 'mid' | 'low' | 'poor' {
-  if (score >= 86) return 'high';
-  if (score >= 76) return 'good';
-  if (score >= 61) return 'mid';
-  if (score >= 41) return 'low';
-  return 'poor';
+/** Keeps the items that are present; the "·" separators between them are drawn by CSS
+    (same rule as InterviewHistory's .ih-row__meta). */
+function presentItems(items: ReactNode[]): ReactNode {
+  return items.filter(Boolean).map((item, i) => <Fragment key={i}>{item}</Fragment>);
 }
 
 /* Category weights arrive either as a 0-1 fraction (what the backend and the demo
@@ -316,7 +319,6 @@ export function InterviewResults() {
   const [restartError, setRestartError] = useState('');
   const [restarting, setRestarting] = useState(false);
   const [jobDescriptionOpen, setJobDescriptionOpen] = useState(false);
-  const [transcriptOpen, setTranscriptOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'assessment' | 'transcript'>('assessment');
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -535,9 +537,7 @@ export function InterviewResults() {
   const heading = getSessionHeading(session);
   const matchLabel = formatMatchScore(session.matchScore);
   const matchValue = parseMatchScore(session.matchScore);
-  const matchTier = matchValue != null ? getMatchScoreTier(matchValue) : null;
-  const hasContextLinks = Boolean(session.analysisId || session.jobDescription);
-  const contextTitle = session.analysisId ? 'Analysis & Context' : 'Context';
+  const duration = formatDuration(session.totalDuration);
   const isActiveSession = session.status === 'active';
 
   function downloadReport() {
@@ -548,7 +548,7 @@ export function InterviewResults() {
       `Role: ${getSessionTitle(session!)}`,
       `Resume: ${getResumeLabel(session!)}`,
       ...(matchLabel ? [`Match: ${matchLabel}`] : []),
-      `Duration: ${formatDuration(session!.totalDuration)}`,
+      `Duration: ${formatClockDuration(session!.totalDuration)}`,
       `Questions: ${questionCount}`,
       `Type: ${typeBadge}`,
       '',
@@ -706,30 +706,21 @@ export function InterviewResults() {
       </Link>
 
       <header className="ir-head animate-in">
-        <div className="ir-head__title-row">
-          <h1 className="ir-head__title">
-            {heading.role}
-            {heading.company && (
-              <>
-                {' '}
-                <span className="ir-head__dash">—</span> {heading.company}
-              </>
-            )}
-          </h1>
-          {matchLabel && (
-            <span className={`ir-head__match${matchTier ? ` ir-head__match--${matchTier}` : ''}`}>
-              {matchLabel}
-            </span>
-          )}
-        </div>
+        <h1 className="ir-head__title">
+          {heading.role}
+          {heading.company && ` @ ${heading.company}`}
+        </h1>
 
         <div className="ir-head__meta">
-          <span className="ir-head__file">{getResumeLabel(session)}</span>
-          <span className="ir-head__dot">&middot;</span>
-          <span className="ir-head__stamp">{formatDate(session.createdAt)} &middot; {formatTime(session.createdAt)}</span>
-          <span className="ir-head__dot">&middot;</span>
-          <span className="ir-head__type">{interviewType}</span>
-          <span className="ir-head__stamp">{transcriptQuestionLabel}</span>
+          {presentItems([
+            <span className="ir-head__file">{getResumeLabel(session)}</span>,
+            session.createdAt && <span>{formatDate(session.createdAt)}</span>,
+            session.createdAt && <span>{formatTime(session.createdAt)}</span>,
+            <span>{interviewType}</span>,
+            <span>{transcriptQuestionLabel}</span>,
+            duration && <span>{duration}</span>,
+            matchValue != null && <span className="ir-head__match">Resume match {matchValue}%</span>,
+          ])}
         </div>
 
         <div className="ir-actions">
@@ -763,49 +754,44 @@ export function InterviewResults() {
             </svg>
             {copied ? 'Copied' : 'Copy transcript'}
           </button>
+          {session.analysisId && (
+            <Link className="ir-btn" to={`/results/${session.analysisId}`}>
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
+                <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" fill="none" />
+              </svg>
+              View full analysis
+            </Link>
+          )}
         </div>
         {restartError && <p className="ir-actions__error">{restartError}</p>}
       </header>
 
-      {hasContextLinks && (
-        <section className="ir-context animate-in stagger-1">
-          <div className="ir-context__title">{contextTitle}</div>
-          <div className="ir-context__actions">
-            {session.analysisId && (
-              <Link className="ir-btn ir-btn--sm" to={`/results/${session.analysisId}`}>
-                <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinejoin="round" />
-                  <path d="M10 2v3h3" stroke="currentColor" strokeWidth="1.3" fill="none" />
-                </svg>
-                View full analysis
+      {session.jobDescription && (
+        <div className="ir-jd">
+          <button
+            type="button"
+            className="ir-jd__toggle"
+            aria-expanded={jobDescriptionOpen}
+            onClick={() => setJobDescriptionOpen(open => !open)}
+          >
+            <span className="ir-jd__label">Job Description</span>
+            <span className="ir-jd__hint">
+              {jobDescriptionOpen ? 'Hide' : 'View full posting'}
+              <span className={`ir-chevron${jobDescriptionOpen ? ' ir-chevron--open' : ''}`}>
                 <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M5 11L11 5M6 5h5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                 </svg>
-              </Link>
-            )}
-            {session.jobDescription && (
-              <button
-                type="button"
-                className="ir-btn ir-btn--sm"
-                aria-expanded={jobDescriptionOpen}
-                onClick={() => setJobDescriptionOpen(open => !open)}
-              >
-                Job description
-                <span className={`ir-chevron${jobDescriptionOpen ? ' ir-chevron--open' : ''}`}>
-                  <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  </svg>
-                </span>
-              </button>
-            )}
-          </div>
-          {jobDescriptionOpen && session.jobDescription && (
-            <div className="ir-context__jd">{session.jobDescription}</div>
+              </span>
+            </span>
+          </button>
+          {jobDescriptionOpen && (
+            <div className="ir-jd__content">{session.jobDescription}</div>
           )}
-        </section>
+        </div>
       )}
 
-      <div className="ir-tabs animate-in stagger-1" ref={tabsRef}>
+      <div className="ir-tabs animate-in" ref={tabsRef}>
         <div className="ir-tabs__group" role="tablist" aria-label="Interview report sections">
           <button
             type="button"
@@ -840,7 +826,7 @@ export function InterviewResults() {
 
       {activeTab === 'assessment' && (
         assessment ? (
-          <section id="ir-panel-assessment" role="tabpanel" aria-labelledby="ir-tab-assessment" className="ir-assessment animate-in stagger-2">
+          <section id="ir-panel-assessment" role="tabpanel" aria-labelledby="ir-tab-assessment" className="ir-assessment animate-in">
             <div className="ir-assessment__head">
               <h2>Assessment</h2>
               <span className="ir-ai-pill">
@@ -877,83 +863,53 @@ export function InterviewResults() {
               </div>
             )}
 
-            <section className="ir-panel ir-overall">
-              <div className="ir-panel__title">Overall Score</div>
-              <div className="ir-overall__body">
-                {hasCategoryScores && (
-                  <div className="ir-overall__ring">
-                    <svg width="132" height="132" viewBox="0 0 132 132">
-                      <circle cx="66" cy="66" r="56" fill="none" stroke="var(--track)" strokeWidth="11" />
-                      <circle
-                        cx="66" cy="66" r="56" fill="none"
-                        stroke={scoreColor(assessment.overallScore)}
-                        strokeWidth="11" strokeLinecap="round"
-                        strokeDasharray={`${(assessment.overallScore / 100) * 351.9} 351.9`}
-                        transform="rotate(-90 66 66)"
-                      />
-                    </svg>
-                    <span className="ir-overall__value">{assessment.overallScore}%</span>
-                  </div>
-                )}
-                <div className="ir-overall__text">
-                  <div
-                    className="ir-overall__band"
-                    style={hasCategoryScores ? { color: scoreColor(assessment.overallScore) } : undefined}
-                  >
-                    {hasCategoryScores ? assessment.overallRating : 'Assessment incomplete'}
-                  </div>
-                  <div className="ir-overall__hint">
-                    {hasCategoryScores
-                      ? `${assessment.overallScore}% overall across ${assessment.categories.length} scoring categories`
-                      : 'No category scores were generated for this session.'}
-                  </div>
+            <section className={`ir-overall${hasCategoryScores ? '' : ' ir-overall--incomplete'}`} aria-label="Overall score">
+              {hasCategoryScores ? (
+                <div className="ir-overall__ring">
+                  <svg width="140" height="140" viewBox="0 0 140 140" aria-hidden="true">
+                    <circle cx="70" cy="70" r="60" fill="none" stroke="var(--track)" strokeWidth="10" />
+                    <circle
+                      cx="70" cy="70" r="60" fill="none"
+                      stroke={scoreColor(assessment.overallScore)}
+                      strokeWidth="10" strokeLinecap="round"
+                      strokeDasharray={`${(assessment.overallScore / 100) * 377} 377`}
+                      transform="rotate(-90 70 70)"
+                    />
+                  </svg>
+                  <span className="ir-overall__value">
+                    <span className="sr-only">Overall score </span>
+                    {assessment.overallScore}%
+                    <span className="ir-overall__band" style={{ color: scoreColor(assessment.overallScore) }}>
+                      {assessment.overallRating}
+                    </span>
+                  </span>
                 </div>
-                {costliestCategory && (
-                  <div className="ir-overall__focus">
-                    <div className="ir-overall__focus-label">Costing you the most</div>
-                    {/* nbsp so a long category name wraps before the figure rather
-                        than stranding "pts" on its own line. */}
-                    <div className="ir-overall__focus-name">
-                      {costliestCategory.name} &middot; &minus;{costliestCategory.lossPoints}&nbsp;pts
-                    </div>
-                    <p className="ir-overall__focus-hint">
-                      Its weight and gap drag the overall score down more than any other category.
-                    </p>
-                  </div>
-                )}
+              ) : (
+                <div className="ir-overall__incomplete">
+                  <div className="ir-overall__incomplete-title">Assessment incomplete</div>
+                  <div className="ir-overall__incomplete-hint">No category scores were generated for this session.</div>
+                </div>
+              )}
+              <div className="ir-overall__summary">
+                <h3>Summary</h3>
+                <p>{assessment.summary}</p>
               </div>
-            </section>
-
-            {hasCategoryScores && (
-              <div className="ir-cat-grid" aria-label="Dimension scores">
-                {assessment.categories.map((cat, i) => (
-                  <div
-                    key={i}
-                    className={`ir-cat${i === costliestCategory?.index ? ' ir-cat--focus' : ''}`}
-                  >
-                    <div className="ir-cat__score" style={{ color: scoreColor(cat.score) }}>{cat.score}%</div>
-                    <div className="ir-cat__name">{cat.name}</div>
-                    <div className="ir-cat__weight">weight {formatCategoryWeight(cat.weight)}%</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <section className="ir-panel ir-summary">
-              <h3>Assessment Summary</h3>
-              <p className="ir-summary__text">{assessment.summary}</p>
+              {costliestCategory && (
+                <div className="ir-overall__cost">
+                  <span className="ir-overall__cost-label">Costing you the most</span>
+                  {/* nbsp binds the "·" and "pts." to their neighbours, so neither
+                      can land at the start or end of a wrapped line. */}
+                  <span>
+                    <b>{costliestCategory.name}&nbsp;&middot;&nbsp;&minus;{costliestCategory.lossPoints}&nbsp;pts.</b>{' '}
+                    Its weight and gap drag the overall score down more than any other category.
+                  </span>
+                </div>
+              )}
             </section>
 
             <div className="ir-feedback">
-              <section className="ir-panel ir-feedback__col">
-                <div className="ir-feedback__head">
-                  <span className="ir-feedback__title">Strengths</span>
-                  {assessment.strengths.length > 0 && (
-                    <span className="ir-feedback__count">
-                      {assessment.strengths.length} {assessment.strengths.length === 1 ? 'item' : 'items'}
-                    </span>
-                  )}
-                </div>
+              <section className="ir-feedback__col">
+                <h3>Strengths</h3>
                 {assessment.strengths.length === 0 ? (
                   <p className="ir-feedback__empty">
                     Detailed strengths were not generated for this session.{' '}
@@ -962,29 +918,22 @@ export function InterviewResults() {
                       : 'Review the assessment summary and transcript feedback for more context.'}
                   </p>
                 ) : (
-                  <div className="ir-feedback__list">
+                  <ul className="ir-feedback__list">
                     {assessment.strengths.map((item, i) => (
-                      <div key={i} className="ir-feedback__item ir-feedback__item--strength">
+                      <li key={i} className="ir-feedback__item">
                         <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
                           <circle cx="9" cy="9" r="7.5" stroke="var(--success-alt)" strokeWidth="1.4" fill="none" />
                           <polyline points="5.5,9 8,11.3 12.5,6.2" fill="none" stroke="var(--success-alt)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         <p>{item}</p>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </section>
 
-              <section className="ir-panel ir-feedback__col">
-                <div className="ir-feedback__head">
-                  <span className="ir-feedback__title">Areas to Improve</span>
-                  {assessment.improvements.length > 0 && (
-                    <span className="ir-feedback__count">
-                      {assessment.improvements.length} {assessment.improvements.length === 1 ? 'item' : 'items'}
-                    </span>
-                  )}
-                </div>
+              <section className="ir-feedback__col">
+                <h3>Areas to Improve</h3>
                 {assessment.improvements.length === 0 ? (
                   <p className="ir-feedback__empty">
                     Detailed improvement notes were not generated for this session.{' '}
@@ -993,43 +942,41 @@ export function InterviewResults() {
                       : 'Review the assessment summary and transcript feedback for more context.'}
                   </p>
                 ) : (
-                  <div className="ir-feedback__list">
+                  <ul className="ir-feedback__list">
                     {assessment.improvements.map((item, i) => (
-                      <div key={i} className="ir-feedback__item ir-feedback__item--improve">
+                      <li key={i} className="ir-feedback__item">
                         <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
                           <circle cx="9" cy="9" r="7.5" stroke="var(--warn)" strokeWidth="1.4" fill="none" />
                           <path d="M6 9h6M9.5 6.5L12 9l-2.5 2.5" stroke="var(--warn)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                         </svg>
                         <p>{item}</p>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </section>
             </div>
 
             {hasCategoryScores && (
-              <section className="ir-panel ir-dimensions">
-                <h3>Detailed Dimension Feedback</h3>
+              <section className="ir-dimensions">
+                <h3>Dimension Feedback</h3>
                 <div className="ir-dimensions__list">
                   {assessment.categories.map((cat, i) => (
                     <div key={i} className="ir-dimension">
-                      <div className="ir-dimension__meta">
-                        <div className="ir-dimension__head">
-                          <span className="ir-dimension__name">{cat.name}</span>
-                          <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
-                            {cat.score}%
-                          </span>
-                        </div>
-                        <div className="ir-dimension__bar">
-                          <div
+                      <div className="ir-dimension__head">
+                        <div className="ir-dimension__name">{cat.name}</div>
+                        <div className="ir-dimension__weight">Weight {formatCategoryWeight(cat.weight)}%</div>
+                      </div>
+                      <div className="ir-dimension__bar">
+                        <span className="ir-dimension__track">
+                          <span
                             className="ir-dimension__fill"
                             style={{ width: `${cat.score}%`, background: scoreColor(cat.score) }}
                           />
-                        </div>
-                        <div className="ir-dimension__weight">
-                          Weight {formatCategoryWeight(cat.weight)}% of overall
-                        </div>
+                        </span>
+                        <span className="ir-dimension__score" style={{ color: scoreColor(cat.score) }}>
+                          {cat.score}%
+                        </span>
                       </div>
                       <p className="ir-dimension__comment">{cat.comment}</p>
                     </div>
@@ -1039,12 +986,12 @@ export function InterviewResults() {
             )}
           </section>
         ) : (
-          <section id="ir-panel-assessment" role="tabpanel" aria-labelledby="ir-tab-assessment" className="ir-assessment animate-in stagger-2">
+          <section id="ir-panel-assessment" role="tabpanel" aria-labelledby="ir-tab-assessment" className="ir-assessment animate-in">
             <div className="ir-assessment__head">
               <h2>Assessment</h2>
             </div>
             {finalizing ? (
-              <div className="ir-panel ir-state-banner" role="status" aria-live="polite">
+              <div className="ir-state-banner" role="status" aria-live="polite">
                 <div className="loading-spinner ir-state-banner__spinner" />
                 <div className="ir-state-banner__body">
                   <h3>Finalizing your interview report</h3>
@@ -1053,7 +1000,7 @@ export function InterviewResults() {
                 </div>
               </div>
             ) : (
-              <div className="ir-panel ir-state-banner ir-state-banner--error" role="status">
+              <div className="ir-state-banner ir-state-banner--error" role="status">
                 <div className="ir-state-banner__icon" aria-hidden="true">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                     <path d="M12 8v5M12 17h.01M10.3 4.3 2.6 18a1.5 1.5 0 0 0 1.3 2.2h16.2a1.5 1.5 0 0 0 1.3-2.2L13.7 4.3a1.9 1.9 0 0 0-3.4 0Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -1085,69 +1032,46 @@ export function InterviewResults() {
       )}
 
       {activeTab === 'transcript' && (
-        <section id="ir-panel-transcript" role="tabpanel" aria-labelledby="ir-tab-transcript" className="ir-panel ir-transcript animate-in stagger-2">
-          <button
-            type="button"
-            className="ir-transcript__toggle"
-            aria-expanded={transcriptOpen}
-            onClick={() => setTranscriptOpen(open => !open)}
-          >
-            <span className="ir-transcript__heading">
-              <span className="ir-transcript__title">Session Transcript</span>
-              <span className="ir-transcript__count">{transcriptQuestionLabel}</span>
-            </span>
-            <span className={`ir-chevron${transcriptOpen ? ' ir-chevron--open' : ''}`}>
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </svg>
-            </span>
-          </button>
-
-          {transcriptOpen && (
-            <div className="ir-transcript__body">
-              <div className="ir-transcript__inner">
-                {transcriptGroups.length === 0 && (
-                  <p className="ir-transcript__empty">No transcript available for this session.</p>
-                )}
-                {transcriptGroups.map((group, i) => (
-                  <div key={i} className="ir-turn">
-                    {group.question && (
-                      <>
-                        <div className="ir-turn__label ir-turn__label--interviewer">INTERVIEWER</div>
-                        <div className="ir-turn__question">{group.question.content}</div>
-                      </>
-                    )}
-                    {group.answers.length > 0 && (
-                      <>
-                        <div className="ir-turn__label">YOU</div>
-                        {group.answers.map((answer, j) => (
-                          <div key={j} className="ir-turn__answer">
-                            <div className="ir-turn__paragraphs">
-                              {toParagraphs(answer.content).map((paragraph, k) => (
-                                <p key={k}>{paragraph}</p>
-                              ))}
-                            </div>
-                            {answer.transcriptClarity === 'unclear' && (
-                              <div className="ir-clarity-warning" role="note">
-                                <span className="ir-clarity-warning__icon" aria-hidden="true">!</span>
-                                <span>Low audio quality (transcription may be imperfect).</span>
-                              </div>
-                            )}
-                            {answer.feedback && (
-                              <FeedbackBlock feedback={answer.feedback} fillerWords={answer.fillerWords} />
-                            )}
-                            {!answer.feedback && answer.fillerWords && Object.keys(answer.fillerWords).length > 0 && (
-                              <div className="ir-fillers">{formatFillerWords(answer.fillerWords)}</div>
-                            )}
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+        <section id="ir-panel-transcript" role="tabpanel" aria-labelledby="ir-tab-transcript" className="ir-transcript animate-in">
+          {transcriptGroups.length === 0 && (
+            <p className="ir-transcript__empty">No transcript available for this session.</p>
           )}
+          {transcriptGroups.map((group, i) => (
+            <div key={i} className="ir-turn">
+              {group.question && (
+                <>
+                  <div className="ir-turn__label ir-turn__label--interviewer">INTERVIEWER</div>
+                  <div className="ir-turn__question">{group.question.content}</div>
+                </>
+              )}
+              {group.answers.length > 0 && (
+                <>
+                  <div className="ir-turn__label">YOU</div>
+                  {group.answers.map((answer, j) => (
+                    <div key={j} className="ir-turn__answer">
+                      <div className="ir-turn__paragraphs">
+                        {toParagraphs(answer.content).map((paragraph, k) => (
+                          <p key={k}>{paragraph}</p>
+                        ))}
+                      </div>
+                      {answer.transcriptClarity === 'unclear' && (
+                        <div className="ir-clarity-warning" role="note">
+                          <span className="ir-clarity-warning__icon" aria-hidden="true">!</span>
+                          <span>Low audio quality (transcription may be imperfect).</span>
+                        </div>
+                      )}
+                      {answer.feedback && (
+                        <FeedbackBlock feedback={answer.feedback} fillerWords={answer.fillerWords} />
+                      )}
+                      {!answer.feedback && answer.fillerWords && Object.keys(answer.fillerWords).length > 0 && (
+                        <div className="ir-fillers">{formatFillerWords(answer.fillerWords)}</div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          ))}
         </section>
       )}
 
