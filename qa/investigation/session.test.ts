@@ -168,6 +168,27 @@ describe('authorization latches', () => {
     await expect(session.call('advance_controlled_clock', { ms: 1000 })).rejects.toMatchObject({ code: 'POLICY_BLOCKED' })
   })
 
+  it('advances the controlled clock by 1 to 300000 ms in the timeout scenario', async () => {
+    const timeoutManifest = { ...manifest(), scenarioId: 'P1-05' } as EvidenceManifest
+    const directories = await createInvestigationDirectory(approvedRoot, newInvestigationId())
+    const clockDriver = new FakeDriver(directories.reproductionDirectory)
+    const timeout = new InvestigationSession({
+      investigationId: path.basename(directories.directory), findingId: `f-${randomUUID()}`,
+      runDirectory, manifest: timeoutManifest, directories, driver: clockDriver,
+      model: { provider: 'fake', modelId: 'fake-1' },
+      checkouts: { resumematchCommit: 'b'.repeat(40), harnessCommit: 'c'.repeat(40), adapterCommit: 'd'.repeat(40) },
+    })
+    await timeout.call('start_fresh_reproduction', {})
+    for (const ms of [0, 300_001]) {
+      await expect(timeout.call('advance_controlled_clock', { ms }))
+        .rejects.toMatchObject({ code: 'INVALID_ARGUMENTS', message: 'ms must be an integer between 1 and 300000' })
+    }
+    expect(clockDriver.clockMs).toBe(0)
+    await expect(timeout.call('advance_controlled_clock', { ms: 300_000 })).resolves.toEqual({ advancedMs: 300_000 })
+    expect(clockDriver.clockMs).toBe(300_000)
+    expect(timeout.status().policyBlocked).toBe(false)
+  })
+
   it('refuses a probe past the ceiling without latching the investigation', async () => {
     for (let index = 0; index < INVESTIGATION_BUDGET.probes; index += 1) await session.call('read_page_errors', {})
     await expect(session.call('read_page_errors', {})).rejects.toMatchObject({ code: 'BUDGET_EXHAUSTED' })
