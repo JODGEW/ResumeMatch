@@ -125,19 +125,19 @@
 
 .kanban__card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
 }
 
+/* Wraps rather than truncates: the name is the card's identity. */
 .kanban__card-company {
+  min-width: 0;
   font-size: 13.5px;
   font-weight: 590;
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .kanban__card-match {

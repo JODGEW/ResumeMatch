@@ -1309,18 +1309,18 @@
 .tracker-modal__header {
   flex-shrink: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 24px;
+  padding: 22px 24px 18px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .tracker-modal__header h2 {
   margin: 0;
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 590;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
   color: var(--text-primary);
 }
 
@@ -1362,22 +1362,18 @@
   /* Without this the gesture chains to the page behind once this region hits
      its top or bottom, scrolling the tracker under the open form. */
   overscroll-behavior: contain;
-  padding: 24px;
-}
-
-.tracker-modal__section + .tracker-modal__section {
-  margin-top: 22px;
+  padding: 20px 24px 24px;
 }
 
 .tracker-modal__section-title {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 590;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
-  padding-bottom: 10px;
+  color: var(--text-muted);
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .tracker-modal__grid {
@@ -1392,10 +1388,10 @@
 
 .tracker-modal__label {
   display: block;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 510;
   color: var(--text-secondary);
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 
 .tracker-modal__req {
@@ -1416,6 +1412,11 @@
   color: var(--text-primary);
 }
 
+.tracker-modal__input,
+.tracker-modal__select {
+  min-height: 38px;
+}
+
 .tracker-modal__select {
   cursor: pointer;
 }
@@ -1431,43 +1432,51 @@
   line-height: 1.5;
 }
 
-.tracker-modal__disclosure {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  margin-top: 22px;
-  padding: 12px 14px;
-  background: var(--surface-inset);
-  border: 1px solid var(--border-standard);
-  border-radius: 10px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.tracker-modal__disclosure:hover {
-  background: var(--surface-card-hover);
-}
-
-.tracker-modal__disclosure-label {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 13.5px;
-  font-weight: 510;
-  color: var(--text-primary);
-}
-
-.tracker-modal__disclosure-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.tracker-modal__hint {
+  display: block;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
+/* Optional blocks: plain rows split by a top rule, chevron on the right. */
+.tracker-modal__disc {
+  margin-top: 18px;
+  border-top: 1px solid var(--border-standard);
+}
+
+.tracker-modal__disclosure {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 0;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+
+.tracker-modal__disclosure-label {
+  flex-shrink: 0;
+  font-size: 13.5px;
+  font-weight: 590;
+}
+
+.tracker-modal__disclosure-summary {
+  margin-left: auto;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tracker-modal__disclosure-chevron {
+  flex-shrink: 0;
   transition: transform 0.15s;
   color: var(--text-muted);
 }
@@ -1476,15 +1485,14 @@
   transform: rotate(180deg);
 }
 
-.tracker-modal__advanced {
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
+.tracker-modal__disc-body {
+  padding: 2px 0 16px;
 }
 
-.tracker-modal__advanced .tracker-modal__section + .tracker-modal__section {
-  margin-top: 0;
+.tracker-modal__notes {
+  margin-top: 18px;
+  border-top: 1px solid var(--border-standard);
+  padding-top: 14px;
 }
 
 .tracker-modal__field--checkbox {
@@ -1496,7 +1504,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 9px;
+  min-height: 38px;
+  margin: 0;
   font-size: 13px;
   font-weight: 510;
   color: var(--text-secondary);
@@ -1679,6 +1688,39 @@
   .tracker-detail {
     margin-left: 32px;
   }
+
+  /* Modal: one column, 44px touch targets, footer buttons split the width. */
+  .tracker-modal__header {
+    padding: 18px 16px 14px;
+  }
+
+  .tracker-modal__body {
+    padding: 16px 16px 20px;
+  }
+
+  .tracker-modal__footer {
+    padding: 12px 16px;
+  }
+
+  .tracker-modal__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tracker-modal__input,
+  .tracker-modal__select,
+  .tracker-modal__checkbox-label,
+  .tracker-tags {
+    min-height: 44px;
+  }
+
+  .tracker-modal__disclosure {
+    min-height: 48px;
+  }
+
+  .tracker-modal__footer .tracker-btn {
+    flex: 1;
+    min-height: 44px;
+  }
 }
 
 /* ── Mobile ─────────────────────────────────────────── */
@@ -1745,24 +1787,9 @@
     border-radius: 16px 16px 0 0;
   }
 
-  .tracker-modal__body,
-  .tracker-modal__header,
-  .tracker-modal__footer {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
   /* Clear the home indicator on notched phones. */
   .tracker-modal__footer {
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  }
-
-  .tracker-modal__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .tracker-modal__footer .tracker-btn {
-    flex: 1;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .tracker-bulk-bar {
