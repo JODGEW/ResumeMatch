@@ -310,79 +310,28 @@
   justify-content: center;
 }
 
-.results-score__hover-wrap {
-  position: relative;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Recommended action (RM-12): a full-width row under the ring and breakdown. */
+.results-score-advice {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 16px;
+  align-items: baseline;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.results-score__tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 240px;
-  background: var(--surface-panel);
-  border: 1px solid var(--border-standard);
-  border-radius: 10px;
-  padding: 0.5rem 0.75rem;
-  text-align: center;
-  box-shadow: var(--shadow-popover);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s, visibility 0.15s;
-  pointer-events: none;
-  z-index: 10;
+.results-score-advice__label {
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--text-tertiary);
 }
 
-.results-score__tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: var(--surface-panel);
-}
-
-/* The ring is a button so keyboard and touch can open the tooltip (RM-12).
-   Reset to look exactly like the bare ring; Layout.css supplies the
-   :focus-visible outline, and the radius keeps it round. */
-.results-score__trigger {
-  display: flex;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-/* Open state is owned by ScoreRingWithAdvice (hover, focus, tap; Escape closes). */
-.results-score__tooltip--open {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-/* Invisible bridge over the 8px gap so the pointer can move onto the tooltip
-   without it closing (WCAG 1.4.13). */
-.results-score__tooltip::before {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 10px;
-}
-
-.results-score__tooltip-action {
-  font-size: 0.75rem;
+.results-reading-page .results-score-advice__action {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  line-height: 1.4;
 }
 
 /* ── Score breakdown ────────────────────────────────── */
@@ -530,8 +479,8 @@
   margin-bottom: 36px;
 }
 
-.results-section--anchor {
-  scroll-margin-top: 76px;
+.results-anchor {
+  scroll-margin-top: calc(var(--app-header-h, 60px) + 16px);
 }
 
 .results-reading-page .results-section h2 {
@@ -553,23 +502,25 @@
 }
 
 /* ── Top Priority Keywords ──────────────────────────── */
+/* One row per keyword in four columns — rank, keyword, importance, reason —
+   divided by hairlines. __body and __head are flattened with display: contents
+   so their children sit directly on the row's grid. */
 .results-priority-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .results-priority {
-  display: flex;
+  display: grid;
+  grid-template-columns: 30px minmax(120px, 180px) 130px 1fr;
   gap: 18px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-standard);
-  border-radius: 14px;
-  padding: 20px 22px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .results-priority__rank {
-  flex-shrink: 0;
   width: 30px;
   height: 30px;
   border-radius: 9px;
@@ -583,21 +534,15 @@
   justify-content: center;
 }
 
-.results-priority__body {
-  flex: 1;
-  min-width: 0;
-}
-
+.results-priority__body,
 .results-priority__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
+  display: contents;
 }
 
 .results-priority__kw {
+  justify-self: start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   display: inline-flex;
   align-items: center;
   font-size: 13px;
@@ -613,11 +558,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-shrink: 0;
 }
 
 .results-priority__track {
-  width: 76px;
+  flex: 1;
+  min-width: 0;
   height: 6px;
   border-radius: 9999px;
   background: var(--track);
@@ -643,6 +588,7 @@
 }
 
 .results-priority__reason {
+  min-width: 0;
   margin: 0;
   font-size: 14px;
   line-height: 1.6;
@@ -650,36 +596,43 @@
 }
 
 /* ── Suggestions ────────────────────────────────────── */
+/* Rows, not cards: Keyword / Where to add / Why, hairline-separated. */
 .results-suggestions {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+}
+
+.results-suggestions__head,
+.results-suggestion {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr 1fr;
+  gap: 24px;
+}
+
+.results-suggestions__head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--text-tertiary);
 }
 
 .results-suggestion {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-standard);
-  border-radius: 14px;
-  padding: 20px 22px;
-  box-shadow: none;
-  transition: border-color 0.15s;
-}
-
-.results-suggestion:hover {
-  border-color: var(--brand-tint-border);
+  align-items: start;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .results-suggestion__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
+  min-width: 0;
 }
 
 .results-suggestion__section {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 590;
@@ -690,28 +643,37 @@
   border-radius: 8px;
 }
 
+.results-suggestion__cell {
+  min-width: 0;
+}
+
+/* Per-row labels: read by screen readers on wide layouts (the visible header
+   row is aria-hidden), shown when rows stack. */
+.results-suggestion__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .results-reading-page .results-suggestion__text {
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 510;
   line-height: 1.6;
   color: var(--text-primary);
-  margin-bottom: 10px;
+  margin: 0;
 }
 
 .results-reading-page .results-suggestion__reason {
   font-family: var(--font-body);
   font-size: 13.5px;
   font-weight: 400;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text-muted);
-  margin-bottom: 0;
-  padding-left: 13px;
-  border-left: 2px solid var(--border-standard);
-}
-
-.results-suggestion__copy {
-  width: 100%;
+  margin: 0;
 }
 
 /* ── Detailed Changes ───────────────────────────────── */
@@ -821,6 +783,89 @@
   color: var(--text-on-accent);
 }
 
+/* ── Content + "On this page" rail (above 1024px) ───── */
+/* Results.tsx renders the rail and adds --rail only when (min-width: 1025px)
+   matches, so below that the layout is the single column it always was. */
+.results-main {
+  min-width: 0;
+}
+
+.results-layout--rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 32px;
+  align-items: start;
+}
+
+.results-rail {
+  position: sticky;
+  top: calc(var(--app-header-h, 60px) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.results-rail__box {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-standard);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.results-reading-page .results-rail__title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--text-tertiary);
+}
+
+.results-rail__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.results-rail__link {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.results-rail__link:hover {
+  color: var(--link);
+}
+
+.results-rail__count {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The download control's own sizing assumes the full page width. */
+.results-rail .download-optimized__button.btn.btn-primary {
+  width: 100%;
+  justify-content: center;
+  white-space: normal;
+  font-size: 14px;
+  padding: 12px 16px;
+}
+
+/* The main column is ~640px at the narrow end of the rail range: stack the
+   ring above the breakdown as the 900px rule does without the rail. */
+@media (max-width: 1240px) {
+  .results-layout--rail .results-score-row {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
 /* ── Responsive ─────────────────────────────────────── */
 /* The bundle ships one 1160px composition with no media queries; these follow
    the breakpoints the rest of the app already uses. */
@@ -859,6 +904,52 @@
     flex-shrink: 0;
     white-space: nowrap;
   }
+
+  .results-score-advice {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    justify-items: start;
+    text-align: left;
+  }
+
+  /* Rank keeps column 1; keyword, meter and reason stack in column 2. */
+  .results-priority {
+    grid-template-columns: 30px 1fr;
+    gap: 10px 14px;
+    align-items: start;
+  }
+
+  .results-priority__rank {
+    grid-row: 1 / span 3;
+  }
+
+  .results-priority__kw,
+  .results-priority__score,
+  .results-priority__reason {
+    grid-column: 2;
+  }
+
+  .results-suggestions__head {
+    display: none;
+  }
+
+  .results-suggestion {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .results-suggestion__label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 590;
+    color: var(--text-tertiary);
+  }
 }
 
 @media (max-width: 480px) {
@@ -892,8 +983,6 @@
   }
 
   .results-keyword-section,
-  .results-priority,
-  .results-suggestion,
   .results-no-rewrites {
     padding: 18px 16px;
   }
@@ -902,29 +991,9 @@
     font-size: 18px;
   }
 
-  .results-priority {
-    gap: 13px;
-  }
-
-  /* The 76px meter has nowhere to go once the keyword pill wraps */
-  .results-priority__score {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .results-priority__track {
-    flex: 1;
-    width: auto;
-  }
-
   .results-no-rewrites__cta {
     width: 100%;
     justify-content: center;
-  }
-
-  .results-score__tooltip {
-    width: calc(100vw - 3rem);
-    max-width: 240px;
   }
 }
 

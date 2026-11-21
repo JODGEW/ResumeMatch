@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback, useId, useMemo, useRef, type RefObject } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { usePolling, isInProgress, normalizeAnalysisStatus } from '../hooks/usePolling';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { ProgressRing } from '../components/ProgressRing';
 import { Badge } from '../components/Badge';
-import { DiffView } from '../components/DiffView';
+import { DiffChangesSummary, DiffView } from '../components/DiffView';
 import { countSafeEdits } from '../utils/resumeDiff';
 import { getScoreBand, getScoreColor, type ScoreTier } from '../utils/scoreBands';
 import DownloadOptimizedButton from '../components/DownloadOptimizedButton';
@@ -32,6 +33,8 @@ type LastInterview = {
   // null = looked up and the session has no score.
   overallScore?: number | null;
 };
+
+type RailItem = { href: string; label: string; count: string | number };
 
 type SignupPromptContent = {
   title: string;
@@ -241,84 +244,19 @@ function getScoreInterpretation(score: number) {
 }
 
 /**
- * The score ring with its recommended action in a tooltip (RM-12). The tooltip
- * opens on hover, keyboard focus, or a tap (which pins it; tapping again or
- * anywhere else unpins), closes on Escape, and stays open while the pointer
- * moves onto it (WCAG 1.4.13). aria-describedby makes screen readers announce
- * the action when the ring is focused.
+ * The score ring plus its recommended action (RM-12). The action used to sit in
+ * a hover/focus tooltip; it is now visible text in a full-width row at the foot
+ * of the score card, so the ring is a plain ring again.
  */
-function ScoreRingWithAdvice({ score, label, action }: { score: number; label: string; action: string }) {
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const tooltipId = useId();
-  const open = (hovered || focused || pinned) && !dismissed;
+function ScoreRingWithAdvice({ score, label }: { score: number; label: string }) {
+  return <ProgressRing score={score} label={label} />;
+}
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setDismissed(true);
-        setPinned(false);
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open]);
-
-  useEffect(() => {
-    if (!pinned) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setPinned(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [pinned]);
-
+function ScoreAdvice({ action }: { action: string }) {
   return (
-    <div
-      ref={wrapRef}
-      className="results-score__hover-wrap"
-      onMouseEnter={() => {
-        setHovered(true);
-        setDismissed(false);
-      }}
-      onMouseLeave={() => {
-        setHovered(false);
-        setDismissed(false);
-      }}
-    >
-      <button
-        type="button"
-        className="results-score__trigger"
-        aria-describedby={tooltipId}
-        onFocus={(e) => {
-          // Keyboard focus only. A click or tap also focuses the button in
-          // Chrome, and counting that would stop a second tap from closing it;
-          // taps are handled by the pinned toggle instead.
-          setFocused(e.currentTarget.matches(':focus-visible'));
-          setDismissed(false);
-        }}
-        onBlur={() => {
-          setFocused(false);
-          setDismissed(false);
-        }}
-        onClick={() => {
-          setPinned((p) => !p);
-          setDismissed(false);
-        }}
-      >
-        <ProgressRing score={score} label={label} />
-      </button>
-      <div
-        id={tooltipId}
-        role="tooltip"
-        className={`results-score__tooltip${open ? ' results-score__tooltip--open' : ''}`}
-      >
-        <p className="results-score__tooltip-action">{action}</p>
-      </div>
+    <div className="results-score-advice">
+      <span className="results-score-advice__label">What to do</span>
+      <p className="results-score-advice__action">{action}</p>
     </div>
   );
 }
@@ -385,6 +323,10 @@ export function Results({ sample = false }: { sample?: boolean }) {
     analysisId,
     enabled: !isReadOnly,
   });
+  // Above 1024px the page gains the "On this page" rail, and the download
+  // control moves into it. Chosen in JS, not CSS, so the control is mounted
+  // exactly once at any width.
+  const showRail = useMediaQuery('(min-width: 1025px)');
 
   // Completion beat: after the user has watched the analysis run, hold a brief
   // all-steps-done card before revealing the report. Never plays when landing
@@ -566,6 +508,33 @@ export function Results({ sample = false }: { sample?: boolean }) {
   const calculatedExperienceYears = analysis.experienceCheck?.displayYears ?? analysis.experienceCheck?.actualYears;
   const resumeStatedYears = analysis.experienceCheck?.resumeStatedYears || 'Not specified';
 
+  const interp = getScoreInterpretation(Number(analysis.matchScore));
+
+  // Download Optimized Resume. Both bundles gate this on the rewrite outcome:
+  // the no-safe-rewrites page ends at "Review suggestions to close these gaps"
+  // with no download CTA. If originalText is absent we can't prove there are no
+  // edits, so the button stays. Rendered in exactly one place (rail or page foot).
+  const download = (!analysis.originalText
+    || !analysis.suggestedText
+    || analysis.suggestedText.trim() !== analysis.originalText.trim()) ? (
+    <DownloadOptimizedButton
+      suggestedText={analysis.suggestedText}
+      status="completed"
+      isDemo={isReadOnly}
+    />
+  ) : null;
+
+  // One row per section that renders, under the same conditions as the JSX below.
+  const presentCount = analysis.presentKeywords?.length ?? 0;
+  const missingCount = analysis.missingKeywords?.length ?? 0;
+  const railItems = ([
+    analysis.scoreBreakdown && { href: '#score-breakdown', label: 'Score Breakdown', count: `${analysis.matchScore}%` },
+    (presentCount > 0 || missingCount > 0) && { href: '#keywords', label: 'Keywords', count: `${presentCount} / ${missingCount}` },
+    (analysis.topMissing?.length ?? 0) > 0 && { href: '#top-priority', label: 'Top Priority', count: analysis.topMissing!.length },
+    (analysis.suggestions?.length ?? 0) > 0 && { href: '#suggestions', label: 'Suggestions', count: analysis.suggestions!.length },
+    analysis.originalText && analysis.suggestedText && { href: '#detailed-changes', label: 'Detailed Changes', count: safeEditCount },
+  ] as (RailItem | false | '' | undefined)[]).filter((item): item is RailItem => Boolean(item));
+
   const analyzedAt = analysis.timestamp ?? analysis.createdAt;
   const analyzedDate = analyzedAt
     ? new Date(analyzedAt.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(analyzedAt) ? analyzedAt : analyzedAt + 'Z')
@@ -694,6 +663,8 @@ export function Results({ sample = false }: { sample?: boolean }) {
         </div>
       </div>
 
+      <div className={`results-layout${showRail ? ' results-layout--rail' : ''}`}>
+      <div className="results-main">
       {/* Job Description (collapsible) */}
       {analysis.jobDescription && (
         <div className="results-jd animate-in">
@@ -748,18 +719,9 @@ export function Results({ sample = false }: { sample?: boolean }) {
       )}
 
       {/* Score Row: Ring & Breakdown in one card */}
-      <div className="results-score-row card animate-in stagger-1">
+      <div id="score-breakdown" className="results-score-row results-anchor card animate-in stagger-1">
         <div className="results-score">
-          {(() => {
-            const interp = getScoreInterpretation(Number(analysis.matchScore));
-            return (
-              <ScoreRingWithAdvice
-                score={Number(analysis.matchScore)}
-                label={interp.label}
-                action={interp.action}
-              />
-            );
-          })()}
+          <ScoreRingWithAdvice score={Number(analysis.matchScore)} label={interp.label} />
         </div>
 
         {/* Score Breakdown */}
@@ -807,10 +769,12 @@ export function Results({ sample = false }: { sample?: boolean }) {
             </div>
           </div>
         )}
+
+        <ScoreAdvice action={interp.action} />
       </div>
 
       {/* Keywords: full width below */}
-      <div className="results-keywords animate-in stagger-2">
+      <div id="keywords" className="results-keywords results-anchor animate-in stagger-2">
         {/* Matched & Missing side by side */}
         <div className="results-keywords-row">
           {analysis.presentKeywords && analysis.presentKeywords.length > 0 && (
@@ -868,7 +832,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
 
       {/* Top Priority Keywords */}
       {analysis.topMissing && analysis.topMissing.length > 0 && (
-        <div className="results-section animate-in stagger-3">
+        <div id="top-priority" className="results-section results-anchor animate-in stagger-3">
           <h2>Top Priority Keywords</h2>
           <p className="text-secondary results-section__intro">
             High-impact keywords missing from your resume, ranked by importance
@@ -903,15 +867,22 @@ export function Results({ sample = false }: { sample?: boolean }) {
 
       {/* Suggestions */}
       {analysis.suggestions && analysis.suggestions.length > 0 && (
-        <div id="suggestions" className="results-section results-section--anchor animate-in stagger-3">
+        <div id="suggestions" className="results-section results-anchor animate-in stagger-3">
           <h2>Suggestions</h2>
           <p className="text-secondary results-section__intro">
             Recommended additions to improve your match score
           </p>
 
           <div className="results-suggestions">
+            {/* Column header for the wide layout; each row also carries its own
+                labels, visually hidden there and shown when rows stack. */}
+            <div className="results-suggestions__head" aria-hidden="true">
+              <span>Keyword</span>
+              <span>Where to add</span>
+              <span>Why</span>
+            </div>
             {analysis.suggestions.map((s, i) => (
-              <div key={i} className="card results-suggestion animate-in" style={{ animationDelay: `${0.3 + i * 0.06}s` }}>
+              <div key={i} className="results-suggestion">
                 <div className="results-suggestion__header">
                   <span className="results-suggestion__section">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -920,8 +891,12 @@ export function Results({ sample = false }: { sample?: boolean }) {
                     {s.keyword}
                   </span>
                 </div>
-                <div className="results-suggestion__copy">
+                <div className="results-suggestion__cell">
+                  <span className="results-suggestion__label">Where to add</span>
                   <p className="results-suggestion__text">{s.whereToAdd}</p>
+                </div>
+                <div className="results-suggestion__cell">
+                  <span className="results-suggestion__label">Why</span>
                   <p className="results-suggestion__reason text-muted">{s.reason}</p>
                 </div>
               </div>
@@ -934,7 +909,7 @@ export function Results({ sample = false }: { sample?: boolean }) {
           up, so a clean run legitimately produces zero edits. Say so plainly instead of
           rendering a "suggested improvements" heading over an unchanged document. */}
       {analysis.originalText && analysis.suggestedText && (
-        <div className="results-section animate-in stagger-4">
+        <div id="detailed-changes" className="results-section results-anchor animate-in stagger-4">
           <h2>Detailed Changes</h2>
           <p className="text-secondary results-section__intro">
             Wording edits your resume already supports
@@ -988,6 +963,10 @@ export function Results({ sample = false }: { sample?: boolean }) {
                   </p>
                 </div>
               </div>
+              <DiffChangesSummary
+                original={analysis.originalText}
+                suggested={analysis.suggestedText}
+              />
               <DiffView
                 original={analysis.originalText}
                 suggested={analysis.suggestedText}
@@ -997,19 +976,28 @@ export function Results({ sample = false }: { sample?: boolean }) {
         </div>
       )}
 
-      {/* Download Optimized Resume. Both bundles gate this on the rewrite
-          outcome: the no-safe-rewrites page ends at "Review suggestions to
-          close these gaps" with no download CTA. If originalText is absent we
-          can't prove there are no edits, so the button stays. */}
-      {(!analysis.originalText
-        || !analysis.suggestedText
-        || analysis.suggestedText.trim() !== analysis.originalText.trim()) && (
-      <DownloadOptimizedButton
-        suggestedText={analysis.suggestedText}
-        status="completed"
-        isDemo={isReadOnly}
-      />
+      {!showRail && download}
+      </div>
+
+      {showRail && (
+        <aside className="results-rail" aria-label="On this page">
+          <div className="results-rail__box">
+            <p className="results-rail__title">On this page</p>
+            <ul className="results-rail__list">
+              {railItems.map(item => (
+                <li key={item.href}>
+                  <a href={item.href} className="results-rail__link">
+                    <span>{item.label}</span>
+                    <span className="results-rail__count">{item.count}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {download}
+        </aside>
       )}
+      </div>
 
       {signupPrompt && (
         <SignupPromptModal
