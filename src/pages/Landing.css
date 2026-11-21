@@ -36,7 +36,7 @@
 .lp-stroke-ghost { stroke: var(--ghost-text); }
 .lp-stroke-tint { stroke: var(--brand-tint-text); }
 .lp-stroke-track { stroke: var(--track); }
-.lp-stroke-warn { stroke: var(--warn); }
+.lp-stroke-score-mid { stroke: var(--score-mid); }
 .lp-stroke-score-good { stroke: var(--score-good); }
 
 /* ── Buttons ────────────────────────────────────────── */
@@ -769,13 +769,24 @@
   container: landing-preview-body / inline-size;
 }
 
+/* Mirrors .results-header: title + "New analysis" on top, the tools row below. */
 .landing-preview__head {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.landing-preview__head-top {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
   align-items: flex-start;
-  margin-bottom: 20px;
+}
+
+.landing-preview__new {
+  flex-shrink: 0;
 }
 
 .landing-preview__role {
@@ -787,10 +798,27 @@
   margin-bottom: 6px;
 }
 
+.landing-preview__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .landing-preview__file {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.landing-preview__sep {
+  font-size: 12px;
+  color: var(--border-solid);
+}
+
+.landing-preview__analyzed {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .landing-preview__actions {
@@ -810,8 +838,28 @@
   background: var(--accent);
 }
 
-.landing-preview .landing-btn--ghost:hover {
-  background: var(--ghost-bg);
+/* The real tools row's .btn-secondary and .btn-outline. */
+.landing-preview .landing-btn--secondary {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.landing-preview .landing-btn--outline {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* Same as .results-header__primary / __sep at 480px on the real page. */
+@media (max-width: 480px) {
+  .landing-preview__new {
+    width: 100%;
+  }
+
+  .landing-preview__sep {
+    display: none;
+  }
 }
 
 /* The app shell's brand and account email are chrome, not content: drop them
@@ -856,7 +904,7 @@
   background: var(--surface-card);
   padding: clamp(20px, 3vw, 32px);
   display: flex;
-  gap: clamp(24px, 4vw, 48px);
+  gap: 24px clamp(24px, 4vw, 48px);
   flex-wrap: wrap;
   align-items: center;
 }
@@ -868,14 +916,21 @@
   flex-shrink: 0;
 }
 
+/* ProgressRing: large number, small muted "%", label in the band colour. */
 .landing-ring-value {
   fill: var(--text-primary);
-  font-size: 30px;
+  font-size: 32px;
+  font-weight: 590;
+}
+
+.landing-ring-percent {
+  fill: var(--text-muted);
+  font-size: 13px;
   font-weight: 510;
 }
 
 .landing-ring-label {
-  fill: var(--warn);
+  fill: var(--score-mid);
   font-size: 11px;
   font-weight: 510;
 }
@@ -886,10 +941,11 @@
 }
 
 .landing-scorecard__heading {
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 590;
-  color: var(--text-primary);
-  letter-spacing: -0.13px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
   margin-bottom: 10px;
 }
 
@@ -923,11 +979,17 @@
 
 .landing-breakdown__name {
   font-weight: 510;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
+/* Colour comes inline from the band, as on .results-breakdown-value. */
 .landing-breakdown__score {
-  color: var(--text-muted);
+  font-weight: 590;
+}
+
+.landing-breakdown__denom {
+  color: var(--text-tertiary);
+  font-weight: 450;
 }
 
 .landing-bar {
@@ -941,12 +1003,43 @@
   border-radius: 9999px;
 }
 
-.landing-bar__fill--brand {
-  background: var(--accent);
+/* .results-score-advice: full-width "What to do" row at the foot of the card. */
+.landing-scorecard__advice {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 14px;
+  align-items: baseline;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.landing-bar__fill--danger {
-  background: var(--danger-soft);
+.landing-scorecard__advice-label {
+  font-size: 11px;
+  font-weight: 590;
+  color: var(--text-tertiary);
+}
+
+.landing-scorecard__advice-action {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .landing-scorecard__advice {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+/* .results-breakdown-bars goes single-column at 480px. */
+@media (max-width: 480px) {
+  .landing-breakdown {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
 }
 
 .landing-keywords {
@@ -967,6 +1060,13 @@
   align-self: start;
 }
 
+.landing-kwcard__note {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
 /* Preview-only crop. Side by side, 20 matched vs 13 missing keywords leaves the
    Missing card ~150px short with blank space under it, and the Matched card
    ends on a lone "OAuth2" row. contain: size drops the Matched card out of the
@@ -983,9 +1083,11 @@
    a visible band of its own.
 
    704px is where the auto-fit grid above goes two-up: 2 × 340px + 24px gap.
-   Stacked, there is no height mismatch and nothing is cropped. */
+   Stacked, there is no height mismatch and nothing is cropped. Two-up, the
+   columns take the real page's 1.4fr / 1fr split. */
 @container landing-preview-body (min-width: 704px) {
   .landing-keywords {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent 100%);
     mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent 100%);
   }
@@ -1049,23 +1151,43 @@
   margin-bottom: 16px;
 }
 
+/* .results-suggestions: rows, not cards — Keyword / Where to add / Why. */
 .landing-suggestions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+}
+
+.landing-suggestions__head,
+.landing-suggestion {
+  display: grid;
+  grid-template-columns: minmax(96px, 124px) 1fr 1fr;
+  gap: 14px;
+}
+
+.landing-suggestions__head {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 10.5px;
+  font-weight: 590;
+  color: var(--text-tertiary);
 }
 
 .landing-suggestion {
-  border: 1px solid var(--border-standard);
-  border-radius: 8px;
-  background: var(--surface-inset);
-  padding: 14px 16px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.landing-suggestion > div {
+  min-width: 0;
 }
 
 .landing-suggestion__tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 11px;
   font-weight: 590;
   color: var(--brand-tint-text);
@@ -1073,22 +1195,56 @@
   border-radius: 6px;
   border: 1px solid var(--brand-tint-border);
   background: var(--brand-tint-bg);
-  margin-bottom: 8px;
+}
+
+/* Per-row labels: hidden while the header row shows, visible once rows stack. */
+.landing-suggestion__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .landing-suggestion__text {
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 510;
   line-height: 1.55;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .landing-suggestion__reason {
-  font-size: 12px;
+  font-size: 11.5px;
   line-height: 1.55;
   color: var(--text-muted);
-  margin-top: 6px;
-  padding-left: 10px;
-  border-left: 2px solid var(--border-standard);
+}
+
+/* Results stacks the rows at 640px of viewport; the card is narrower than the
+   viewport at every width, so this keys to the card instead. 400px is where
+   three columns leave the text cells under ~130px. */
+@container (max-width: 400px) {
+  .landing-suggestions__head {
+    display: none;
+  }
+
+  .landing-suggestion {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .landing-suggestion__label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    display: block;
+    margin-bottom: 3px;
+    font-size: 10.5px;
+    font-weight: 590;
+    color: var(--text-tertiary);
+  }
 }
 
 /* Interview session embed */

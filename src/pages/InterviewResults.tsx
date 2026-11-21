@@ -947,16 +947,6 @@ export function InterviewResults() {
             <section className="ir-panel ir-summary">
               <h3>Assessment Summary</h3>
               <p className="ir-summary__text">{assessment.summary}</p>
-              {assessment.improvements.length > 0 && (
-                <div className="ir-summary__highlights">
-                  {assessment.improvements.map((item, i) => (
-                    <div key={i} className="ir-summary__highlight">
-                      <span className="ir-summary__mark">+</span>
-                      <p>{item}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
             </section>
 
             <div className="ir-feedback">

@@ -542,36 +542,6 @@
   color: var(--text-secondary);
 }
 
-.ir-summary__highlights {
-  border-top: 1px solid var(--border-subtle);
-  margin-top: 18px;
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ir-summary__highlight {
-  display: flex;
-  gap: 11px;
-  align-items: flex-start;
-}
-
-.ir-summary__highlight p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-
-.ir-summary__mark {
-  flex-shrink: 0;
-  color: var(--brand-tint-text);
-  font-weight: 590;
-  font-size: 15px;
-  line-height: 1.5;
-}
-
 /* ── Strengths / Areas to Improve ───────────────────── */
 .ir-feedback {
   display: grid;
