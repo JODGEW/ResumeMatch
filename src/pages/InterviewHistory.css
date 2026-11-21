@@ -255,13 +255,39 @@
 }
 
 .ih-row__meta {
+  margin-top: 3px;
+}
+
+/* Separator rule: every item after the first draws a "·" in the gap to its
+   left. The dot hangs outside the item's box, so on a wrapped line the dot of
+   the item that starts it falls left of this clipped edge and disappears; a dot
+   can therefore never start or end a visual line. */
+.ih-row__meta,
+.ih-row__when {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 7px;
-  margin-top: 3px;
+  gap: 4px 14px;
   font-size: 12.5px;
   color: var(--text-muted);
+  overflow: hidden;
+}
+
+.ih-row__meta > *,
+.ih-row__when > * {
+  position: relative;
+}
+
+.ih-row__meta > * + *::before,
+.ih-row__when > * + *::before {
+  content: "\00b7";
+  content: "\00b7" / "";
+  position: absolute;
+  right: 100%;
+  width: 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .ih-row__file {
@@ -332,6 +358,7 @@
   .ih-row {
     grid-template-columns: 44px minmax(0, 1fr);
     gap: 4px 14px;
+    align-items: start;
     padding-right: 0;
   }
 
@@ -344,21 +371,32 @@
     font-size: 13.5px;
   }
 
-  /* The side column drops under the body, left-aligned, joined by "·". */
+  /* The side column drops under the body, left-aligned, joined by "·" (same
+     separator rule as .ih-row__meta). */
   .ih-row__side {
     grid-column: 2;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 7px;
+    gap: 4px 14px;
     margin-top: 4px;
     text-align: left;
+    overflow: hidden;
   }
 
-  .ih-row__side > span + span::before {
+  .ih-row__side > * {
+    position: relative;
+  }
+
+  .ih-row__side > * + *::before {
     content: "\00b7";
-    margin-right: 7px;
+    content: "\00b7" / "";
+    position: absolute;
+    right: 100%;
+    width: 14px;
+    text-align: center;
     color: var(--text-muted);
+    font-weight: 400;
   }
 
   .ih-row__chevron {

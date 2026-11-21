@@ -229,9 +229,31 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 7px;
+  gap: 4px 14px;
   font-size: 12.5px;
   color: var(--text-muted);
+  /* Separator rule: every item after the first draws a "·" in the gap to its
+     left. The dot hangs outside the item's box, so on a wrapped line the dot of
+     the item that starts it falls left of this clipped edge and disappears; a
+     dot can therefore never start or end a visual line. */
+  overflow: hidden;
+}
+
+.history-row__meta > *,
+.history-row__keywords > * {
+  position: relative;
+}
+
+.history-row__meta > * + *::before,
+.history-row__keywords > * + *::before {
+  content: "\00b7";
+  content: "\00b7" / "";
+  position: absolute;
+  right: 100%;
+  width: 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .history-row__meta {
@@ -437,6 +459,20 @@
 /* ── Responsive ─────────────────────────────────────── */
 /* The bundle ships one 1240px composition with no media queries; these follow
    the breakpoints the rest of the app already uses. */
+@media (max-width: 1024px) {
+  /* Actions move under the body, in the body's column, at natural width. */
+  .history-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .history-row__actions {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 10px;
+    padding-top: 0;
+  }
+}
+
 @media (max-width: 768px) {
   .history-page {
     padding: 24px 16px 48px;
@@ -481,6 +517,7 @@
      own line, the other two sharing the next one. */
   .history-row__actions {
     grid-column: 1 / -1;
+    justify-self: stretch;
     display: grid;
     grid-template-columns: 1fr 1fr;
     margin-top: 12px;

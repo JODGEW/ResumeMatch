@@ -54,14 +54,9 @@ function formatDuration(seconds?: number): string | null {
   return `${Math.max(1, Math.round(seconds / 60))} min`;
 }
 
-/** Interleaves "·" separators between the items that are present. */
-function joinWithDots(items: ReactNode[]): ReactNode {
-  return items.filter(Boolean).map((item, i) => (
-    <Fragment key={i}>
-      {i > 0 && <span aria-hidden="true">&middot;</span>}
-      {item}
-    </Fragment>
-  ));
+/** Keeps the items that are present; the "·" separators between them are drawn by CSS. */
+function presentItems(items: ReactNode[]): ReactNode {
+  return items.filter(Boolean).map((item, i) => <Fragment key={i}>{item}</Fragment>);
 }
 
 function formatStatus(status?: string): string {
@@ -338,20 +333,23 @@ export function InterviewHistory() {
                           )}
                         </svg>
                         {interviewScore && (
-                          <span className="ih-row__ring-value">{interviewScore.score}</span>
+                          <span className="ih-row__ring-value">
+                            <span className="sr-only">Interview score: </span>
+                            {interviewScore.score}
+                          </span>
                         )}
                       </div>
 
                       <div className="ih-row__body">
                         <div className="ih-row__role">{role}</div>
                         <div className="ih-row__meta">
-                          {joinWithDots([
+                          {presentItems([
                             company && <span>{company}</span>,
                             <span className="ih-row__file">{getResumeLabel(session)}</span>,
                           ])}
                         </div>
                         <div className="ih-row__meta">
-                          {joinWithDots([
+                          {presentItems([
                             interviewScore && (
                               <span className="ih-row__rating" style={{ color }}>{interviewScore.rating}</span>
                             ),
@@ -363,7 +361,10 @@ export function InterviewHistory() {
                       </div>
 
                       <div className="ih-row__side">
-                        <span>{formatDate(session.createdAt)} &middot; {formatTime(session.createdAt)}</span>
+                        <span className="ih-row__when">
+                          <span>{formatDate(session.createdAt)}</span>
+                          <span>{formatTime(session.createdAt)}</span>
+                        </span>
                         {matchValue != null && <span>Resume match {matchValue}%</span>}
                         <span className={`ih-status ${getStatusClass(session.status)}`}>
                           {session.status === 'completed' && (

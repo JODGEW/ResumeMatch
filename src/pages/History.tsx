@@ -440,10 +440,7 @@ export function History() {
 
                         <div className="history-row__meta">
                           {analysis.fileName && (
-                            <>
-                              <span className="history-row__file">{analysis.fileName}</span>
-                              <span aria-hidden="true">·</span>
-                            </>
+                            <span className="history-row__file">{analysis.fileName}</span>
                           )}
                           <span>{date}</span>
                         </div>
@@ -484,7 +481,10 @@ export function History() {
                               transform="rotate(-90 26 26)"
                             />
                           </svg>
-                          <span className="history-row__ring-value">{analysis.matchScore}</span>
+                          <span className="history-row__ring-value">
+                            <span className="sr-only">Match score: </span>
+                            {analysis.matchScore}
+                          </span>
                         </div>
                       ) : (
                         <div className={`status-badge status-badge--${badgeStatus}`}>
@@ -512,16 +512,10 @@ export function History() {
 
                       <div className="history-row__meta">
                         {band && (
-                          <>
-                            <span className="history-row__band" style={{ color: band.color }}>{band.label}</span>
-                            <span aria-hidden="true">·</span>
-                          </>
+                          <span className="history-row__band" style={{ color: band.color }}>{band.label}</span>
                         )}
                         {analysis.fileName && (
-                          <>
-                            <span className="history-row__file">{analysis.fileName}</span>
-                            <span aria-hidden="true">·</span>
-                          </>
+                          <span className="history-row__file">{analysis.fileName}</span>
                         )}
                         <span>{date}</span>
                       </div>
@@ -540,16 +534,12 @@ export function History() {
                       {analysis.presentKeywords && analysis.missingKeywords && (
                         <div className="history-row__keywords">
                           <span className="history-row__matched">{analysis.presentKeywords.length} matched</span>
-                          <span aria-hidden="true">·</span>
                           <span className="history-row__missing">{analysis.missingKeywords.length} missing</span>
                           {analysis.missingKeywords.length > 0 && (
-                            <>
-                              <span aria-hidden="true">·</span>
-                              <span>
-                                Gaps: {analysis.missingKeywords.slice(0, 3).join(', ')}
-                                {analysis.missingKeywords.length > 3 && ` +${analysis.missingKeywords.length - 3} more`}
-                              </span>
-                            </>
+                            <span>
+                              Gaps: {analysis.missingKeywords.slice(0, 3).join(', ')}
+                              {analysis.missingKeywords.length > 3 && ` +${analysis.missingKeywords.length - 3} more`}
+                            </span>
                           )}
                         </div>
                       )}
