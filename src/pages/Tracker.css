@@ -12,68 +12,41 @@
   padding: 36px 24px 80px;
 }
 
-/* ── Pill family ────────────────────────────────────── */
-/* The bundle's FAM map. Also consumed by KanbanView.css (board cards), which
-   only ever renders inside this page. */
-.tk-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 590;
-  padding: 3px 10px;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-  white-space: nowrap;
-  line-height: 1.45;
+/* ── Score colours ──────────────────────────────────── */
+/* The bundle's three score families (scoreFamily) as text colour, for scores
+   shown as plain text. Also consumed by KanbanView and OutreachQueue, which
+   only ever render inside this page. */
+.tracker-score--success { color: var(--pill-success-text); }
+.tracker-score--warn { color: var(--warning); }
+.tracker-score--danger { color: var(--pill-danger-text); }
+
+/* ── Dot-separated lines ────────────────────────────── */
+/* Same rule as .history-row__meta: every item after the first draws a "·" in
+   the gap to its left. The dot hangs outside the item's box, so on a wrapped
+   line the dot of the item that starts it falls left of this clipped edge and
+   disappears; a dot can therefore never start or end a visual line. Also used
+   by KanbanView and OutreachQueue. */
+.tracker-dotlist {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  overflow: hidden;
 }
 
-.tk-pill--brand {
-  color: var(--brand-tint-text);
-  background: var(--brand-tint-bg);
-  border-color: var(--brand-tint-border);
+.tracker-dotlist > * {
+  position: relative;
 }
 
-.tk-pill--success {
-  color: var(--pill-success-text);
-  background: var(--pill-success-bg);
-  border-color: var(--pill-success-border);
-}
-
-.tk-pill--warn {
-  color: var(--pill-warn-text);
-  background: var(--pill-warn-bg);
-  border-color: var(--pill-warn-border);
-}
-
-.tk-pill--danger {
-  color: var(--pill-danger-text);
-  background: var(--pill-danger-bg);
-  border-color: var(--pill-danger-border);
-}
-
-.tk-pill--neutral {
+.tracker-dotlist > * + *::before {
+  content: "\00b7";
+  content: "\00b7" / "";
+  position: absolute;
+  right: 100%;
+  width: 14px;
+  text-align: center;
   color: var(--text-muted);
-  background: var(--surface-inset);
-  border-color: var(--border-standard);
-}
-
-.tk-pill--sm {
-  font-size: 11px;
-  padding: 2px 9px;
-}
-
-.tk-pill--md {
-  font-size: 12.5px;
-  padding: 4px 11px;
-}
-
-.tk-pill__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
+  font-weight: 400;
 }
 
 /* ── Buttons ────────────────────────────────────────── */
@@ -138,7 +111,6 @@
   background: var(--pill-danger-bg);
 }
 
-.tracker-btn--xs { font-size: 13px; padding: 8px 16px; }
 .tracker-btn--sm { font-size: 13px; padding: 9px 15px; }
 .tracker-btn--md { font-size: 14px; padding: 10px 18px; }
 .tracker-btn--form { font-size: 13.5px; padding: 9px 20px; }
@@ -183,69 +155,64 @@
   color: var(--text-muted);
 }
 
-/* ── Follow-up Banner ───────────────────────────────── */
+/* ── Follow-up reminders ────────────────────────────── */
 .tracker-banner {
-  display: flex;
-  gap: 12px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--accent);
-  border-radius: 14px;
-  padding: 16px 18px;
-  margin-bottom: 20px;
-  box-shadow: var(--card-shadow);
-}
-
-.tracker-banner__icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.tracker-banner__content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  min-width: 0;
-}
-
-.tracker-banner__divider {
-  border: none;
-  border-top: 1px solid var(--border-subtle);
-  margin: 4px 0;
-  width: 100%;
-}
-
-.tracker-banner__list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.tracker-banner__title {
-  font-size: 11px;
-  font-weight: 590;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.tracker-banner__item {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px 14px;
+  border: 1px solid var(--border-standard);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 22px;
+  font-size: 13px;
+}
+
+.tracker-banner__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 590;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tracker-banner__entry {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  min-width: 0;
+}
+
+.tracker-banner__item {
   color: var(--text-secondary);
 }
 
-.tracker-banner__item--overdue {
+.tracker-banner__due--overdue {
   color: var(--pill-danger-text);
-  font-weight: 510;
+  font-weight: 590;
 }
 
-.tracker-banner__item--today {
+.tracker-banner__due--today {
   color: var(--pill-warn-text);
-  font-weight: 510;
+  font-weight: 590;
+}
+
+.tracker-banner__divider {
+  flex-basis: 100%;
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 4px 0;
+}
+
+.tracker-banner__list {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .tracker-banner__overflow {
@@ -272,24 +239,18 @@
 
 .tracker-banner__action {
   font-family: inherit;
-  font-size: 11px;
-  font-weight: 590;
-  padding: 2px 9px;
-  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 510;
+  padding: 3px 10px;
+  border-radius: 6px;
   cursor: pointer;
-  color: var(--brand-tint-text);
-  background: var(--brand-tint-bg);
-  border: 1px solid var(--brand-tint-border);
+  color: var(--text-primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-standard);
 }
 
 .tracker-banner__action:hover {
   background: var(--surface-card-hover);
-}
-
-.tracker-banner__action--skip {
-  color: var(--text-muted);
-  background: var(--surface-inset);
-  border-color: var(--border-standard);
 }
 
 /* ── Demo / loading / error banner ──────────────────── */
@@ -309,71 +270,36 @@
   color: var(--pill-danger-text);
 }
 
-/* ── Stat tiles ─────────────────────────────────────── */
-.tracker-stats {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 26px;
-}
-
-.tracker-stat {
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: var(--card-shadow);
-}
-
-.tracker-stat__head {
+/* ── Filter chips ───────────────────────────────────── */
+/* Chips on the left, sent / reply-rate summary at the right end. In the
+   outreach view the chips are absent and the summary sits alone on the left. */
+.tracker-filterbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 16px;
 }
 
-.tracker-stat__label {
-  font-size: 12px;
-  font-weight: 510;
-  letter-spacing: 0.2px;
-  color: var(--text-muted);
-}
-
-.tracker-stat__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.tracker-stat__dot--total { background: var(--text-muted); }
-.tracker-stat__dot--worth { background: var(--success-alt); }
-.tracker-stat__dot--sent { background: var(--accent); }
-.tracker-stat__dot--replied { background: var(--warn); }
-.tracker-stat__dot--rejected { background: var(--danger); }
-
-.tracker-stat__value {
-  font-size: 30px;
-  font-weight: 590;
-  letter-spacing: -1px;
-  line-height: 1;
-  color: var(--text-primary);
-}
-
-.tracker-stat__hint {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin-top: 7px;
-}
-
-/* ── Filter chips ───────────────────────────────────── */
 .tracker-filters {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+}
+
+.tracker-rate {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tracker-rate b {
+  font-weight: 590;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .tracker-filter {
@@ -702,7 +628,7 @@
 .tracker-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  border-top: 1px solid var(--border-standard);
 }
 
 .tracker-empty {
@@ -736,28 +662,18 @@
   font-size: 14px;
 }
 
-/* ── Application card ───────────────────────────────── */
-/* The bundle sets overflow:hidden here to clip the expanded panel to the card's
-   radius. We can't: the quick-action ··· menu is an absolutely positioned
-   popover inside the card and would be clipped away. Nothing else needs it —
-   the expanded panel draws no background of its own, only a top border. */
+/* ── Application row ────────────────────────────────── */
+/* A row on a hairline divider, no card surface. Grid columns: checkbox,
+   company/role/meta, status text (fixed), actions (fixed) — the two fixed
+   widths keep rows with different button counts aligned. */
 .tracker-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  box-shadow: var(--card-shadow);
-  transition: border-color 0.15s;
-}
-
-.tracker-card:hover,
-.tracker-card--expanded {
-  border-color: var(--border-standard);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* .animate-in uses fill-mode:both, which retains the final `translateY(0)` for
-   good. A non-none transform makes the card a stacking context and a containing
-   block for fixed positioning — that painted later cards over an open ··· menu
-   and trapped the menu's fixed backdrop inside the card. `backwards` keeps the
+   good. A non-none transform makes the row a stacking context and a containing
+   block for fixed positioning — that painted later rows over an open ··· menu
+   and trapped the menu's fixed backdrop inside the row. `backwards` keeps the
    entrance animation but drops the transform once it finishes. */
 .tracker-card.animate-in {
   animation-fill-mode: backwards;
@@ -770,47 +686,46 @@
 @keyframes trackerFlash {
   0% { box-shadow: 0 0 0 0 var(--accent-glow); }
   40% { box-shadow: 0 0 0 4px var(--accent-glow); }
-  100% { box-shadow: var(--card-shadow); }
+  100% { box-shadow: 0 0 0 0 var(--accent-glow); }
 }
 
 .tracker-card__row {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 20px 22px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 250px 300px;
+  gap: 6px 18px;
+  align-items: start;
+  padding: 16px 0;
   cursor: pointer;
 }
 
 .tracker-card__main {
-  flex: 1;
   min-width: 0;
 }
 
 .tracker-card__title {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: baseline;
+  gap: 2px 8px;
   flex-wrap: wrap;
-  margin-bottom: 5px;
 }
 
 .tracker-card__company {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 590;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.1px;
   color: var(--text-primary);
 }
 
 .tracker-card__role {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 
 .tracker-card__link {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   color: var(--text-muted);
-  margin-left: -4px;
 }
 
 .tracker-card__link:hover {
@@ -818,59 +733,44 @@
 }
 
 .tracker-card__meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-  font-size: 13px;
+  margin-top: 2px;
+  font-size: 12.5px;
   color: var(--text-muted);
-}
-
-.tracker-card__meta-sep {
-  color: var(--border-solid);
 }
 
 .tracker-card__meta-size {
   text-transform: capitalize;
 }
 
-.tracker-card__facts {
+.tracker-card__status {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.tracker-card__contact {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.tracker-card__contact-email {
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12.5px;
   color: var(--text-muted);
 }
 
-.tracker-card__side {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 14px;
+.tracker-card__status b {
+  font-weight: 590;
 }
 
-.tracker-card__badges {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+.tracker-card__overdue {
+  color: var(--pill-danger-text);
+  font-weight: 590;
 }
 
 .tracker-card__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tracker-card__actions .tracker-btn--icon {
+  width: 32px;
+  height: 32px;
 }
 
 .tracker-card__chevron {
@@ -886,17 +786,20 @@
 .tracker-card__quick-actions {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
+/* Mockup qbtn / ib sizes (12.5px, 32px icon buttons): the 300px actions
+   column holds the widest set (Send Outreach + hint, ···, expand) on one line. */
 .tracker-quick-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 510;
-  padding: 9px 15px;
+  padding: 6px 11px;
   border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
@@ -974,8 +877,8 @@
 }
 
 .tracker-quick-btn--more {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   justify-content: center;
   background: var(--surface-inset);
@@ -1056,75 +959,21 @@
   background: var(--border-subtle);
 }
 
-/* ── Status badges (also used by KanbanView) ────────── */
-.app-status-badge--not_applied,
-.outreach-badge--not_started,
-.outreach-badge--skipped {
-  color: var(--text-muted);
-  background: var(--surface-inset);
-  border-color: var(--border-standard);
-}
-
-.app-status-badge--applied,
-.app-status-badge--interviewing,
-.outreach-badge--researching,
-.outreach-badge--sent,
-.outreach-badge--followed_up,
-.response-badge--referral {
-  color: var(--brand-tint-text);
-  background: var(--brand-tint-bg);
-  border-color: var(--brand-tint-border);
-}
-
-.app-status-badge--screening,
-.outreach-badge--drafted,
-.response-badge--no_response {
-  color: var(--pill-warn-text);
-  background: var(--pill-warn-bg);
-  border-color: var(--pill-warn-border);
-}
-
-.app-status-badge--offer,
-.outreach-badge--replied,
-.response-badge--positive {
-  color: var(--pill-success-text);
-  background: var(--pill-success-bg);
-  border-color: var(--pill-success-border);
-}
-
-.app-status-badge--rejected,
-.outreach-badge--no_response,
-.response-badge--negative {
-  color: var(--pill-danger-text);
-  background: var(--pill-danger-bg);
-  border-color: var(--pill-danger-border);
-}
-
-.tracker-card__followup--overdue {
-  color: var(--pill-danger-text);
-  background: var(--pill-danger-bg);
-  border-color: var(--pill-danger-border);
-}
-
-.tracker-card__followup--upcoming {
-  color: var(--pill-warn-text);
-  background: var(--pill-warn-bg);
-  border-color: var(--pill-warn-border);
-}
-
 /* ── Detail view ────────────────────────────────────── */
+/* Indented to the row's content column: the 20px checkbox plus the 18px gap. */
 .tracker-detail {
   border-top: 1px solid var(--border-subtle);
-  padding: 22px;
+  margin-left: 38px;
+  padding: 18px 0 20px;
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 32px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px 40px;
 }
 
 .tracker-detail__col {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   min-width: 0;
 }
 
@@ -1134,7 +983,7 @@
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .tracker-detail__job-url {
@@ -1165,20 +1014,16 @@
 }
 
 .tracker-detail__detail-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 510;
   color: var(--text-primary);
-}
-
-.tracker-detail__detail-value--cap {
-  text-transform: capitalize;
 }
 
 .tracker-detail__score-head {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .tracker-detail__score-head .tracker-detail__section-title {
@@ -1188,92 +1033,50 @@
 .tracker-detail__score-total {
   font-size: 13px;
   font-weight: 590;
+  color: var(--text-primary);
+}
+
+/* Score breakdown: label column, points column. */
+.tracker-detail__reasons {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  max-width: 420px;
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
-.tracker-detail__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.tracker-detail__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
-  font-weight: 510;
-  color: var(--text-secondary);
-  background: var(--surface-inset);
-  border: 1px solid var(--border-standard);
-  border-radius: 8px;
-  padding: 5px 10px;
-}
-
-.tracker-detail__chip-pts {
-  font-size: 11px;
-  font-weight: 590;
-  padding: 1px 7px;
-  border-radius: 9999px;
-  color: var(--pill-success-text);
-  background: var(--pill-success-bg);
-  border: 1px solid var(--pill-success-border);
-}
-
-.tracker-detail__chip-pts--zero {
-  /* --surface-card-hover is a hover token and was being used as a RESTING
-     surface; --surface-inset is the resting equivalent and is lighter. */
-  color: var(--text-tertiary);
-  background: var(--surface-inset);
-  border-color: transparent;
-}
-
-/* Skills */
-.tracker-detail__skills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tracker-detail__skills--matched {
-  margin-bottom: 8px;
-}
-
-.tracker-detail__skill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.tracker-detail__reason-pts {
+  font-family: var(--font-mono);
   font-size: 12px;
-  font-weight: 510;
-  padding: 3px 9px;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-}
-
-.tracker-detail__skill--matched {
+  text-align: right;
   color: var(--pill-success-text);
-  background: var(--pill-success-bg);
-  border-color: var(--pill-success-border);
 }
 
-.tracker-detail__skill--missing {
-  color: var(--pill-danger-text);
-  background: var(--pill-danger-bg);
-  border-color: var(--pill-danger-border);
-}
-
-.tracker-detail__skill-more {
-  font-size: 12px;
+.tracker-detail__reason-pts--zero {
   color: var(--text-muted);
-  align-self: center;
 }
 
-/* Steppers. The nudge caption is taken out of flow (as in the bundle) so it
-   never widens its step — in flow, a hinted step stretches to the caption's
-   width, blowing out the gaps and pushing later steps onto another row.
-   Out of flow means the row has to reserve vertical space for it instead:
-   the caption's max-width below bounds it to two lines, and --hinted reserves
-   exactly that much. Bounding the width is what makes the reservation safe. */
+/* Skills: one line each for matched and missing */
+.tracker-detail__skills {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+.tracker-detail__skills-label {
+  font-weight: 510;
+}
+
+.tracker-detail__skills-label--matched {
+  color: var(--pill-success-text);
+}
+
+.tracker-detail__skills-label--missing {
+  color: var(--pill-danger-text);
+}
+
+/* Steppers */
 .tracker-detail__timeline {
   display: flex;
   align-items: center;
@@ -1281,19 +1084,9 @@
   flex-wrap: wrap;
 }
 
-.tracker-detail__timeline--hinted {
-  gap: 36px 6px;
-  padding-bottom: 34px;
-}
-
 .tracker-detail__timeline-arrow {
   color: var(--text-tertiary);
   font-size: 12px;
-}
-
-.tracker-detail__step-wrap {
-  position: relative;
-  display: inline-flex;
 }
 
 .tracker-detail__timeline-step {
@@ -1351,22 +1144,17 @@
   filter: brightness(1.1);
 }
 
-/* Centred on its step and capped: max-content keeps short captions on one line
-   instead of forcing them into the pill's narrow width, and max-width caps the
-   longest ("Finish research & draft message") at two lines — the amount
-   --hinted reserves. Widen this and the reservation must grow with it. */
-.tracker-detail__action-hint {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 170px;
-  line-height: 1.3;
-  font-size: 11px;
+/* The current step's nudge, on its own line under the stepper. The overdue
+   follow-up note takes the danger colour, the same as the row's overdue line. */
+.tracker-detail__step-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
   font-weight: 590;
   color: var(--warn);
-  text-align: center;
+}
+
+.tracker-detail__step-hint--overdue {
+  color: var(--pill-danger-text);
 }
 
 /* "Outreach not needed" explainer under the outreach timeline */
@@ -1393,73 +1181,25 @@
   opacity: 0.85;
 }
 
-/* Contact card */
-.tracker-detail__contact-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.tracker-detail__contact-head .tracker-detail__section-title {
-  margin-bottom: 0;
-}
-
+/* Contact: "Name · Role · via Source", then the links */
 .tracker-detail__contact {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--surface-inset);
-  border: 1px solid var(--border-standard);
-  border-radius: 10px;
-}
-
-.tracker-detail__contact-avatar {
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--brand-tint-bg);
-  border: 1px solid var(--brand-tint-border);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   font-size: 13px;
-  font-weight: 590;
-  color: var(--brand-tint-text);
-}
-
-.tracker-detail__contact-body {
-  flex: 1;
-  min-width: 0;
+  color: var(--text-secondary);
 }
 
 .tracker-detail__contact-name {
-  font-size: 14px;
   font-weight: 590;
   color: var(--text-primary);
-}
-
-.tracker-detail__contact-role {
-  font-size: 12.5px;
-  color: var(--text-muted);
-  margin-top: 1px;
 }
 
 .tracker-detail__contact-links {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  margin-top: 8px;
+  gap: 2px 14px;
 }
 
 .tracker-detail__contact-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   font-size: 13px;
   color: var(--link);
   word-break: break-all;
@@ -1486,7 +1226,7 @@
 
 .tracker-detail__response-notes,
 .tracker-detail__notes {
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--text-secondary);
 }
@@ -1498,14 +1238,13 @@
 
 .tracker-detail__actions {
   display: flex;
-  gap: 10px;
-  margin-top: auto;
-  padding-top: 4px;
+  gap: 8px;
 }
 
-/* Bundle pushes Delete away from Edit */
-.tracker-detail__actions .tracker-btn--danger {
-  margin-left: auto;
+.tracker-detail__actions .tracker-btn {
+  font-size: 12.5px;
+  padding: 5px 11px;
+  border-radius: 6px;
 }
 
 /* ── Toast ──────────────────────────────────────────── */
@@ -1851,57 +1590,20 @@
   box-shadow: none;
 }
 
-/* ── Tablet ─────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .tracker-page {
-    padding: 24px 16px 56px;
-  }
-
-  .tracker-header h1 {
-    font-size: 26px;
-  }
-
-  .tracker-stats {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .tracker-detail {
-    grid-template-columns: 1fr;
-    gap: 22px;
-  }
-
-  .tracker-controls__right {
-    margin-left: 0;
-  }
-
-  .tracker-search-wrap {
-    max-width: none;
-  }
-
+/* ── Narrow desktop / tablet ───────────────────────── */
+/* Actions drop under the row body (same breakpoint as History's rows); the
+   status column keeps its fixed width. */
+@media (max-width: 1024px) {
   .tracker-card__row {
-    flex-wrap: wrap;
+    grid-template-columns: 20px minmax(0, 1fr) 250px;
   }
 
-  /* Once the row wraps, .tracker-card__side gets its own full-width line that
-     would otherwise start at the row edge while .tracker-card__main stays
-     indented. Push it into the same column: the 20px .tracker-check plus
-     .tracker-card__row's 16px gap. The checkbox is then a pure selection
-     gutter with a single content column beside it.
-
-     stretch, not flex-start: this is a column flex container, so flex-start
-     would size .tracker-card__badges to max-content and its flex-wrap:wrap
-     would never engage — the pill row just overflowed the card instead. */
-  .tracker-card__side {
-    align-items: stretch;
-    width: 100%;
-    padding-left: 36px;
-  }
-
-  .tracker-card__badges {
+  .tracker-card__actions {
+    grid-column: 2 / -1;
     justify-content: flex-start;
   }
 
-  /* ··· now sits near the card's left edge, so the desktop right-anchored menu
+  /* ··· now sits near the row's left edge, so the desktop right-anchored menu
      would open off the left of the screen. Anchor it to the actions row rather
      than to the button, so where it lands doesn't depend on how wide the
      primary action's label happens to be. */
@@ -1919,29 +1621,74 @@
   }
 }
 
+/* ── Tablet ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .tracker-page {
+    padding: 24px 16px 56px;
+  }
+
+  .tracker-header h1 {
+    font-size: 26px;
+  }
+
+  .tracker-detail {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .tracker-controls__right {
+    margin-left: 0;
+  }
+
+  .tracker-search-wrap {
+    max-width: none;
+  }
+}
+
+/* ── Phone ──────────────────────────────────────────── */
+/* One content column beside the checkbox: status lines run inline, actions
+   wrap below, and every row control gets a 44px touch target. */
+@media (max-width: 640px) {
+  .tracker-card__row {
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 8px 12px;
+  }
+
+  .tracker-card__status,
+  .tracker-card__actions {
+    grid-column: 2;
+  }
+
+  .tracker-card__status {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+  }
+
+  .tracker-card__actions .tracker-quick-btn,
+  .tracker-card__actions .tracker-btn--icon {
+    min-height: 44px;
+  }
+
+  .tracker-card__actions .tracker-quick-btn--more,
+  .tracker-card__actions .tracker-btn--icon {
+    width: 44px;
+  }
+
+  /* Track the row: 20px checkbox + 12px gap. */
+  .tracker-detail {
+    margin-left: 32px;
+  }
+}
+
 /* ── Mobile ─────────────────────────────────────────── */
 @media (max-width: 480px) {
   .tracker-header h1 {
     font-size: 23px;
   }
 
-  /* Stats: horizontal scroll instead of stacking */
-  .tracker-stats {
-    grid-template-columns: repeat(5, minmax(122px, 1fr));
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .tracker-stats::-webkit-scrollbar {
-    display: none;
-  }
-
-  .tracker-stat__value {
-    font-size: 24px;
-  }
-
   .tracker-filters {
+    flex-basis: 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
@@ -1982,50 +1729,6 @@
 
   .tracker-sort {
     flex: 1;
-  }
-
-  .tracker-card__row {
-    padding: 16px;
-    gap: 12px;
-  }
-
-  /* Track the row gap above: 20px checkbox + 12px gap. */
-  .tracker-card__side {
-    padding-left: 32px;
-  }
-
-  .tracker-card__company {
-    font-size: 15px;
-  }
-
-  .tracker-card__role {
-    font-size: 14px;
-  }
-
-  /* Role wraps onto its own line — the leading dash would dangle */
-  .tracker-card__role-dash {
-    display: none;
-  }
-
-  .tracker-card__contact-email {
-    display: none;
-  }
-
-  .tracker-card__actions {
-    flex-wrap: wrap;
-  }
-
-  /* Secondary action stays reachable through the ··· overflow */
-  .tracker-card__quick-actions .tracker-quick-btn--secondary {
-    display: none;
-  }
-
-  .tracker-detail {
-    padding: 18px 16px;
-  }
-
-  .tracker-detail__timeline {
-    gap: 26px 5px;
   }
 
   .tracker-modal-overlay {

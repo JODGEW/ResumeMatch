@@ -1,7 +1,8 @@
 /* Board view — implementation of the approved Claude Design bundle
-   (Outreach Tracker.dc.html, BOARD VIEW). Shares the pill family and button
-   classes defined in Tracker.css; this component only renders inside the
-   Tracker page, so that stylesheet is always loaded.
+   (Outreach Tracker.dc.html, BOARD VIEW; TrackerBoard.dc.html). Shares the
+   score colours and the dot-separated line rule defined in Tracker.css; this
+   component only renders inside the Tracker page, so that stylesheet is always
+   loaded.
 
    Deviation from the bundle: a zero-count column is NOT collapsed to a 52px
    vertical rail. Columns stay full width and empty ones show the bundle's
@@ -89,7 +90,7 @@
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  padding: 14px;
+  padding: 12px;
   box-shadow: var(--card-shadow);
   cursor: grab;
   transition: border-color 0.15s, opacity 0.15s, transform 0.15s;
@@ -101,6 +102,12 @@
 
 .kanban__card:active {
   cursor: grabbing;
+}
+
+/* Read-only (demo) cards neither drag nor open the editor. */
+.kanban__card--readonly,
+.kanban__card--readonly:active {
+  cursor: default;
 }
 
 .kanban__card--dragging {
@@ -125,7 +132,7 @@
 }
 
 .kanban__card-company {
-  font-size: 14.5px;
+  font-size: 13.5px;
   font-weight: 590;
   color: var(--text-primary);
   white-space: nowrap;
@@ -133,37 +140,48 @@
   text-overflow: ellipsis;
 }
 
+.kanban__card-match {
+  flex-shrink: 0;
+  font-size: 13.5px;
+  font-weight: 590;
+}
+
 .kanban__card-role {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-secondary);
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .kanban__card-tags {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.kanban__card-worth {
   font-size: 12px;
-  font-weight: 510;
-  color: var(--pill-success-text);
+  color: var(--text-muted);
 }
 
 .kanban__card-contact {
   font-size: 12px;
   color: var(--text-muted);
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 /* ── Mobile status select (hidden on desktop) ──────── */
 .kanban__card-status-select {
   display: none;
+}
+
+/* ── Wide: six equal columns, no horizontal scroll ─── */
+@media (min-width: 1440px) {
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .kanban__column {
+    width: auto;
+  }
 }
 
 /* ── Tablet ────────────────────────────────────────── */
