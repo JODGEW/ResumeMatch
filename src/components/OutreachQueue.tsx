@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
-import { getFollowUpDue, splitReason, isOutreachNotNeeded } from '../pages/Tracker';
+import { getFollowUpDue, splitReason, isOutreachNotNeeded, scoreFamily } from '../pages/Tracker';
 import { findContact } from '../api/outreach';
 import { safeHttpUrl } from '../utils/safeUrl';
 import type { FoundContact, LookupMethod } from '../api/outreach';
@@ -24,8 +24,8 @@ const OUTREACH_DONE: ReadonlySet<Application['outreachStatus']> = new Set([
   'skipped',
 ]);
 
-// Plain-language membership rules, surfaced as a hover/focus tooltip on the
-// count line and read to screen readers. Status names match the UI labels.
+// Plain-language membership rules, shown as gray text under the count line.
+// Status names match the UI labels.
 // Keep in sync with the queue memo below and the empty-state copy.
 const QUEUE_RULES =
   'Shows open applications with an outreach score of 60 or higher, highest first. '
@@ -203,217 +203,206 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
     <div className="outreach-queue">
       <p className="outreach-queue__count">
         {queue.length} worth reaching out to, highest score first
-        {/* tabIndex makes the tooltip reachable by keyboard and by tap on touch
-            devices (focus in, tap away to dismiss). */}
-        <span className="outreach-queue__count-info" tabIndex={0} role="img" aria-label={QUEUE_RULES}>
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.3" />
-            <path d="M7 6.6v3.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            <circle cx="7" cy="4.3" r="0.7" fill="currentColor" />
-          </svg>
-        </span>
-        <span className="outreach-queue__count-tooltip" role="tooltip" aria-hidden="true">
-          {QUEUE_RULES}
-        </span>
       </p>
+      <p className="outreach-queue__rules">{QUEUE_RULES}</p>
 
-      {queue.map(({ app, scoring }) => {
-        const followUp = getFollowUpDue(app);
-        const lookup = lookups[app.id] || 'idle';
-        const hasContact = !!app.contact?.name;
-        const pendingContact = pendingContacts[app.id];
-        const pendingLinkedinUrl = safeHttpUrl(pendingContact?.linkedinUrl);
-        const retry = retries[app.id] || 'idle';
-        const domainInput = domainInputs[app.id] || '';
-        const notFoundMethod = notFoundMethods[app.id];
+      <ol className="outreach-queue__list">
+        {queue.map(({ app, scoring }, rank) => {
+          const followUp = getFollowUpDue(app);
+          const lookup = lookups[app.id] || 'idle';
+          const hasContact = !!app.contact?.name;
+          const pendingContact = pendingContacts[app.id];
+          const pendingLinkedinUrl = safeHttpUrl(pendingContact?.linkedinUrl);
+          const retry = retries[app.id] || 'idle';
+          const domainInput = domainInputs[app.id] || '';
+          const notFoundMethod = notFoundMethods[app.id];
 
-        // Verification presentation, strongest wins: a failed verification
-        // beats the accept-all note, which beats the quiet verified tag.
-        // Null status with a normal domain shows nothing.
-        const verifyState = !pendingContact
-          ? null
-          : pendingContact.verificationStatus === 'invalid'
-            ? 'invalid'
-            : pendingContact.verificationStatus === 'valid'
-              ? 'valid'
-              : pendingContact.domainAcceptAll
-                ? 'accept_all'
-                : null;
+          // Verification presentation, strongest wins: a failed verification
+          // beats the accept-all note, which beats the quiet verified tag.
+          // Null status with a normal domain shows nothing.
+          const verifyState = !pendingContact
+            ? null
+            : pendingContact.verificationStatus === 'invalid'
+              ? 'invalid'
+              : pendingContact.verificationStatus === 'valid'
+                ? 'valid'
+                : pendingContact.domainAcceptAll
+                  ? 'accept_all'
+                  : null;
 
-        // Shared by the review panel (fuzzy match returned someone) and the
-        // not-found state (fuzzy match returned nobody).
-        const domainRetryRow = (
-          <div className="outreach-queue__domain-retry">
-            <input
-              type="text"
-              className="outreach-queue__domain-input"
-              placeholder="Company domain, e.g. company.com"
-              value={domainInput}
-              disabled={retry === 'loading'}
-              onChange={e => setDomainInputs(prev => ({ ...prev, [app.id]: e.target.value }))}
-            />
-            <button
-              type="button"
-              className="tracker-btn tracker-btn--ghost tracker-btn--sm"
-              disabled={retry === 'loading' || !domainInput.trim()}
-              onClick={() => handleRetryWithDomain(app)}
-            >
-              {retry === 'loading' ? 'Looking...' : 'Look up by domain'}
-            </button>
-            {retry === 'not_found' && (
-              <span className="outreach-queue__contact-msg">No contact found at that domain</span>
-            )}
-            {retry === 'error' && (
-              <span className="outreach-queue__contact-msg outreach-queue__contact-msg--error">
-                Lookup unavailable, try again later
-              </span>
-            )}
-          </div>
-        );
-
-        return (
-          <div
-            key={app.id}
-            className={`outreach-queue__card${isReadOnly ? '' : ' outreach-queue__card--clickable'}`}
-            onClick={isReadOnly ? undefined : () => onEdit(app.id)}
-          >
-            <div className="outreach-queue__head">
-              <div className="outreach-queue__title">
-                <span className="outreach-queue__role">{app.roleTitle}</span>
-                <span className="outreach-queue__company">{app.companyName}</span>
-              </div>
-              <div className="outreach-queue__score" title="Outreach score">{scoring.score}</div>
-            </div>
-
-            {followUp && (
-              <div className={`outreach-queue__followup${followUp.overdue ? ' outreach-queue__followup--overdue' : ''}`}>
-                Follow up: {followUp.label}
-              </div>
-            )}
-
-            <div className="outreach-queue__reasons">
-              <div className="outreach-queue__reasons-title">Why it&apos;s worth it</div>
-              <ul>
-                {scoring.reasons.map((reason, i) => {
-                  const { label, pts } = splitReason(reason);
-                  return (
-                    <li key={i}>
-                      {label}
-                      {pts && (
-                        <span className={`outreach-queue__reason-pts${pts === '+0' ? ' outreach-queue__reason-pts--zero' : ''}`}>{pts}</span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-
-            <div className="outreach-queue__contact" onClick={e => e.stopPropagation()}>
-              {hasContact ? (
-                <div className="outreach-queue__contact-found">
-                  <span className="outreach-queue__contact-name">{app.contact!.name}</span>
-                  {app.contact!.role && <span className="outreach-queue__contact-role">{app.contact!.role}</span>}
-                  {app.contact!.email && <span className="outreach-queue__contact-email">{app.contact!.email}</span>}
-                  {app.contact!.source && <span className="outreach-queue__contact-source">via {app.contact!.source}</span>}
-                </div>
-              ) : isReadOnly ? (
-                <span className="text-secondary">No contact yet</span>
-              ) : pendingContact ? (
-                <div className="outreach-queue__contact-review">
-                  <div className="outreach-queue__contact-found">
-                    <span className="outreach-queue__contact-name">{pendingContact.name}</span>
-                    {pendingContact.role && <span className="outreach-queue__contact-role">{pendingContact.role}</span>}
-                    {pendingContact.email && <span className="outreach-queue__contact-email">{pendingContact.email}</span>}
-                    {verifyState === 'valid' && (
-                      <span className="outreach-queue__contact-verified">verified</span>
-                    )}
-                    {pendingLinkedinUrl && (
-                      <a
-                        className="outreach-queue__contact-link"
-                        href={pendingLinkedinUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        LinkedIn
-                      </a>
-                    )}
-                    {pendingContact.source && <span className="outreach-queue__contact-source">via {pendingContact.source}</span>}
-                  </div>
-                  {verifyState === 'invalid' && (
-                    <span className="outreach-queue__contact-bounce">
-                      {pendingLinkedinUrl
-                        ? 'This address failed verification and will likely bounce. The LinkedIn profile is the better channel.'
-                        : 'This address failed verification and will likely bounce.'}
-                    </span>
-                  )}
-                  {verifyState === 'accept_all' && (
-                    <span className="outreach-queue__contact-msg">
-                      This company's mail server accepts all addresses, so individual emails cannot be verified
-                    </span>
-                  )}
-                  {pendingContact.lookupMethod === 'company' && (
-                    <span className="outreach-queue__contact-caution">
-                      Matched by company name, which is fuzzy and may have found a different company with a similar name. If this looks wrong and you know the real domain, try it below.
-                    </span>
-                  )}
-                  <span className="outreach-queue__contact-msg">
-                    Check this is the right person before saving
-                  </span>
-                  {pendingContact.lookupMethod === 'company' && domainRetryRow}
-                  <div className="outreach-queue__contact-review-actions">
-                    <button
-                      type="button"
-                      className="tracker-btn tracker-btn--brand tracker-btn--sm"
-                      disabled={retry === 'loading'}
-                      onClick={() => handleSaveContact(app)}
-                    >
-                      Save contact
-                    </button>
-                    <button
-                      type="button"
-                      className="tracker-btn tracker-btn--ghost tracker-btn--sm"
-                      disabled={retry === 'loading'}
-                      onClick={() => handleDiscardContact(app.id)}
-                    >
-                      Discard
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="outreach-queue__contact-find-block">
-                  <div className="outreach-queue__contact-find">
-                    <button
-                      type="button"
-                      className="tracker-btn tracker-btn--ghost tracker-btn--sm outreach-queue__find-btn"
-                      disabled={lookup === 'loading' || retry === 'loading'}
-                      onClick={() => handleFindContact(app)}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                        <circle cx="6" cy="5.5" r="2.4" stroke="currentColor" strokeWidth="1.4" />
-                        <path d="M2.5 13c0-2 1.6-3.4 3.5-3.4S9.5 11 9.5 13M10.5 6.5l1.6 1.6 2.4-2.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      {lookup === 'loading' ? 'Looking...' : 'Find contact'}
-                    </button>
-                    {lookup === 'not_found' && (
-                      <span className="outreach-queue__contact-msg">
-                        {notFoundMethod === 'company'
-                          ? 'No contact found by company name, which is fuzzy and may have searched a different company with a similar name. If you know the real domain, try it below.'
-                          : 'No contact found'}
-                      </span>
-                    )}
-                    {lookup === 'error' && (
-                      <span className="outreach-queue__contact-msg outreach-queue__contact-msg--error">
-                        Lookup unavailable, try again later
-                      </span>
-                    )}
-                  </div>
-                  {lookup === 'not_found' && notFoundMethod === 'company' && domainRetryRow}
-                </div>
+          // Shared by the review panel (fuzzy match returned someone) and the
+          // not-found state (fuzzy match returned nobody).
+          const domainRetryRow = (
+            <div className="outreach-queue__domain-retry">
+              <input
+                type="text"
+                className="outreach-queue__domain-input"
+                placeholder="Company domain, e.g. company.com"
+                value={domainInput}
+                disabled={retry === 'loading'}
+                onChange={e => setDomainInputs(prev => ({ ...prev, [app.id]: e.target.value }))}
+              />
+              <button
+                type="button"
+                className="tracker-btn tracker-btn--ghost tracker-btn--sm"
+                disabled={retry === 'loading' || !domainInput.trim()}
+                onClick={() => handleRetryWithDomain(app)}
+              >
+                {retry === 'loading' ? 'Looking...' : 'Look up by domain'}
+              </button>
+              {retry === 'not_found' && (
+                <span className="outreach-queue__contact-msg">No contact found at that domain</span>
+              )}
+              {retry === 'error' && (
+                <span className="outreach-queue__contact-msg outreach-queue__contact-msg--error">
+                  Lookup unavailable, try again later
+                </span>
               )}
             </div>
-          </div>
-        );
-      })}
+          );
+
+          return (
+            <li
+              key={app.id}
+              className={`outreach-queue__row${isReadOnly ? '' : ' outreach-queue__row--clickable'}`}
+              onClick={isReadOnly ? undefined : () => onEdit(app.id)}
+            >
+              <span className="outreach-queue__rank">{rank + 1}</span>
+              <div className="outreach-queue__body">
+                <div className="outreach-queue__title">{app.roleTitle} @ {app.companyName}</div>
+
+                {followUp && (
+                  <div className={`outreach-queue__followup${followUp.overdue ? ' outreach-queue__followup--overdue' : ''}`}>
+                    Follow up: {followUp.label}
+                  </div>
+                )}
+
+                <div className="outreach-queue__reasons tracker-dotlist">
+                  {scoring.reasons.map((reason, i) => {
+                    const { label, pts } = splitReason(reason);
+                    return (
+                      <span key={i}>
+                        {label}
+                        {pts && (
+                          <> <b className={`outreach-queue__reason-pts${pts === '+0' ? ' outreach-queue__reason-pts--zero' : ''}`}>{pts}</b></>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                <div className="outreach-queue__contact" onClick={e => e.stopPropagation()}>
+                  {hasContact ? (
+                    <div className="outreach-queue__contact-line tracker-dotlist">
+                      <span>{app.contact!.name}</span>
+                      {app.contact!.role && <span>{app.contact!.role}</span>}
+                      {app.contact!.email && <span>{app.contact!.email}</span>}
+                      {app.contact!.source && <span>via {app.contact!.source}</span>}
+                    </div>
+                  ) : isReadOnly ? (
+                    <span className="text-secondary">No contact yet</span>
+                  ) : pendingContact ? (
+                    <div className="outreach-queue__contact-review">
+                      <div className="outreach-queue__contact-found">
+                        <span className="outreach-queue__contact-name">{pendingContact.name}</span>
+                        {pendingContact.role && <span className="outreach-queue__contact-role">{pendingContact.role}</span>}
+                        {pendingContact.email && <span className="outreach-queue__contact-email">{pendingContact.email}</span>}
+                        {verifyState === 'valid' && (
+                          <span className="outreach-queue__contact-verified">verified</span>
+                        )}
+                        {pendingLinkedinUrl && (
+                          <a
+                            className="outreach-queue__contact-link"
+                            href={pendingLinkedinUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            LinkedIn
+                          </a>
+                        )}
+                        {pendingContact.source && <span className="outreach-queue__contact-source">via {pendingContact.source}</span>}
+                      </div>
+                      {verifyState === 'invalid' && (
+                        <span className="outreach-queue__contact-bounce">
+                          {pendingLinkedinUrl
+                            ? 'This address failed verification and will likely bounce. The LinkedIn profile is the better channel.'
+                            : 'This address failed verification and will likely bounce.'}
+                        </span>
+                      )}
+                      {verifyState === 'accept_all' && (
+                        <span className="outreach-queue__contact-msg">
+                          This company's mail server accepts all addresses, so individual emails cannot be verified
+                        </span>
+                      )}
+                      {pendingContact.lookupMethod === 'company' && (
+                        <span className="outreach-queue__contact-caution">
+                          Matched by company name, which is fuzzy and may have found a different company with a similar name. If this looks wrong and you know the real domain, try it below.
+                        </span>
+                      )}
+                      <span className="outreach-queue__contact-msg">
+                        Check this is the right person before saving
+                      </span>
+                      {pendingContact.lookupMethod === 'company' && domainRetryRow}
+                      <div className="outreach-queue__contact-review-actions">
+                        <button
+                          type="button"
+                          className="tracker-btn tracker-btn--brand tracker-btn--sm"
+                          disabled={retry === 'loading'}
+                          onClick={() => handleSaveContact(app)}
+                        >
+                          Save contact
+                        </button>
+                        <button
+                          type="button"
+                          className="tracker-btn tracker-btn--ghost tracker-btn--sm"
+                          disabled={retry === 'loading'}
+                          onClick={() => handleDiscardContact(app.id)}
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="outreach-queue__contact-find-block">
+                      <div className="outreach-queue__contact-find">
+                        <button
+                          type="button"
+                          className="tracker-btn tracker-btn--ghost tracker-btn--sm"
+                          disabled={lookup === 'loading' || retry === 'loading'}
+                          onClick={() => handleFindContact(app)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <circle cx="6" cy="5.5" r="2.4" stroke="currentColor" strokeWidth="1.4" />
+                            <path d="M2.5 13c0-2 1.6-3.4 3.5-3.4S9.5 11 9.5 13M10.5 6.5l1.6 1.6 2.4-2.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          {lookup === 'loading' ? 'Looking...' : 'Find contact'}
+                        </button>
+                        {lookup === 'not_found' && (
+                          <span className="outreach-queue__contact-msg">
+                            {notFoundMethod === 'company'
+                              ? 'No contact found by company name, which is fuzzy and may have searched a different company with a similar name. If you know the real domain, try it below.'
+                              : 'No contact found'}
+                          </span>
+                        )}
+                        {lookup === 'error' && (
+                          <span className="outreach-queue__contact-msg outreach-queue__contact-msg--error">
+                            Lookup unavailable, try again later
+                          </span>
+                        )}
+                      </div>
+                      {lookup === 'not_found' && notFoundMethod === 'company' && domainRetryRow}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="outreach-queue__score">
+                <b className={`tracker-score--${scoreFamily(scoring.score)}`}>{scoring.score}</b>
+                <span>outreach score</span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

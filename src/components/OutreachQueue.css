@@ -1,64 +1,26 @@
 /* Outreach view — implementation of the approved Claude Design bundle
-   (Outreach Tracker.dc.html, OUTREACH VIEW). Shares the pill family and button
-   classes defined in Tracker.css; this component only renders inside the
-   Tracker page, so that stylesheet is always loaded.
+   (Outreach Tracker.dc.html, OUTREACH VIEW; TrackerOutreach.dc.html: ranked
+   rows). Shares the button classes, score colours and dot-separated line rule
+   defined in Tracker.css; this component only renders inside the Tracker page,
+   so that stylesheet is always loaded.
 
-   The bundle's card covers the "no contact yet" and "contact found" states
+   The bundle's row covers the "no contact yet" and "contact found" states
    only. Everything the real lookup flow adds — loading, not-found, verification
    states, the fuzzy-match caution and the domain retry — keeps its markup and
    takes the same surfaces/tokens. */
 
-.outreach-queue {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 14px;
-}
-
 .outreach-queue__count {
-  grid-column: 1 / -1;
-  margin: 0 0 2px;
-  font-size: 13px;
+  margin: 0 0 4px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.outreach-queue__rules {
+  margin: 0 0 12px;
+  max-width: 820px;
+  font-size: 12.5px;
+  line-height: 1.5;
   color: var(--text-muted);
-  /* Anchor for the membership-rules tooltip. */
-  position: relative;
-}
-
-.outreach-queue__count-info {
-  display: inline-flex;
-  vertical-align: -2px;
-  margin-left: 6px;
-  color: var(--text-secondary);
-  cursor: help;
-}
-
-/* Same show-on-hover pattern as .results-score__tooltip, anchored to the count
-   line's left edge. Opens upward so it covers the controls chrome rather than
-   the first queue card; z-index sits above .header-sticky (100) so a mid-scroll
-   hover isn't buried under the translucent header. */
-.outreach-queue__count-tooltip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  max-width: min(340px, calc(100vw - 3rem));
-  background: var(--bg-panel);
-  border: 1px solid var(--border-standard);
-  border-radius: 10px;
-  padding: 8px 12px;
-  box-shadow: var(--card-shadow-lg);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--text-secondary);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s, visibility 0.15s;
-  pointer-events: none;
-  z-index: 101;
-}
-
-.outreach-queue__count-info:hover ~ .outreach-queue__count-tooltip,
-.outreach-queue__count-info:focus ~ .outreach-queue__count-tooltip {
-  opacity: 1;
-  visibility: visible;
 }
 
 .outreach-queue__empty {
@@ -80,141 +42,102 @@
   font-size: 14px;
 }
 
-/* ── Card ───────────────────────────────────────────── */
-.outreach-queue__card {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: var(--card-shadow);
-  transition: border-color 0.15s ease;
+/* ── Ranked row ─────────────────────────────────────── */
+.outreach-queue__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.outreach-queue__card:hover {
-  border-color: var(--border-standard);
+.outreach-queue__row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 110px;
+  gap: 6px 18px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.outreach-queue__card--clickable {
+.outreach-queue__row:last-child {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.outreach-queue__row--clickable {
   cursor: pointer;
 }
 
-.outreach-queue__head {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
+.outreach-queue__rank {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  padding-top: 3px;
 }
 
-.outreach-queue__title {
-  flex: 1;
+.outreach-queue__body {
   min-width: 0;
 }
 
-.outreach-queue__role {
-  display: block;
-  font-size: 16px;
+.outreach-queue__title {
+  font-size: 15px;
   font-weight: 590;
-  letter-spacing: -0.2px;
   color: var(--text-primary);
 }
 
-.outreach-queue__company {
-  display: block;
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-}
-
-.outreach-queue__score {
-  flex-shrink: 0;
-  font-size: 15px;
-  font-weight: 590;
-  line-height: 1;
-  padding: 5px 11px;
-  border-radius: 9px;
-  color: var(--brand-tint-text);
-  background: var(--brand-tint-bg);
-  border: 1px solid var(--brand-tint-border);
-  font-variant-numeric: tabular-nums;
-}
-
 .outreach-queue__followup {
-  align-self: flex-start;
+  margin-top: 2px;
   font-size: 12.5px;
-  font-weight: 510;
-  padding: 4px 11px;
-  border-radius: 9999px;
+  font-weight: 590;
   color: var(--pill-warn-text);
-  background: var(--pill-warn-bg);
-  border: 1px solid var(--pill-warn-border);
 }
 
 .outreach-queue__followup--overdue {
   color: var(--pill-danger-text);
-  background: var(--pill-danger-bg);
-  border-color: var(--pill-danger-border);
 }
 
-/* ── Why it's worth it ──────────────────────────────── */
-.outreach-queue__reasons-title {
-  font-size: 11px;
-  font-weight: 590;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: 10px;
-}
-
-.outreach-queue__reasons ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.outreach-queue__reasons li {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+/* Score factors with their points, as one dot-separated line. */
+.outreach-queue__reasons {
+  margin-top: 4px;
   font-size: 12.5px;
-  font-weight: 510;
-  color: var(--text-secondary);
-  background: var(--surface-inset);
-  border: 1px solid var(--border-standard);
-  border-radius: 8px;
-  padding: 5px 10px;
+  color: var(--text-muted);
 }
 
 .outreach-queue__reason-pts {
-  font-size: 11px;
-  font-weight: 590;
-  padding: 1px 7px;
-  border-radius: 9999px;
+  font-family: var(--font-mono);
+  font-weight: 500;
   color: var(--pill-success-text);
-  background: var(--pill-success-bg);
-  border: 1px solid var(--pill-success-border);
 }
 
 .outreach-queue__reason-pts--zero {
-  /* --surface-card-hover is a hover token and was being used as a RESTING
-     surface; --surface-inset is the resting equivalent and is lighter. */
-  color: var(--text-tertiary);
-  background: var(--surface-inset);
-  border-color: transparent;
+  color: var(--text-muted);
 }
 
-/* ── Contact footer ─────────────────────────────────── */
+.outreach-queue__score {
+  text-align: right;
+}
+
+.outreach-queue__score b {
+  display: block;
+  font-size: 20px;
+  font-weight: 590;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.outreach-queue__score span {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* ── Contact line / lookup ──────────────────────────── */
 .outreach-queue__contact {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 10px;
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+
+.outreach-queue__contact-line {
+  color: var(--text-muted);
 }
 
 .outreach-queue__contact-found {
@@ -252,12 +175,8 @@
 .outreach-queue__contact-find {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 10px;
-}
-
-.outreach-queue__find-btn {
-  width: 100%;
 }
 
 .outreach-queue__contact-review {
@@ -343,12 +262,9 @@
   color: var(--pill-danger-text);
 }
 
-@media (max-width: 480px) {
-  .outreach-queue {
-    grid-template-columns: 1fr;
-  }
-
-  .outreach-queue__card {
-    padding: 16px;
+@media (max-width: 640px) {
+  .outreach-queue__row {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    gap: 6px 12px;
   }
 }

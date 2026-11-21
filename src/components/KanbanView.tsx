@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
-import { scoreFamily, outreachBadge } from '../pages/Tracker';
+import { scoreFamily, outreachText } from '../pages/Tracker';
 import './KanbanView.css';
 
 const COLUMNS: { key: Application['applicationStatus']; label: string }[] = [
@@ -198,7 +198,8 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
                   isDragging={dragId === app.id}
                   onDragStart={() => setDragId(app.id)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => { if (!touchState.current?.moved) onCardClick(app.id); }}
+                  // Read-only (demo) cards are inert, the same as OutreachQueue's rows.
+                  onClick={isReadOnly ? undefined : () => { if (!touchState.current?.moved) onCardClick(app.id); }}
                   onTouchStart={(e) => handleTouchStart(e, app.id)}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
@@ -230,7 +231,7 @@ function KanbanCard({
   isDragging: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
-  onClick: () => void;
+  onClick: (() => void) | undefined;
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: () => void;
@@ -246,7 +247,7 @@ function KanbanCard({
 
   return (
     <div
-      className={`kanban__card${isDragging ? ' kanban__card--dragging' : ''}`}
+      className={`kanban__card${isReadOnly ? ' kanban__card--readonly' : ''}${isDragging ? ' kanban__card--dragging' : ''}`}
       draggable={!isReadOnly}
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
@@ -257,18 +258,14 @@ function KanbanCard({
     >
       <div className="kanban__card-header">
         <span className="kanban__card-company">{app.companyName}</span>
-        <span className={`tk-pill tk-pill--sm tk-pill--${scoreFamily(app.skillMatch.matchPercentage)}`}>
+        <span className={`kanban__card-match tracker-score--${scoreFamily(app.skillMatch.matchPercentage)}`}>
           {app.skillMatch.matchPercentage}%
         </span>
       </div>
       <span className="kanban__card-role">{app.roleTitle}</span>
-      <div className="kanban__card-tags">
-        <span className={`tk-pill tk-pill--sm ${outreachBadge(app).className}`}>
-          {outreachBadge(app).label}
-        </span>
-        {scoring.worth && (
-          <span className="kanban__card-worth">Worth outreach</span>
-        )}
+      <div className="kanban__card-tags tracker-dotlist">
+        <span>{outreachText(app)}</span>
+        {scoring.worth && <span>Worth outreach</span>}
       </div>
       {app.contact && (
         <span className="kanban__card-contact">{app.contact.name}</span>
