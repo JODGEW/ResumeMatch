@@ -190,7 +190,9 @@ function getOutreachStageAction(app: Application, step: Application['outreachSta
 // ── Context-aware quick actions ─────────────────────────
 interface QuickAction {
   label: string;
-  variant: 'accent' | 'success' | 'danger' | 'warning';
+  // accent: filled. outline: transparent; an action that moves
+  // applicationStatus takes the target stage's colour (STAGE_COLOR).
+  variant: 'accent' | 'outline';
   updates: Partial<Application>;
   hint?: string;  // "next step" guidance shown on the primary button
 }
@@ -207,8 +209,6 @@ function getQuickActions(app: Application): QuickActionSet {
   const outStatus = app.outreachStatus;
   const today = new Date().toISOString().slice(0, 10);
   const followUpDateVal = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const followUp = getFollowUpDue(app);
-
   let primary: QuickAction | null = null;
   let secondary: QuickAction | null = null;
 
@@ -240,27 +240,27 @@ function getQuickActions(app: Application): QuickActionSet {
   else if (outStatus === 'sent') {
     primary = {
       label: 'Follow Up',
-      variant: followUp?.overdue ? 'danger' : 'warning',
+      variant: 'accent',
       updates: {
         outreachStatus: 'followed_up',
         followUpSent: true,
         followUpDate: app.followUpDate || today,
       },
     };
-    secondary = { label: 'Replied', variant: 'success', updates: { outreachStatus: 'replied' } };
+    secondary = { label: 'Replied', variant: 'outline', updates: { outreachStatus: 'replied' } };
   }
 
   // Outreach: followed up → primary is Replied
   else if (outStatus === 'followed_up') {
-    primary = { label: 'Replied', variant: 'success', updates: { outreachStatus: 'replied' } };
+    primary = { label: 'Replied', variant: 'outline', updates: { outreachStatus: 'replied' } };
   }
 
   // Outreach: replied/no_response/skipped → focus on app pipeline
   else {
     if (appStatus === 'applied' || appStatus === 'screening') {
-      primary = { label: 'Interviewing', variant: 'accent', updates: { applicationStatus: 'interviewing' } };
+      primary = { label: 'Interviewing', variant: 'outline', updates: { applicationStatus: 'interviewing' } };
     } else if (appStatus === 'interviewing') {
-      primary = { label: 'Offer', variant: 'success', updates: { applicationStatus: 'offer' } };
+      primary = { label: 'Offer', variant: 'outline', updates: { applicationStatus: 'offer' } };
     }
   }
 
@@ -268,13 +268,6 @@ function getQuickActions(app: Application): QuickActionSet {
 }
 
 // ── Presentation helpers (design bundle) ───────────────
-// The bundle's fam(): pill family for a 0-100 score.
-export function scoreFamily(score: number): 'success' | 'warn' | 'danger' {
-  if (score >= 80) return 'success';
-  if (score >= 60) return 'warn';
-  return 'danger';
-}
-
 // calculateOutreachScore returns reasons as "<label>: +<n>". Split for the
 // bundle's label + points chip. Purely presentational — scoring is untouched.
 export function splitReason(reason: string): { label: string; pts: string } {
@@ -282,6 +275,17 @@ export function splitReason(reason: string): { label: string; pts: string } {
   if (i === -1) return { label: reason, pts: '' };
   return { label: reason.slice(0, i), pts: reason.slice(i + 2) };
 }
+
+// Stage palette (direction A): one colour per application stage, shared by the
+// list status line, board column headers and stage-moving quick actions.
+export const STAGE_COLOR: Record<Application['applicationStatus'], string> = {
+  not_applied: 'var(--text-muted)',
+  applied: 'var(--accent-hover)',
+  screening: 'var(--warning)',
+  interviewing: 'var(--info)',
+  offer: 'var(--success)',
+  rejected: 'var(--danger)',
+};
 
 // Colour of the *current* step in the application pipeline (bundle STAGE_DOT).
 const STAGE_COLOR_CLASS: Record<Application['applicationStatus'], string> = {
@@ -791,7 +795,10 @@ function QuickActionButtons({ primary, secondary, isRejected, onAction, onEdit, 
     <span className="tracker-card__quick-actions" onClick={e => e.stopPropagation()}>
       {primary && (
         <button
-          className={`tracker-quick-btn tracker-quick-btn--primary tracker-quick-btn--${primary.variant}`}
+          className={`tracker-quick-btn tracker-quick-btn--${primary.variant}`}
+          style={primary.updates.applicationStatus !== undefined
+            ? { color: STAGE_COLOR[primary.updates.applicationStatus], borderColor: STAGE_COLOR[primary.updates.applicationStatus] }
+            : undefined}
           onClick={() => onAction(primary.updates, primary.label)}
           title={primary.hint || primary.label}
         >
@@ -810,7 +817,7 @@ function QuickActionButtons({ primary, secondary, isRejected, onAction, onEdit, 
       )}
       {secondary && (
         <button
-          className={`tracker-quick-btn tracker-quick-btn--secondary`}
+          className={`tracker-quick-btn tracker-quick-btn--${secondary.variant}`}
           onClick={() => onAction(secondary.updates, secondary.label)}
           title={secondary.label}
         >
@@ -1077,14 +1084,11 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
             <p className={`tracker-detail__step-hint${timelineHintOverdue ? ' tracker-detail__step-hint--overdue' : ''}`}>{timelineHint}</p>
           )}
           {(notNeeded || closedByRejection) && (
-            <div className="tracker-detail__note">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <polyline points="2,6.5 4.7,9 10,3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+            <p className="tracker-detail__note">
               {closedByRejection
                 ? 'Application was rejected — outreach closed.'
                 : `You reached ${APP_STATUS_LABELS[app.applicationStatus].toLowerCase()} before outreach — no longer needed.`}
-            </div>
+            </p>
           )}
         </div>
 
@@ -1872,16 +1876,19 @@ export function Tracker() {
                     </div>
                     <div className="tracker-card__status">
                       <div className="tracker-dotlist">
-                        <span className={`tracker-score--${scoreFamily(app.skillMatch.matchPercentage)}`}>
+                        <span className="tracker-card__score">
                           <b>{app.skillMatch.matchPercentage}% match</b>
                         </span>
                         <span>
-                          <b className={`tracker-score--${scoreFamily(scoring.score)}`}>{scoring.score}/100</b>
+                          <b className="tracker-card__score">{scoring.score}/100</b>
                           {' '}{scoring.worth ? 'Worth outreach' : 'Low priority'}
                         </span>
                       </div>
                       <div className="tracker-dotlist">
-                        <span>{APP_STATUS_LABELS[app.applicationStatus]}</span>
+                        <span className="tracker-card__stage" style={{ color: STAGE_COLOR[app.applicationStatus] }}>
+                          <i className="tracker-card__stage-dot" aria-hidden="true" />
+                          {APP_STATUS_LABELS[app.applicationStatus]}
+                        </span>
                         <span>{outreachText(app)}</span>
                       </div>
                       {app.response && (
