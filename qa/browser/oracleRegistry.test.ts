@@ -113,6 +113,7 @@ describe('P1-05 controlled-clock fair chance', () => {
     expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:180000']))).toBe(false)
     expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:180000', 'reproduction-clock:60000']))).toBe(false)
     expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:180000', 'reproduction-clock:60001']))).toBe(true)
+    expect(timeout?.fairChance?.(clocked([OPENED, 'reproduction-clock:300000']))).toBe(true)
   })
 
   it('ignores advances made before the route was opened', () => {
