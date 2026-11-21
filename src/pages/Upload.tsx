@@ -210,19 +210,13 @@ export function Upload() {
     return '0%';
   }
 
-  const ctaTitle = isSubmitting
-    ? STAGE_LABELS[stage]
-    : canSubmit
-      ? 'Analyze Resume'
+  const hint = isSubmitting || canSubmit
+    ? ''
+    : !hasJobDescription && !hasResume
+      ? 'Add a job description and a resume to continue'
       : !hasJobDescription
         ? 'Add a job description to continue'
         : 'Upload a resume to continue';
-
-  const ctaSub = canSubmit
-    ? `Scoring ${selectedName} against this posting`
-    : !hasResume
-      ? 'Upload a resume to enable analysis'
-      : 'Paste the job description above to enable analysis';
 
   return (
     <div className="page-container upload-page">
@@ -259,7 +253,7 @@ export function Upload() {
       <form onSubmit={handleSubmit}>
         <div className="upload-grid">
           {/* Left column — JD */}
-          <section className="upload-panel animate-in stagger-1">
+          <section className="upload-panel animate-in">
             <div className="upload-panel__head">
               <span className="upload-panel__step">1</span>
               <div className="upload-panel__heading">
@@ -295,7 +289,7 @@ export function Upload() {
           </section>
 
           {/* Right column — Resume */}
-          <section className="upload-panel animate-in stagger-2">
+          <section className="upload-panel animate-in">
             <div className="upload-panel__head">
               <span className="upload-panel__step">2</span>
               <div className="upload-panel__heading">
@@ -324,7 +318,7 @@ export function Upload() {
                       className="upload-replacing__cancel"
                       onClick={() => setIsChangingResume(false)}
                     >
-                      — Cancel
+                      Cancel
                     </button>
                   </p>
                 )}
@@ -364,31 +358,18 @@ export function Upload() {
           </section>
         </div>
 
-        <button
-          type="submit"
-          className={`upload-cta ${canSubmit ? 'upload-cta--ready' : ''}`}
-          disabled={!canSubmit || isSubmitting}
-        >
-          <span className="upload-cta__text">
-            <span className="upload-cta__title">{ctaTitle}</span>
-            <span className="upload-cta__sub">{ctaSub}</span>
-          </span>
-          <span className="upload-cta__icon">
-            {isSubmitting ? (
-              <span className="loading-spinner loading-spinner--sm" />
-            ) : (
-              <svg width="17" height="17" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M3 8h9M8.5 4l4 4-4 4"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          </span>
-        </button>
+        <div className="upload-footer">
+          {hint && <p className="upload-footer__hint" id="upload-submit-hint">{hint}</p>}
+          <button
+            type="submit"
+            className="upload-submit"
+            disabled={!canSubmit || isSubmitting}
+            aria-describedby={hint ? 'upload-submit-hint' : undefined}
+          >
+            {isSubmitting && <span className="loading-spinner loading-spinner--sm" />}
+            {isSubmitting ? STAGE_LABELS[stage] : 'Analyze Resume'}
+          </button>
+        </div>
 
         {isSubmitting && (
           <div className="upload-progress animate-in">
