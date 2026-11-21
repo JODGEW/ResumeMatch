@@ -1,6 +1,6 @@
 /* Board view — implementation of the approved Claude Design bundle
    (Outreach Tracker.dc.html, BOARD VIEW; TrackerBoard.dc.html). Shares the
-   score colours and the dot-separated line rule defined in Tracker.css; this
+   dot-separated line rule defined in Tracker.css; this
    component only renders inside the Tracker page, so that stylesheet is always
    loaded.
 
@@ -34,11 +34,13 @@
   border-color: var(--brand-tint-border);
 }
 
+/* 2px bottom line in the stage colour (border-bottom-color set inline). */
 .kanban__column-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 2px;
+  padding: 4px 2px 8px;
+  border-bottom: 2px solid var(--border-standard);
 }
 
 .kanban__column-dot {
@@ -144,6 +146,7 @@
   flex-shrink: 0;
   font-size: 13.5px;
   font-weight: 590;
+  color: var(--text-primary);
 }
 
 .kanban__card-role {

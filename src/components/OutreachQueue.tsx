@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
-import { getFollowUpDue, splitReason, isOutreachNotNeeded, scoreFamily } from '../pages/Tracker';
+import { getFollowUpDue, splitReason, isOutreachNotNeeded } from '../pages/Tracker';
 import { findContact } from '../api/outreach';
 import { safeHttpUrl } from '../utils/safeUrl';
 import type { FoundContact, LookupMethod } from '../api/outreach';
@@ -396,7 +396,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                 </div>
               </div>
               <div className="outreach-queue__score">
-                <b className={`tracker-score--${scoreFamily(scoring.score)}`}>{scoring.score}</b>
+                <b>{scoring.score}</b>
                 <span>outreach score</span>
               </div>
             </li>

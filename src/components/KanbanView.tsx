@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
-import { scoreFamily, outreachText } from '../pages/Tracker';
+import { outreachText, STAGE_COLOR } from '../pages/Tracker';
 import './KanbanView.css';
 
 const COLUMNS: { key: Application['applicationStatus']; label: string }[] = [
@@ -13,16 +13,9 @@ const COLUMNS: { key: Application['applicationStatus']; label: string }[] = [
   { key: 'rejected', label: 'Rejected' },
 ];
 
-// Bundle STAGE_DOT — the column marker colour per stage.
+// Column marker colour per stage: the shared stage palette.
 function getColumnAccent(key: Application['applicationStatus']): string {
-  switch (key) {
-    case 'not_applied': return 'var(--text-muted)';
-    case 'applied': return 'var(--accent)';
-    case 'screening': return 'var(--warn)';
-    case 'interviewing': return 'var(--info)';
-    case 'offer': return 'var(--success-alt)';
-    case 'rejected': return 'var(--danger)';
-  }
+  return STAGE_COLOR[key];
 }
 
 interface Props {
@@ -179,7 +172,7 @@ export function KanbanView({ applications, isReadOnly, onUpdateStatus, onCardCli
             onDragLeave={() => setDropTarget(null)}
             onDrop={(e) => handleDrop(e, col.key)}
           >
-            <div className="kanban__column-header">
+            <div className="kanban__column-header" style={{ borderBottomColor: accent }}>
               <span className="kanban__column-dot" style={{ background: accent }} />
               <span className="kanban__column-title">{col.label}</span>
               <span className="kanban__column-count">{apps.length}</span>
@@ -258,7 +251,7 @@ function KanbanCard({
     >
       <div className="kanban__card-header">
         <span className="kanban__card-company">{app.companyName}</span>
-        <span className={`kanban__card-match tracker-score--${scoreFamily(app.skillMatch.matchPercentage)}`}>
+        <span className={`kanban__card-match`}>
           {app.skillMatch.matchPercentage}%
         </span>
       </div>
