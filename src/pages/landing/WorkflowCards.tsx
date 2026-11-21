@@ -48,15 +48,31 @@ export function SuggestionsCard() {
       <div className="landing-work-card__embed">
         <div className="landing-embed-title">Suggestions</div>
         <div className="landing-embed-subtitle">Recommended additions to improve your match score</div>
+        {/* Rows, not cards, as on Results: a column header, then one
+            hairline-separated row per keyword. Each row carries its own labels,
+            visually hidden while the header shows and visible once rows stack. */}
         <div className="landing-suggestions">
+          <div className="landing-suggestions__head" aria-hidden="true">
+            <span>Keyword</span>
+            <span>Where to add</span>
+            <span>Why</span>
+          </div>
           {SUGGESTIONS.map((item) => (
             <div key={item.tag} className="landing-suggestion">
-              <span className="landing-suggestion__tag">
-                <TagLinesIcon />
-                {item.tag}
-              </span>
-              <div className="landing-suggestion__text">{item.text}</div>
-              <div className="landing-suggestion__reason">{item.reason}</div>
+              <div>
+                <span className="landing-suggestion__tag">
+                  <TagLinesIcon />
+                  {item.tag}
+                </span>
+              </div>
+              <div>
+                <span className="landing-suggestion__label">Where to add</span>
+                <div className="landing-suggestion__text">{item.text}</div>
+              </div>
+              <div>
+                <span className="landing-suggestion__label">Why</span>
+                <div className="landing-suggestion__reason">{item.reason}</div>
+              </div>
             </div>
           ))}
         </div>

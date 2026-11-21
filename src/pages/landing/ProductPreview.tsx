@@ -5,13 +5,21 @@ import { MATCHED_KEYWORDS, MISSING_KEYWORDS } from './keywordData';
 
 /* Mirrors Analysis Detail (Results.tsx) inside the app shell from Layout.tsx.
    Hand-built at thumbnail scale, so it does not update itself — see the mock
-   table in CLAUDE.md before changing either page. */
+   table in CLAUDE.md before changing either page.
 
+   Deliberately left out: the back link, the collapsed Job Description row, and
+   the "On this page" rail. The rail only repeats counts already on screen and
+   links to sections the preview never shows, so at thumbnail scale it would
+   need invented numbers and would squeeze the score card. The mock shows the
+   single-column layout Results renders at 1024px and below. */
+
+// Colours follow utils/scoreBands.ts, as getScoreColor() does on the real
+// bars: 67 is mid (61-75), 60 is low (41-60), 35 and 25 are poor (<=40).
 const BREAKDOWN = [
-  { label: 'Technical Skills', score: 67, tone: 'brand' },
-  { label: 'Tools', score: 35, tone: 'danger' },
-  { label: 'Soft Skills', score: 60, tone: 'brand' },
-  { label: 'Experience', score: 25, tone: 'danger' },
+  { label: 'Technical Skills', score: 67, tier: 'mid' },
+  { label: 'Tools', score: 35, tier: 'poor' },
+  { label: 'Soft Skills', score: 60, tier: 'low' },
+  { label: 'Experience', score: 25, tier: 'poor' },
 ] as const;
 
 /* Dashboard is deliberately absent: it is owner-only in Layout.tsx. */
@@ -59,19 +67,36 @@ export function ProductPreview() {
 
       <div className="landing-preview__body">
         <div className="landing-preview__head">
-          <div>
-            <div className="landing-preview__role">
-              Full-Stack Software Development Engineer @ Bramble Commerce
+          <div className="landing-preview__head-top">
+            <div>
+              <div className="landing-preview__role">
+                Full-Stack Software Development Engineer @ Bramble Commerce
+              </div>
+              <div className="landing-preview__meta">
+                <span className="landing-preview__file">casey_morgan_resume.pdf</span>
+                <span className="landing-preview__sep">·</span>
+                <span className="landing-preview__analyzed">Analyzed Jul 12, 2026</span>
+              </div>
             </div>
-            <div className="landing-preview__file">casey_morgan_resume.pdf</div>
+            <span className="landing-btn landing-btn--primary landing-btn--sm landing-preview__new">
+              <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+              </svg>
+              New analysis
+            </span>
           </div>
           <div className="landing-preview__actions">
             <span className="landing-btn landing-btn--primary landing-btn--sm">
               <MicIcon />
               Start Interview
             </span>
-            <span className="landing-btn landing-btn--ghost landing-btn--sm">View Resume</span>
-            <span className="landing-btn landing-btn--ghost landing-btn--sm">Add to Tracker</span>
+            <span className="landing-btn landing-btn--secondary landing-btn--sm">
+              <svg width="11" height="11" viewBox="0 0 14 14" aria-hidden="true">
+                <path d="M2 10v2h10v-2M7 2v7M4 6l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+              View Resume
+            </span>
+            <span className="landing-btn landing-btn--outline landing-btn--sm">Add to Tracker</span>
           </div>
         </div>
 
@@ -84,16 +109,16 @@ export function ProductPreview() {
                 cy="70"
                 r="60"
                 fill="none"
-                className="lp-stroke-warn"
+                className="lp-stroke-score-mid"
                 strokeWidth="10"
                 strokeLinecap="round"
                 strokeDasharray="229.9 147.1"
                 transform="rotate(-90 70 70)"
               />
-              <text x="70" y="68" textAnchor="middle" className="landing-ring-value">
-                61%
+              <text x="70" y="70" textAnchor="middle" className="landing-ring-value">
+                61<tspan className="landing-ring-percent">%</tspan>
               </text>
-              <text x="70" y="88" textAnchor="middle" className="landing-ring-label">
+              <text x="70" y="90" textAnchor="middle" className="landing-ring-label">
                 Moderate Match
               </text>
             </svg>
@@ -111,17 +136,27 @@ export function ProductPreview() {
                 <div key={row.label}>
                   <div className="landing-breakdown__labels">
                     <span className="landing-breakdown__name">{row.label}</span>
-                    <span className="landing-breakdown__score">{row.score}/100</span>
+                    <span className="landing-breakdown__score" style={{ color: `var(--score-${row.tier})` }}>
+                      {row.score}
+                      <span className="landing-breakdown__denom">/100</span>
+                    </span>
                   </div>
                   <div className="landing-bar">
                     <div
-                      className={`landing-bar__fill landing-bar__fill--${row.tone}`}
-                      style={{ width: `${row.score}%` }}
+                      className="landing-bar__fill"
+                      style={{ width: `${row.score}%`, background: `var(--score-${row.tier})` }}
                     />
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+          {/* SCORE_ACTIONS.mid in Results.tsx: 61 is the Moderate band. */}
+          <div className="landing-scorecard__advice">
+            <span className="landing-scorecard__advice-label">What to do</span>
+            <p className="landing-scorecard__advice-action">
+              Tailor your resume before applying. Focus on the highest-priority missing keywords.
+            </p>
           </div>
         </div>
 
@@ -153,6 +188,10 @@ export function ProductPreview() {
                 </KeywordPill>
               ))}
             </div>
+            <p className="landing-kwcard__note">
+              These are real gaps, not phrasing differences — see the priorities and suggestions
+              below to close them.
+            </p>
           </div>
         </div>
       </div>
