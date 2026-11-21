@@ -1445,6 +1445,11 @@
   border-top: 1px solid var(--border-standard);
 }
 
+.tracker-modal__disc + .tracker-modal__disc,
+.tracker-modal__disc + .tracker-modal__notes {
+  margin-top: 0;
+}
+
 .tracker-modal__disclosure {
   display: flex;
   align-items: center;

@@ -452,7 +452,7 @@ function ApplicationModal({
 
   const outreachSummary = STATUS_LABELS[form.outreachStatus]
     + (form.outreachDate ? ` ${formatDate(form.outreachDate)}` : '')
-    + (form.followUpDate ? ` · follow-up due ${formatDate(form.followUpDate)}` : '');
+    + (form.followUpDate && getFollowUpDue(form as Application) ? ` · follow-up due ${formatDate(form.followUpDate)}` : '');
 
   const responseSummary = form.response && hasResponseData(form.response)
     ? RESPONSE_TYPE_LABELS[form.response.type] + (form.response.date ? ` · ${formatDate(form.response.date)}` : '')
