@@ -4,6 +4,7 @@ import { getAnalysis } from '../api/analysis';
 import { endInterview, getSession, type AssessmentCategory, type EndRequest, type SessionResponse, type TurnFeedback } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { clearInterviewPointer } from '../utils/interviewPointer';
+import { scoreColor } from '../utils/interviewScore';
 import { useAuth } from '../auth/AuthContext';
 import { SignupPromptModal } from '../components/SignupPromptModal';
 import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SESSION_ID } from '../types/sampleInterviewSession';
@@ -109,12 +110,6 @@ function formatTime(dateStr: string): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-}
-
-function scoreColor(score: number): string {
-  if (score >= 80) return 'var(--score-high)';
-  if (score >= 60) return 'var(--score-good)';
-  return 'var(--score-mid)';
 }
 
 function formatInterviewType(type: string): string {
