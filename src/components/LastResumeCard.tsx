@@ -67,7 +67,7 @@ export function LastResumeCard({ fileName, uploadedAt, sizeBytes, onReplace, onR
           </svg>
           Replace
         </button>
-        <button type="button" className="resume-pick__remove" onClick={onRemove} title="Remove resume">
+        <button type="button" className="resume-pick__remove" onClick={onRemove}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path
               d="M3 4h10M6 4V2.5h4V4M5 4l.5 9h5L11 4"

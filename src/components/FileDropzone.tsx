@@ -76,6 +76,7 @@ export function FileDropzone({ onFileSelect, showMascot = false }: Props) {
           {isDragActive ? 'Drop your resume here' : 'Drag & drop your resume PDF'}
         </span>
         <span className="dropzone__hint">or click to browse files</span>
+        <span className="dropzone__hint">PDF only, up to {MAX_SIZE / 1024 / 1024} MB</span>
       </div>
 
       {error && <p className="dropzone__error">{error}</p>}

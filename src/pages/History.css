@@ -63,9 +63,10 @@
 .history-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 12px 16px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-standard);
 }
 
 .history-search {
@@ -118,70 +119,197 @@
   flex-shrink: 0;
 }
 
+.history-count {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
 /* ── List ───────────────────────────────────────────── */
+/* Rows, not cards: a hairline between items, no panel fill or border. */
 .history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.history-card {
-  display: flex;
-  gap: 18px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-standard);
-  border-radius: 16px;
-  padding: 20px 22px;
-  color: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+.history-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 4px 20px;
+  align-items: start;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.history-card:hover {
-  border-color: var(--brand-tint-border);
-  background: var(--surface-card-hover);
-  color: inherit;
+/* ── Lead slot: ring / spinner / status badge ───────── */
+.history-row__lead {
+  min-width: 0;
 }
 
-/* Light only (RM-17): the grey hover surface pulled the match bands and pills
-   under 4.5:1 (4.29-4.49). Hover keeps the resting background and signals with
-   the border above plus a shadow. Must stay after the rule above. */
-:where([data-theme="light"]) .history-card:hover {
-  background: var(--bg-panel);
-  box-shadow: var(--shadow-md);
-}
-
-/* ── Processing card (job in flight) ────────────────── */
-.history-card--processing {
-  border-color: var(--brand-tint-border);
+.history-row__ring,
+.history-row__spinner {
   position: relative;
-  overflow: hidden;
+  width: 52px;
+  height: 52px;
 }
 
-.history-card__spinner {
-  width: 50px;
-  height: 50px;
+.history-row__ring svg,
+.history-row__spinner svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.history-card__spinner svg {
+.history-row__spinner svg {
   animation: spin 1s linear infinite;
 }
 
-.history-card__processing-pill {
+.history-row__ring-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 590;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+}
+
+/* ── Body ───────────────────────────────────────────── */
+.history-row__body {
+  min-width: 0;
+}
+
+.history-row__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.history-row__title {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 590;
+  line-height: 1.4;
+  letter-spacing: -0.1px;
+  color: var(--text-primary);
+}
+
+.history-row__title:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.history-row__new-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 590;
+  color: var(--brand-tint-text);
+  background: var(--brand-tint-bg);
+  border: 1px solid var(--brand-tint-border);
+  border-radius: 9999px;
+  padding: 1px 8px;
+}
+
+.history-row__new-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.history-row__meta,
+.history-row__keywords {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  /* Separator rule: every item after the first draws a "·" in the gap to its
+     left. The dot hangs outside the item's box, so on a wrapped line the dot of
+     the item that starts it falls left of this clipped edge and disappears; a
+     dot can therefore never start or end a visual line. */
+  overflow: hidden;
+}
+
+.history-row__meta > *,
+.history-row__keywords > * {
+  position: relative;
+}
+
+.history-row__meta > * + *::before,
+.history-row__keywords > * + *::before {
+  content: "\00b7";
+  content: "\00b7" / "";
+  position: absolute;
+  right: 100%;
+  width: 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.history-row__meta {
+  margin-top: 3px;
+}
+
+.history-row__band {
+  font-weight: 590;
+}
+
+.history-row__file {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.history-row__summary {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.history-row__summary--failed {
+  color: var(--danger);
+}
+
+.history-row__keywords {
+  margin-top: 6px;
+}
+
+.history-row__matched {
+  font-weight: 510;
+  color: var(--pill-success-text);
+}
+
+.history-row__missing {
+  font-weight: 510;
+  color: var(--pill-danger-text);
+}
+
+/* ── In progress ────────────────────────────────────── */
+.history-row__processing-pill {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   font-weight: 590;
-  padding: 3px 10px;
+  padding: 1px 9px;
   border-radius: 9999px;
   color: var(--brand-tint-text);
   background: var(--brand-tint-bg);
   border: 1px solid var(--brand-tint-border);
 }
 
-.history-card__processing-dot {
+.history-row__processing-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -189,17 +317,17 @@
   animation: historyDotPulse 1.2s ease-in-out infinite;
 }
 
-.history-card__indeterminate {
+.history-row__indeterminate {
   position: relative;
   height: 4px;
   border-radius: 9999px;
   background: var(--track);
   overflow: hidden;
-  margin-top: 15px;
+  margin-top: 12px;
   max-width: 340px;
 }
 
-.history-card__indeterminate span {
+.history-row__indeterminate span {
   position: absolute;
   top: 0;
   left: 0;
@@ -210,14 +338,19 @@
   animation: historyIndeterminate 1.4s ease-in-out infinite;
 }
 
-.history-card__live {
-  display: flex;
+.history-row__live {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 14px;
+  margin-top: 10px;
   font-size: 12.5px;
   font-weight: 510;
   color: var(--brand-tint-text);
+}
+
+.history-row__live:hover {
+  color: var(--brand-tint-text);
+  text-decoration: underline;
 }
 
 @keyframes historyDotPulse {
@@ -231,253 +364,40 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .history-card__spinner svg,
-  .history-card__processing-dot,
-  .history-card__indeterminate span {
+  .history-row__spinner svg,
+  .history-row__processing-dot,
+  .history-row__indeterminate span {
     animation: none;
   }
 }
 
-/* ── Just-finished card ─────────────────────────────── */
-.history-card--new {
-  border-color: var(--brand-tint-border);
-  position: relative;
-}
-
-/* Brand highlight ring, drawn outside the border so it doesn't shift layout. */
-.history-card__new-ring {
-  position: absolute;
-  inset: -1px;
-  /* Tracks the card's own radius, which shrinks to 14px at ≤480px. */
-  border-radius: inherit;
-  border: 1px solid var(--brand-tint-border);
-  box-shadow: 0 0 0 3px var(--brand-tint-bg);
-  pointer-events: none;
-}
-
-/* ── Score ring ─────────────────────────────────────── */
-.history-card__lead {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.history-card__ring {
-  position: relative;
-  width: 50px;
-  height: 50px;
-}
-
-.history-card__ring-value {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 590;
-  letter-spacing: -0.3px;
-  color: inherit;
-}
-
-/* ── Card body ──────────────────────────────────────── */
-.history-card__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.history-card__head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.history-card__title {
-  flex: 1;
-  min-width: 0;
-  font-size: 17px;
-  font-weight: 590;
-  letter-spacing: -0.2px;
-  color: var(--text-primary);
-}
-
-.history-card__band {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 590;
-  padding: 3px 9px;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-  white-space: nowrap;
-}
-
-.history-card__band--high {
-  color: var(--score-high);
-  background: var(--score-high-dim);
-  border-color: var(--success-border);
-}
-
-.history-card__band--good {
-  color: var(--score-good);
-  background: var(--score-good-dim);
-  border-color: var(--info-border);
-}
-
-.history-card__band--mid {
-  color: var(--score-mid);
-  background: var(--score-mid-dim);
-  border-color: var(--warning-border);
-}
-
-.history-card__band--low {
-  color: var(--score-low);
-  background: var(--score-low-dim);
-  border-color: var(--score-low-border);
-}
-
-.history-card__band--poor {
-  color: var(--score-poor);
-  background: var(--score-poor-dim);
-  border-color: var(--danger-border);
-}
-
-/* ── Meta row ───────────────────────────────────────── */
-.history-card__meta {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-
-.history-card__file {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--text-muted);
-  word-break: break-all;
-}
-
-.history-card__date {
-  font-size: 11.5px;
-  color: var(--text-tertiary);
-  background: var(--surface-inset);
-  border: 1px solid var(--border-standard);
-  border-radius: 6px;
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-
-.history-card__new-badge {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 590;
-  color: var(--brand-tint-text);
-  background: var(--brand-tint-bg);
-  border: 1px solid var(--brand-tint-border);
-  border-radius: 9999px;
-  padding: 3px 9px;
-}
-
-.history-card__new-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* ── Summary ────────────────────────────────────────── */
-.history-card__summary {
-  margin: 12px 0 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.history-card__summary--failed {
-  color: var(--danger);
-}
-
-/* ── Stats ──────────────────────────────────────────── */
-.history-card__stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 13px;
-}
-
-.history-card__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 590;
-  padding: 3px 10px;
-  border-radius: 9999px;
-  border: 1px solid transparent;
-  white-space: nowrap;
-}
-
-.history-card__pill--success {
-  color: var(--pill-success-text);
-  background: var(--pill-success-bg);
-  border-color: var(--pill-success-border);
-}
-
-.history-card__pill--danger {
-  color: var(--pill-danger-text);
-  background: var(--pill-danger-bg);
-  border-color: var(--pill-danger-border);
-}
-
-.history-card__pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
-}
-
-.history-card__gaps {
-  font-size: 12.5px;
-  color: var(--text-muted);
-  min-width: 0;
-}
-
 /* ── Actions ────────────────────────────────────────── */
-.history-card__actions {
+.history-row__actions {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  flex-wrap: wrap;
-  margin-top: 16px;
+  gap: 8px;
+  padding-top: 2px;
 }
 
 .history-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 510;
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 5px 11px;
+  border-radius: 6px;
   cursor: pointer;
-  background: var(--surface-inset);
+  white-space: nowrap;
+  background: var(--surface-card);
   border: 1px solid var(--border-standard);
-  color: var(--text-secondary);
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  color: var(--text-primary);
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .history-action:not(:disabled):hover {
-  background: var(--surface-card-hover);
-  color: var(--text-primary);
+  border-color: var(--border-strong);
 }
 
 .history-action:disabled {
@@ -487,18 +407,6 @@
 
 .history-action svg {
   flex-shrink: 0;
-}
-
-.history-action--brand {
-  background: var(--brand-tint-bg);
-  border-color: var(--brand-tint-border);
-  color: var(--brand-tint-text);
-}
-
-.history-action--brand:not(:disabled):hover {
-  background: var(--accent);
-  border-color: transparent;
-  color: var(--text-on-accent);
 }
 
 .history-action .loading-spinner {
@@ -551,6 +459,20 @@
 /* ── Responsive ─────────────────────────────────────── */
 /* The bundle ships one 1240px composition with no media queries; these follow
    the breakpoints the rest of the app already uses. */
+@media (max-width: 1024px) {
+  /* Actions move under the body, in the body's column, at natural width. */
+  .history-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .history-row__actions {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 10px;
+    padding-top: 0;
+  }
+}
+
 @media (max-width: 768px) {
   .history-page {
     padding: 24px 16px 48px;
@@ -558,6 +480,57 @@
 
   .history-head {
     margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .history-search {
+    max-width: none;
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .history-search__input {
+    min-height: 44px;
+  }
+
+  .history-count {
+    margin-left: 0;
+  }
+
+  .history-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 4px 14px;
+  }
+
+  .history-row__ring,
+  .history-row__spinner {
+    width: 44px;
+    height: 44px;
+  }
+
+  .history-row__ring-value {
+    font-size: 13.5px;
+  }
+
+  /* Actions drop under the body across the full width: Start Interview on its
+     own line, the other two sharing the next one. */
+  .history-row__actions {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin-top: 12px;
+    padding-top: 0;
+  }
+
+  .history-row__actions .history-action {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .history-row__actions .history-action:first-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -574,42 +547,5 @@
   .history-new-btn {
     width: 100%;
     justify-content: center;
-  }
-
-  .history-search {
-    max-width: none;
-    min-width: 0;
-    flex-basis: 100%;
-  }
-
-  .history-card {
-    gap: 13px;
-    padding: 16px;
-    border-radius: 14px;
-  }
-
-  /* The band pill needs its own line once the title wraps */
-  .history-card__head {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .history-card__title {
-    flex-basis: 100%;
-    font-size: 15.5px;
-  }
-
-  .history-card__summary {
-    font-size: 13.5px;
-  }
-
-  .history-card__actions {
-    gap: 8px;
-  }
-
-  /* Not flex:1 — equal thirds are narrower than "Start Interview" and wrap the
-     label. Natural widths still fit two per row at 360px+. */
-  .history-action {
-    padding: 9px 12px;
   }
 }

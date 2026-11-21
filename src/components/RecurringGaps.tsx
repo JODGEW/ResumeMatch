@@ -22,7 +22,7 @@ export function RecurringGaps({ analyses }: Props) {
   const hidden = gaps.length - shown.length;
 
   return (
-    <div className="card recurring-gaps animate-in">
+    <div className="recurring-gaps animate-in">
       <div className="recurring-gaps__header">
         <h3>
           {/* Same glyph as the Results page's Missing Keywords header — this
@@ -43,11 +43,7 @@ export function RecurringGaps({ analyses }: Props) {
       </p>
       <div className="recurring-gaps__chips">
         {shown.map(g => (
-          <span
-            key={g.keyword}
-            className="recurring-gaps__chip"
-            title={`Missing in ${g.missingIn} of ${jdCount} job descriptions (${g.demandedIn} ask for it)`}
-          >
+          <span key={g.keyword} className="recurring-gaps__chip">
             {g.keyword}
             <span className="recurring-gaps__count">
               {g.missingIn}/{jdCount}

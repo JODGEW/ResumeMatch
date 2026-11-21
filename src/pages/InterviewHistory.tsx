@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getSession, listSessions, type SessionSummary } from '../api/interview';
 import { isInterviewQuestionTurn } from '../utils/interviewQuestions';
 import { resolveSessionIdentity } from '../utils/sessionIdentity';
 import { useAuth } from '../auth/AuthContext';
 import { Mascot } from '../components/Mascot';
-import { getScoreBand } from '../utils/scoreBands';
+import { scoreColor } from '../utils/interviewScore';
 import { SAMPLE_INTERVIEW_SESSION, SAMPLE_INTERVIEW_SUMMARY } from '../types/sampleInterviewSession';
 import './InterviewHistory.css';
 
@@ -47,6 +47,16 @@ function parseMatchScore(score?: number | string): number | null {
 
 function formatQuestionCount(count: number): string {
   return count === 1 ? '1 question' : `${count} questions`;
+}
+
+function formatDuration(seconds?: number): string | null {
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  return `${Math.max(1, Math.round(seconds / 60))} min`;
+}
+
+/** Keeps the items that are present; the "·" separators between them are drawn by CSS. */
+function presentItems(items: ReactNode[]): ReactNode {
+  return items.filter(Boolean).map((item, i) => <Fragment key={i}>{item}</Fragment>);
 }
 
 function formatStatus(status?: string): string {
@@ -112,20 +122,25 @@ function groupSessionsByBucket(
   }));
 }
 
-/** Average match across the sessions that carry a score; null when none do. */
-function getAverageMatch(sessions: SessionSummary[]): number | null {
-  const scores = sessions
-    .map((session) => parseMatchScore(session.matchScore))
+type InterviewScore = { score: number; rating: string };
+
+/** Average interview score across the sessions that have one; null when none do. */
+function getAverageScore(sessions: SessionSummary[], scores: Record<string, InterviewScore>): number | null {
+  const values = sessions
+    .map((session) => scores[session.sessionId]?.score)
     .filter((score): score is number => score != null);
-  if (!scores.length) return null;
-  return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+  if (!values.length) return null;
+  return Math.round(values.reduce((sum, score) => sum + score, 0) / values.length);
 }
+
+const RING_CIRCUMFERENCE = 2 * Math.PI * 22;
 
 export function InterviewHistory() {
   const { user } = useAuth();
   const isDemo = user?.email === 'demo123@resumeapp.com';
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({});
+  const [interviewScores, setInterviewScores] = useState<Record<string, InterviewScore>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -139,6 +154,14 @@ export function InterviewHistory() {
         [SAMPLE_INTERVIEW_SUMMARY.sessionId]:
           SAMPLE_INTERVIEW_SESSION.conversation.filter(isInterviewQuestionTurn).length,
       });
+      if (SAMPLE_INTERVIEW_SESSION.assessment) {
+        setInterviewScores({
+          [SAMPLE_INTERVIEW_SUMMARY.sessionId]: {
+            score: SAMPLE_INTERVIEW_SESSION.assessment.overallScore,
+            rating: SAMPLE_INTERVIEW_SESSION.assessment.overallRating,
+          },
+        });
+      }
       setLoading(false);
       return;
     }
@@ -152,8 +175,10 @@ export function InterviewHistory() {
     const POLL_INTERVAL_MS = 3000;
     const MAX_POLLS = 40;
     // Question counts don't change once fetched, so accumulate them across polls and
-    // only fetch the per-session detail for sessions we haven't counted yet.
+    // only fetch the per-session detail for sessions we haven't counted yet. The
+    // same detail call also carries the assessment score, kept the same way.
     const counts: Record<string, number> = {};
+    const scores: Record<string, InterviewScore> = {};
 
     async function loadSessions(isInitial: boolean) {
       try {
@@ -166,6 +191,7 @@ export function InterviewHistory() {
             return [
               session.sessionId,
               detail.conversation.filter(isInterviewQuestionTurn).length,
+              detail.assessment,
             ] as const;
           })
         );
@@ -174,13 +200,17 @@ export function InterviewHistory() {
 
         countResults.forEach((result) => {
           if (result.status === 'fulfilled') {
-            const [sessionId, count] = result.value;
+            const [sessionId, count, assessment] = result.value;
             counts[sessionId] = count;
+            if (assessment && Number.isFinite(assessment.overallScore)) {
+              scores[sessionId] = { score: assessment.overallScore, rating: assessment.overallRating };
+            }
           }
         });
 
         setSessions(summaries);
         setQuestionCounts({ ...counts });
+        setInterviewScores({ ...scores });
 
         if (summaries.some((session) => session.status === 'active') && polls < MAX_POLLS) {
           polls += 1;
@@ -202,7 +232,7 @@ export function InterviewHistory() {
     };
   }, [isDemo]);
 
-  const averageMatch = getAverageMatch(sessions);
+  const averageScore = getAverageScore(sessions, interviewScores);
 
   return (
     <div className="page-container ih-page">
@@ -226,14 +256,14 @@ export function InterviewHistory() {
         <div className="ih-stats animate-in">
           <div className="ih-stat">
             <span className="ih-stat__value">{sessions.length}</span>
-            <span className="ih-stat__label">sessions</span>
+            <span className="ih-stat__label">{sessions.length === 1 ? 'session' : 'sessions'}</span>
           </div>
-          {averageMatch != null && (
+          {averageScore != null && (
             <>
               <span className="ih-stats__divider" />
               <div className="ih-stat">
-                <span className="ih-stat__value ih-stat__value--match">{averageMatch}%</span>
-                <span className="ih-stat__label">avg match</span>
+                <span className="ih-stat__value" style={{ color: scoreColor(averageScore) }}>{averageScore}</span>
+                <span className="ih-stat__label">avg interview score</span>
               </div>
             </>
           )}
@@ -272,54 +302,70 @@ export function InterviewHistory() {
                 <h2 className="ih-group__title">{BUCKET_LABEL[bucket]}</h2>
                 <span className="ih-group__count">{groupSessions.length}</span>
               </header>
-              <div className="ih-group__cards">
+              <div className="ih-group__rows">
                 {groupSessions.map((session) => {
                   const matchValue = parseMatchScore(session.matchScore);
-                  const band = matchValue != null ? getScoreBand(matchValue) : null;
                   const { role, company } = getSessionLabels(session);
                   const questionCount = questionCounts[session.sessionId] ?? session.questionCount;
+                  const interviewScore = interviewScores[session.sessionId];
+                  const color = interviewScore ? scoreColor(interviewScore.score) : undefined;
+                  const duration = formatDuration(session.totalDuration);
 
                   return (
                     <Link
                       key={session.sessionId}
                       to={`/interview/results/${session.sessionId}`}
-                      className="ih-card"
+                      className="ih-row"
                     >
-                      <div className="ih-card__top">
-                        <div className="ih-card__identity">
-                          <div className="ih-card__role">{role}</div>
-                          <div className="ih-card__source">
-                            {company && (
-                              <>
-                                <span className="ih-card__company">{company}</span>
-                                <span className="ih-card__dot">&middot;</span>
-                              </>
-                            )}
-                            <span className="ih-card__file">{getResumeLabel(session)}</span>
-                          </div>
-                        </div>
-                        {band && (
-                          <span className={`ih-card__match ih-card__match--${band.tier}`}>
-                            {matchValue}% Match
+                      <div className="ih-row__ring" style={color ? { color } : undefined}>
+                        <svg viewBox="0 0 52 52" aria-hidden="true">
+                          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--track)" strokeWidth="4.5" />
+                          {interviewScore && (
+                            <circle
+                              cx="26" cy="26" r="22"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="4.5"
+                              strokeLinecap="round"
+                              strokeDasharray={`${(interviewScore.score / 100) * RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`}
+                              transform="rotate(-90 26 26)"
+                            />
+                          )}
+                        </svg>
+                        {interviewScore && (
+                          <span className="ih-row__ring-value">
+                            <span className="sr-only">Interview score: </span>
+                            {interviewScore.score}
                           </span>
                         )}
                       </div>
 
-                      <div className="ih-card__meta">
-                        <span>{formatDate(session.createdAt)}</span>
-                        <span>&middot;</span>
-                        <span>{formatTime(session.createdAt)}</span>
-                        <span>&middot;</span>
-                        <span>{formatInterviewType(session.interviewType)}</span>
-                        {questionCount != null && (
-                          <>
-                            <span>&middot;</span>
-                            <span>{formatQuestionCount(questionCount)}</span>
-                          </>
-                        )}
+                      <div className="ih-row__body">
+                        <div className="ih-row__role">{role}</div>
+                        <div className="ih-row__meta">
+                          {presentItems([
+                            company && <span>{company}</span>,
+                            <span className="ih-row__file">{getResumeLabel(session)}</span>,
+                          ])}
+                        </div>
+                        <div className="ih-row__meta">
+                          {presentItems([
+                            interviewScore && (
+                              <span className="ih-row__rating" style={{ color }}>{interviewScore.rating}</span>
+                            ),
+                            <span>{formatInterviewType(session.interviewType)}</span>,
+                            questionCount != null && <span>{formatQuestionCount(questionCount)}</span>,
+                            duration && <span>{duration}</span>,
+                          ])}
+                        </div>
                       </div>
 
-                      <div className="ih-card__footer">
+                      <div className="ih-row__side">
+                        <span className="ih-row__when">
+                          <span>{formatDate(session.createdAt)}</span>
+                          <span>{formatTime(session.createdAt)}</span>
+                        </span>
+                        {matchValue != null && <span>Resume match {matchValue}%</span>}
                         <span className={`ih-status ${getStatusClass(session.status)}`}>
                           {session.status === 'completed' && (
                             <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
@@ -328,13 +374,13 @@ export function InterviewHistory() {
                           )}
                           {formatStatus(session.status)}
                         </span>
-                        <span className="ih-card__view">
-                          View
-                          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
-                            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                          </svg>
-                        </span>
                       </div>
+
+                      <span className="ih-row__chevron" aria-hidden="true">
+                        <svg width="14" height="14" viewBox="0 0 16 16">
+                          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                        </svg>
+                      </span>
                     </Link>
                   );
                 })}
