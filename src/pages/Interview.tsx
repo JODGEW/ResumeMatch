@@ -1171,14 +1171,6 @@ export function Interview() {
             </div>
             <h1 className="interview-head__role">{setupJobTitle}</h1>
           </div>
-          <span className={`interview-clock${remaining <= 120 ? ' interview-clock--warning' : ''}`}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
-            {formatTime(remaining)}
-            <span className="interview-clock__sr"> remaining</span>
-          </span>
         </div>
 
         <div className="interview-progress animate-in">
@@ -1201,19 +1193,21 @@ export function Interview() {
           <span className={`interview-progress__count${currentPromptIsClosing ? ' interview-progress__count--done' : ''}`}>
             {questionProgressLabel}
           </span>
-          {currentQuestionKind === 'followup' && (
-            <span className="interview-status__badge interview-status__badge--followup">Follow-up</span>
-          )}
-          {currentQuestionKind === 'clarification' && (
-            <span className="interview-status__badge interview-status__badge--clarification">Clarification</span>
-          )}
+          <span className={`interview-clock${remaining <= 120 ? ' interview-clock--warning' : ''}`}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+            {formatTime(remaining)}
+            <span className="interview-clock__sr"> remaining</span>
+          </span>
         </div>
 
       <div className={`interview-question animate-in stagger-1${interviewState === 'speaking' ? ' interview-question--speaking' : ''}${questionKindClass}`}>
         <div className="interview-question__head">
           <span className="interview-question__who">
             <span className="interview-question__mascot" aria-hidden="true">
-              <Mascot state={mascotState} size={52} />
+              <Mascot state={mascotState} size={24} />
             </span>
             {interviewState === 'speaking' && (
               <span className="interview-question__voice" aria-hidden="true">
@@ -1277,51 +1271,6 @@ export function Interview() {
         )}
       </div>
 
-      {currentFeedback && (
-        <div className="interview-feedback card animate-in" aria-live="polite">
-          <p className="interview-feedback__label">On your last answer</p>
-          {currentFeedback.star && (
-            <div className="interview-feedback__star">
-              {(['situation', 'task', 'action', 'result'] as const).map(key => (
-                <span
-                  key={key}
-                  className={`interview-feedback__star-item${currentFeedback.star![key] ? ' interview-feedback__star-item--met' : ''}`}
-                >
-                  {currentFeedback.star![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
-                </span>
-              ))}
-            </div>
-          )}
-          {currentFeedback.technical && (
-            <div className="interview-feedback__star">
-              {(['accuracy', 'tradeoffs', 'depth'] as const).map(key => (
-                <span
-                  key={key}
-                  className={`interview-feedback__star-item${currentFeedback.technical![key] ? ' interview-feedback__star-item--met' : ''}`}
-                >
-                  {currentFeedback.technical![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
-                </span>
-              ))}
-            </div>
-          )}
-          {currentFeedback.strengths.length > 0 && (
-            <div className="interview-feedback__list interview-feedback__list--strengths">
-              {currentFeedback.strengths.map((s, i) => <span key={i}>{s}</span>)}
-            </div>
-          )}
-          {currentFeedback.improvements.length > 0 && (
-            <div className="interview-feedback__list interview-feedback__list--improvements">
-              {currentFeedback.improvements.map((s, i) => <span key={i}>{s}</span>)}
-            </div>
-          )}
-          {currentFillerWords && Object.keys(currentFillerWords).length > 0 && (
-            <p className="interview-feedback__fillers">
-              Filler words: {Object.entries(currentFillerWords).map(([word, count]) => `"${word}" (${count})`).join(', ')}
-            </p>
-          )}
-        </div>
-      )}
-
       {activeError && (
         <div className="interview-error animate-in" role="alert">
           <p>{activeError}</p>
@@ -1377,82 +1326,111 @@ export function Interview() {
           </button>
         </div>
       ) : (
-        <>
-          <div className={`interview-stage${controls.micActive ? ' interview-stage--live' : ''}`}>
-            <div className="interview-stage__mic-wrap">
-              <button
-                type="button"
-                className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
-                onPointerDown={handlePushToTalkPointerDown}
-                onPointerUp={handlePushToTalkPointerUp}
-                onPointerCancel={handlePushToTalkCancel}
-                disabled={controls.micDisabled}
-                aria-label="Hold to speak"
-              >
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-                  <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
-                  <path d="M6 11a6 6 0 0 0 12 0M12 17v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                {controls.micActive ? <span className="interview-mic__pulse" /> : null}
-              </button>
-            </div>
-
-            {/* Decorative, exactly as the bundle has it. A real meter is not
-                possible here: useMicrophoneLevel's AudioContext is torn down
-                before Deepgram acquires the mic, so it only runs on setup. */}
-            <div className={`interview-eq${controls.micActive ? ' interview-eq--live' : ''}`} aria-hidden="true">
-              <span /><span /><span /><span /><span /><span /><span /><span /><span />
-            </div>
-
-            {!recordingInterrupted && (
-              <>
-                {/* Releasing the mic left no positive confirmation that the
-                    answer was captured — the bundle's green "Answer recorded"
-                    fills that gap. The phase-accurate string from
-                    getInterviewControlState moves to the line below it. */}
-                <p
-                  className={`interview-stage__status${
-                    controls.micActive
-                      ? ' interview-stage__status--live'
-                      : isAdvancing
-                        ? ' interview-stage__status--recorded'
-                        : ''
-                  }`}
-                  aria-live="polite"
-                >
-                  {isAdvancing ? 'Answer recorded' : controls.hint}
-                </p>
-                <p className="interview-stage__timer">
-                  {isAdvancing
-                    ? controls.hint
-                    : controls.micActive && answerElapsed > 0
-                      ? formatTime(answerElapsed)
-                      : ' '}
-                </p>
-                {isAdvancing && (
-                  <span className="interview-stage__advancing">
-                    <span className="loading-spinner interview-stage__advancing-spinner" />
-                    {isLastQuestion ? 'Wrapping up…' : 'Next question'}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="interview-endrow">
+        <div className={`interview-stage${controls.micActive ? ' interview-stage--live' : ''}`}>
+          <div className="interview-stage__mic-wrap">
             <button
               type="button"
-              className="interview-endrow__btn"
-              onClick={() => handleEnd(controls.endReason)}
-              disabled={controls.endDisabled}
+              className={`interview-mic ${controls.micActive ? 'interview-mic--active' : ''}`}
+              onPointerDown={handlePushToTalkPointerDown}
+              onPointerUp={handlePushToTalkPointerUp}
+              onPointerCancel={handlePushToTalkCancel}
+              disabled={controls.micDisabled}
+              aria-label="Hold to speak"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor" />
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
+                <path d="M6 11a6 6 0 0 0 12 0M12 17v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
-              {controls.endButtonLabel}
+              {controls.micActive ? <span className="interview-mic__pulse" /> : null}
             </button>
           </div>
-        </>
+
+          {/* Decorative, exactly as the bundle has it. A real meter is not
+              possible here: useMicrophoneLevel's AudioContext is torn down
+              before Deepgram acquires the mic, so it only runs on setup. */}
+          <div className={`interview-eq${controls.micActive ? ' interview-eq--live' : ''}`} aria-hidden="true">
+            <span /><span /><span /><span /><span /><span /><span /><span /><span />
+          </div>
+
+          {!recordingInterrupted && (
+            <>
+              {/* Releasing the mic left no positive confirmation that the
+                  answer was captured — the bundle's green "Answer recorded"
+                  fills that gap. The phase-accurate string from
+                  getInterviewControlState moves to the line below it. */}
+              <p
+                className={`interview-stage__status${
+                  controls.micActive
+                    ? ' interview-stage__status--live'
+                    : isAdvancing
+                      ? ' interview-stage__status--recorded'
+                      : ''
+                }`}
+                aria-live="polite"
+              >
+                {isAdvancing ? 'Answer recorded' : controls.hint}
+              </p>
+              <p className="interview-stage__timer">
+                {isAdvancing
+                  ? controls.hint
+                  : controls.micActive && answerElapsed > 0
+                    ? formatTime(answerElapsed)
+                    : ' '}
+              </p>
+              {isAdvancing && (
+                <span className="interview-stage__advancing">
+                  <span className="loading-spinner interview-stage__advancing-spinner" />
+                  {isLastQuestion ? 'Wrapping up…' : 'Next question'}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {currentFeedback && (
+        <div className="interview-feedback card animate-in" aria-live="polite">
+          <p className="interview-feedback__label">On your last answer</p>
+          {currentFeedback.star && (
+            <div className="interview-feedback__star">
+              {(['situation', 'task', 'action', 'result'] as const).map(key => (
+                <span
+                  key={key}
+                  className={`interview-feedback__star-item${currentFeedback.star![key] ? ' interview-feedback__star-item--met' : ''}`}
+                >
+                  {currentFeedback.star![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
+          {currentFeedback.technical && (
+            <div className="interview-feedback__star">
+              {(['accuracy', 'tradeoffs', 'depth'] as const).map(key => (
+                <span
+                  key={key}
+                  className={`interview-feedback__star-item${currentFeedback.technical![key] ? ' interview-feedback__star-item--met' : ''}`}
+                >
+                  {currentFeedback.technical![key] ? '✓' : '✗'} {key.charAt(0).toUpperCase() + key.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
+          {currentFeedback.strengths.length > 0 && (
+            <div className="interview-feedback__list interview-feedback__list--strengths">
+              {currentFeedback.strengths.map((s, i) => <span key={i}>{s}</span>)}
+            </div>
+          )}
+          {currentFeedback.improvements.length > 0 && (
+            <div className="interview-feedback__list interview-feedback__list--improvements">
+              {currentFeedback.improvements.map((s, i) => <span key={i}>{s}</span>)}
+            </div>
+          )}
+          {currentFillerWords && Object.keys(currentFillerWords).length > 0 && (
+            <p className="interview-feedback__fillers">
+              Filler words: {Object.entries(currentFillerWords).map(([word, count]) => `"${word}" (${count})`).join(', ')}
+            </p>
+          )}
+        </div>
       )}
 
       <section className="interview-notes animate-in">
@@ -1490,6 +1468,22 @@ export function Interview() {
           </div>
         )}
       </section>
+
+      {!currentPromptIsClosing && (
+        <div className="interview-endrow">
+          <button
+            type="button"
+            className="interview-endrow__btn"
+            onClick={() => handleEnd(controls.endReason)}
+            disabled={controls.endDisabled}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor" />
+            </svg>
+            {controls.endButtonLabel}
+          </button>
+        </div>
+      )}
 
       </div>
     </div>
