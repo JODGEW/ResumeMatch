@@ -33,6 +33,18 @@ const PRICING_STRINGS = [
  * RootGate redirects `/` to `/upload`. Sign out first — under dev bypass that
  * is a purely local state reset with no network call — then navigate back to
  * `/` through the History API. A full reload would re-seed the dev user.
+ *
+ * Wait for the app to settle before deciding: right after `goto`, the nav may
+ * not be rendered yet, so an instant `count()` of 0 would skip the sign-out and
+ * leave the test running as the seeded dev user. Wait for either the Sign out
+ * button (signed in) or `.landing-page` (signed out) before deciding.
+ *
+ * Do not expect the signed-out state on /upload: under dev bypass
+ * MaybeProtected does not guard routes, so after logout the Layout (and its
+ * Sign out button) stays on /upload with no user. The signed-out state is only
+ * visible after navigating, so check it on the target page: the nav action
+ * reads "Sign in" (Landing and LegalLayout show "Open app" when signed in, and
+ * RootGate would redirect `/` back to /upload).
  */
 async function openSignedOut(page: Page, path: string, theme: string, width: number): Promise<void> {
   await page.addInitScript(value => {
@@ -47,9 +59,11 @@ async function openSignedOut(page: Page, path: string, theme: string, width: num
   // Sign out at a desktop width, where the control is not behind the hamburger.
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto('/')
-  const signOut = page.getByRole('button', { name: 'Sign out' })
-  if (await signOut.count()) {
-    await signOut.first().click()
+  const signOut = page.getByRole('button', { name: 'Sign out' }).first()
+  const landing = page.locator('.landing-page')
+  await expect(signOut.or(landing).first()).toBeVisible()
+  if (await signOut.isVisible()) {
+    await signOut.click()
   }
 
   await page.setViewportSize({ width, height: 800 })
@@ -58,6 +72,8 @@ async function openSignedOut(page: Page, path: string, theme: string, width: num
     window.dispatchEvent(new PopStateEvent('popstate'))
   }, path)
 
+  await expect(page).toHaveURL(url => url.pathname === path)
+  await expect(page.locator('.landing-nav__signin, .legal-nav .legal-btn--ghost')).toHaveText('Sign in')
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 }
 
