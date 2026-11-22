@@ -147,3 +147,81 @@ test('Delete in the detail view sends one DELETE and removes the row', async ({ 
   await expect.poll(() => writes.length).toBeGreaterThan(0)
   expect(writes).toEqual([{ method: 'DELETE', path: `/applications/${app.id}`, body: null }])
 })
+
+test('Outreach view: the first row title button opens the edit dialog from the keyboard', async ({ context, page }) => {
+  const writes = await openTracker(context, page)
+  await page.getByRole('button', { name: 'Outreach', exact: true }).click()
+
+  const title = page.locator('.outreach-queue__title-btn').first()
+  await expect(title).toBeVisible()
+  const company = (await title.locator('.outreach-queue__company').textContent()) ?? ''
+  const app = FIXTURE.find(a => a.companyName === company)
+  if (!app) throw new Error(`no fixture application for ${company}`)
+
+  await title.focus()
+  await expect(title).toBeFocused()
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Edit Application' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('Company name')).toHaveValue(app.companyName)
+  expect(writes).toHaveLength(0)
+})
+
+test('Board view: a card title button opens the edit dialog from the keyboard', async ({ context, page }) => {
+  const writes = await openTracker(context, page)
+  await page.getByRole('button', { name: 'Board', exact: true }).click()
+
+  const app = FIXTURE.find(a => a.applicationStatus === 'screening') ?? FIXTURE[0]
+  const title = page.locator('.kanban__card-title-btn').filter({ hasText: app.companyName })
+  await title.focus()
+  await expect(title).toBeFocused()
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Edit Application' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('Company name')).toHaveValue(app.companyName)
+  expect(writes).toHaveLength(0)
+})
+
+test('Detail: a clickable application step is a button that sets the status from the keyboard', async ({ context, page }) => {
+  const writes = await openTracker(context, page)
+  const app = FIXTURE.find(a => a.applicationStatus === 'applied')
+  if (!app) throw new Error('fixture has no applied application')
+  await row(page, app.companyName).getByRole('button', { name: 'Show details' }).click()
+
+  const pipeline = page.locator('.tracker-detail__timeline').first()
+  const step = pipeline.locator('button.tracker-detail__timeline-step--clickable').first()
+  const label = ((await step.textContent()) ?? '').trim()
+  const status = (Object.entries(STAGE_LABELS) as [Application['applicationStatus'], string][])
+    .find(([, text]) => text === label)?.[0]
+  if (!status) throw new Error(`unknown step label ${label}`)
+
+  await step.focus()
+  await expect(step).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  await expect.poll(() => writes.length).toBeGreaterThan(0)
+  expect(writes[0].method).toBe('PUT')
+  expect(writes[0].path).toBe(`/applications/${app.id}`)
+  expect(writes[0].body).toMatchObject({ applicationStatus: status })
+})
+
+test('at 390px no step-bar arrow ends a line on its own', async ({ context, page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openTracker(context, page)
+  await row(page, FIXTURE[0].companyName).getByRole('button', { name: 'Show details' }).click()
+
+  const arrows = page.locator('.tracker-detail__timeline-arrow')
+  await expect(arrows.first()).toBeVisible()
+  const offsets = await arrows.evaluateAll(nodes => nodes.map(arrow => {
+    const next = arrow.nextElementSibling
+    const a = arrow.getBoundingClientRect()
+    const n = next?.getBoundingClientRect()
+    return { hasStep: !!next?.classList.contains('tracker-detail__timeline-step'), dy: n ? Math.abs(n.top - a.top) : null, dyCenter: n ? Math.abs((n.top + n.height / 2) - (a.top + a.height / 2)) : null }
+  }))
+  expect(offsets.length).toBeGreaterThan(0)
+  for (const o of offsets) {
+    expect(o.hasStep).toBe(true)
+    // Same line: the step's centre sits on the arrow's centre (the pill is taller than the glyph).
+    expect(o.dyCenter).toBeLessThanOrEqual(2)
+  }
+})

@@ -125,6 +125,28 @@
   border-color: var(--border-standard);
 }
 
+/* Keyboard entry to the edit dialog; wraps the header and role so the card
+   looks exactly as before. */
+.kanban__card-title-btn {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: inherit;
+}
+
+.kanban__card-title-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .kanban__card-header {
   display: flex;
   align-items: flex-start;

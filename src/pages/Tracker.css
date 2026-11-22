@@ -1059,6 +1059,13 @@
   flex-wrap: wrap;
 }
 
+/* An arrow and the step after it: never split across lines. */
+.tracker-detail__timeline-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .tracker-detail__timeline-arrow {
   color: var(--text-tertiary);
   font-size: 12px;
@@ -1106,6 +1113,19 @@
 
 .tracker-detail__timeline-step--clickable {
   cursor: pointer;
+}
+
+/* Clickable steps are real buttons: drop the native look, keep the pill. */
+button.tracker-detail__timeline-step {
+  margin: 0;
+  font-family: inherit;
+  line-height: inherit;
+  appearance: none;
+}
+
+.tracker-detail__timeline-step--clickable:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .tracker-detail__timeline-step--clickable:hover {

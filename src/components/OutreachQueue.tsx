@@ -278,8 +278,21 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
               <span className="outreach-queue__rank">{rank + 1}</span>
               <div className="outreach-queue__body">
                 <div className="outreach-queue__title">
-                  <span className="outreach-queue__company">{app.companyName}</span>
-                  <span className="outreach-queue__role">{app.roleTitle}</span>
+                  {isReadOnly ? (
+                    <>
+                      <span className="outreach-queue__company">{app.companyName}</span>
+                      <span className="outreach-queue__role">{app.roleTitle}</span>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="outreach-queue__title-btn"
+                      onClick={e => { e.stopPropagation(); onEdit(app.id); }}
+                    >
+                      <span className="outreach-queue__company">{app.companyName}</span>
+                      <span className="outreach-queue__role">{app.roleTitle}</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="outreach-queue__status tracker-dotlist">

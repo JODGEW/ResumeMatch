@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from 'react';
+import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApplications } from '../hooks/useApplications';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -875,6 +876,18 @@ function QuickActionButtons({ primary, secondary, isRejected, onAction, onEdit, 
     </span>
   );
 }
+// A step bar item after the first travels with its arrow in one unwrappable
+// unit, so a wrapped bar never leaves an arrow alone at the end of a line.
+function withArrow(index: number, step: ReactNode) {
+  if (index === 0) return step;
+  return (
+    <span className="tracker-detail__timeline-seg">
+      <span className="tracker-detail__timeline-arrow">&rarr;</span>
+      {step}
+    </span>
+  );
+}
+
 // ── Detail View (inline expand) ────────────────────────
 function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Application; isReadOnly: boolean; onEdit: () => void; onDelete: () => void; onUpdate: (id: string, updates: Partial<Application>) => void }) {
   const scoring = calculateOutreachScore(app);
@@ -1003,26 +1016,31 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
               const canClick = !isReadOnly && !isCurrent && !isRejected;
               return (
                 <Fragment key={step}>
-                  {i > 0 && <span className="tracker-detail__timeline-arrow">&rarr;</span>}
-                  <span
-                    className={`tracker-detail__timeline-step ${isPast ? 'tracker-detail__timeline-step--active' : ''} ${isCurrent ? `tracker-detail__timeline-step--current ${STAGE_COLOR_CLASS[step]}` : ''} ${canClick ? 'tracker-detail__timeline-step--clickable' : ''}`}
-                    title={action || (canClick ? `Set status to ${APP_STATUS_LABELS[step]}` : undefined)}
-                    onClick={canClick ? () => onUpdate(app.id, { applicationStatus: step }) : undefined}
-                    role={canClick ? 'button' : undefined}
-                  >
-                    {APP_STATUS_LABELS[step]}{stageAge !== null && <span className="tracker-detail__stage-age">&nbsp;({stageAge}d)</span>}
-                  </span>
+                  {withArrow(i, canClick ? (
+                    <button
+                      type="button"
+                      className={`tracker-detail__timeline-step ${isPast ? 'tracker-detail__timeline-step--active' : ''} ${isCurrent ? `tracker-detail__timeline-step--current ${STAGE_COLOR_CLASS[step]}` : ''} tracker-detail__timeline-step--clickable`}
+                      title={action || `Set status to ${APP_STATUS_LABELS[step]}`}
+                      onClick={() => onUpdate(app.id, { applicationStatus: step })}
+                    >
+                      {APP_STATUS_LABELS[step]}{stageAge !== null && <span className="tracker-detail__stage-age">&nbsp;({stageAge}d)</span>}
+                    </button>
+                  ) : (
+                    <span
+                      className={`tracker-detail__timeline-step ${isPast ? 'tracker-detail__timeline-step--active' : ''} ${isCurrent ? `tracker-detail__timeline-step--current ${STAGE_COLOR_CLASS[step]}` : ''}`}
+                      title={action || undefined}
+                    >
+                      {APP_STATUS_LABELS[step]}{stageAge !== null && <span className="tracker-detail__stage-age">&nbsp;({stageAge}d)</span>}
+                    </span>
+                  ))}
                 </Fragment>
               );
             })}
-            {isRejected && (
-              <>
-                <span className="tracker-detail__timeline-arrow">&rarr;</span>
-                <span className="tracker-detail__timeline-step tracker-detail__timeline-step--rejected">
-                  Rejected
-                </span>
-              </>
-            )}
+            {isRejected && withArrow(1, (
+              <span className="tracker-detail__timeline-step tracker-detail__timeline-step--rejected">
+                Rejected
+              </span>
+            ))}
           </div>
           {pipelineHint && <p className="tracker-detail__step-hint">{pipelineHint}</p>}
         </div>
@@ -1061,21 +1079,34 @@ function DetailView({ app, isReadOnly, onEdit, onDelete, onUpdate }: { app: Appl
                 }
                 onUpdate(app.id, updates);
               }
+              const outreachStepLabel = (
+                <>
+                  {STATUS_LABELS[step]}
+                  {step === 'drafted' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
+                    : step === 'sent' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
+                    : step === 'followed_up' && i <= statusIndex && app.followUpDate ? ` ${formatDate(app.followUpDate)}`
+                    : ''}
+                </>
+              );
               return (
                 <Fragment key={step}>
-                  {i > 0 && <span className="tracker-detail__timeline-arrow">&rarr;</span>}
-                  <span
-                    className={`tracker-detail__timeline-step ${isPast ? 'tracker-detail__timeline-step--active' : ''} ${isCurrent ? 'tracker-detail__timeline-step--current tracker-step--c-brand' : ''} ${canClick ? 'tracker-detail__timeline-step--clickable' : ''}`}
-                    title={outreachAction || (canClick ? `Set to ${STATUS_LABELS[step]}` : undefined)}
-                    onClick={canClick ? handleOutreachClick : undefined}
-                    role={canClick ? 'button' : undefined}
-                  >
-                    {STATUS_LABELS[step]}
-                    {step === 'drafted' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
-                      : step === 'sent' && i <= statusIndex && app.outreachDate ? ` ${formatDate(app.outreachDate)}`
-                      : step === 'followed_up' && i <= statusIndex && app.followUpDate ? ` ${formatDate(app.followUpDate)}`
-                      : ''}
-                  </span>
+                  {withArrow(i, canClick ? (
+                    <button
+                      type="button"
+                      className={`tracker-detail__timeline-step ${isPast ? 'tracker-detail__timeline-step--active' : ''} ${isCurrent ? 'tracker-detail__timeline-step--current tracker-step--c-brand' : ''} tracker-detail__timeline-step--clickable`}
+                      title={outreachAction || `Set to ${STATUS_LABELS[step]}`}
+                      onClick={handleOutreachClick}
+                    >
+                      {outreachStepLabel}
+                    </button>
+                  ) : (
+                    <span
+                      className={`tracker-detail__timeline-step ${isPast ? 'tracker-detail__timeline-step--active' : ''} ${isCurrent ? 'tracker-detail__timeline-step--current tracker-step--c-brand' : ''}`}
+                      title={outreachAction || undefined}
+                    >
+                      {outreachStepLabel}
+                    </span>
+                  ))}
                 </Fragment>
               );
             })}
