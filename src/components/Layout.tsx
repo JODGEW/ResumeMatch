@@ -31,6 +31,7 @@ export function Layout() {
   const themePref = useThemePreference();
   const layoutRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
+  const linksRef = useRef<HTMLDivElement>(null);
 
   // The sticky header's height varies (demo banner, wrapping). Publish the measured
   // height as --app-header-h so page-level sticky chrome (e.g. the InterviewResults
@@ -48,6 +49,23 @@ export function Layout() {
     observer.observe(header);
     return () => observer.disconnect();
   }, []);
+
+  // At <=1024px the tabs scroll horizontally; keep the active one fully in view.
+  // Set scrollLeft directly (not scrollIntoView) so the page never scrolls vertically.
+  useLayoutEffect(() => {
+    const row = linksRef.current;
+    if (!row || row.scrollWidth <= row.clientWidth) return;
+    const active = row.querySelector<HTMLElement>('.nav__link--active');
+    if (!active) return;
+    const margin = 12;
+    const rowBox = row.getBoundingClientRect();
+    const box = active.getBoundingClientRect();
+    if (box.left < rowBox.left + margin) {
+      row.scrollLeft += box.left - rowBox.left - margin;
+    } else if (box.right > rowBox.right - margin) {
+      row.scrollLeft += box.right - rowBox.right + margin;
+    }
+  }, [pathname, user?.email]);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -107,7 +125,7 @@ export function Layout() {
               <span className="nav__title">ResumeMatch</span>
             </Link>
 
-            <div className="nav__links">
+            <div className="nav__links" ref={linksRef}>
               <NavLink to="/upload" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
                 <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M7.5 10V3m0 0L4.5 6m3-3 3 3" />
