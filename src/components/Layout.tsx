@@ -137,7 +137,7 @@ export function Layout() {
                   <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M2 11.5V7h2.5v4.5M6.25 11.5V4h2.5v7.5M10.5 11.5V2H13v9.5" />
                   </svg>
-                  Dashboard
+                  Costs
                 </NavLink>
               )}
               <NavLink to="/tracker" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
