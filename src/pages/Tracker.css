@@ -1094,21 +1094,21 @@
 /* The current step takes the stage colour */
 .tracker-detail__timeline-step--current {
   background: var(--step-color, var(--accent));
-  color: #fff;
+  color: var(--step-text, var(--bg-root));
   border-color: var(--step-color, var(--accent));
 }
 
 .tracker-detail__timeline-step--rejected {
   background: var(--danger);
-  color: #fff;
+  color: var(--bg-root);
   border-color: var(--danger);
 }
 
 .tracker-step--c-muted { --step-color: var(--text-muted); }
-.tracker-step--c-brand { --step-color: var(--accent); }
-.tracker-step--c-warn { --step-color: var(--warn); }
+.tracker-step--c-brand { --step-color: var(--accent); --step-text: var(--text-on-accent); }
+.tracker-step--c-warn { --step-color: var(--warning); }
 .tracker-step--c-info { --step-color: var(--info); }
-.tracker-step--c-success { --step-color: var(--success-alt); }
+.tracker-step--c-success { --step-color: var(--success); }
 .tracker-step--c-danger { --step-color: var(--danger); }
 
 .tracker-detail__timeline-step--clickable {
@@ -1133,9 +1133,13 @@ button.tracker-detail__timeline-step {
   color: var(--text-primary);
 }
 
-.tracker-detail__timeline-step--active.tracker-detail__timeline-step--clickable:hover,
+.tracker-detail__timeline-step--active.tracker-detail__timeline-step--clickable:hover {
+  color: var(--text-on-accent);
+  filter: brightness(1.1);
+}
+
 .tracker-detail__timeline-step--current.tracker-detail__timeline-step--clickable:hover {
-  color: #fff;
+  color: var(--step-text, var(--bg-root));
   filter: brightness(1.1);
 }
 
@@ -1160,6 +1164,7 @@ button.tracker-detail__timeline-step {
 }
 
 .tracker-detail__stage-age {
+  color: inherit;
   font-weight: 510;
   opacity: 0.85;
 }

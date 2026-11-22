@@ -41,33 +41,29 @@
 .diff-view__legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
-.diff-view__legend-item::before {
-  content: '';
-  display: inline-block;
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  flex-shrink: 0;
+.diff-view__legend-item--original {
+  color: var(--text-secondary);
 }
 
-.diff-view__legend-item--original::before {
-  background: var(--surface-card-hover);
-  border: 1px solid var(--border-standard);
-}
-
-.diff-view__legend-item--added::before {
+.diff-view__legend-item--added {
   background: var(--brand-tint-bg);
   border: 1px solid var(--brand-tint-border);
+  color: var(--brand-tint-text);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
-.diff-view__legend-item--removed::before {
+.diff-view__legend-item--removed {
   background: var(--pill-danger-bg);
   border: 1px solid var(--pill-danger-border);
+  color: var(--pill-danger-text);
+  text-decoration: line-through;
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .diff-view__body {

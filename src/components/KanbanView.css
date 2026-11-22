@@ -197,7 +197,7 @@
 }
 
 /* ── Wide: six equal columns, no horizontal scroll ─── */
-@media (min-width: 1440px) {
+@media (min-width: 1240px) {
   .kanban {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
