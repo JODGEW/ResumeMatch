@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Application } from '../types/tracker';
 import { calculateOutreachScore } from '../types/tracker';
-import { getFollowUpDue, splitReason, isOutreachNotNeeded } from '../pages/Tracker';
+import { getFollowUpDue, splitReason, isOutreachNotNeeded, outreachText, STAGE_COLOR, APP_STATUS_LABELS } from '../pages/Tracker';
 import { findContact } from '../api/outreach';
 import { safeHttpUrl } from '../utils/safeUrl';
 import type { FoundContact, LookupMethod } from '../api/outreach';
@@ -23,6 +23,14 @@ const OUTREACH_DONE: ReadonlySet<Application['outreachStatus']> = new Set([
   'no_response',
   'skipped',
 ]);
+
+// Neutral caution marker for the bounce and company-name notes.
+const warnIcon = (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M8 2.2 14.5 13.5h-13L8 2.2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    <path d="M8 6.5v3M8 11.4v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
 
 // Plain-language membership rules, shown as gray text under the count line.
 // Status names match the UI labels.
@@ -254,7 +262,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                 <span className="outreach-queue__contact-msg">No contact found at that domain</span>
               )}
               {retry === 'error' && (
-                <span className="outreach-queue__contact-msg outreach-queue__contact-msg--error">
+                <span className="outreach-queue__contact-msg">
                   Lookup unavailable, try again later
                 </span>
               )}
@@ -269,7 +277,18 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
             >
               <span className="outreach-queue__rank">{rank + 1}</span>
               <div className="outreach-queue__body">
-                <div className="outreach-queue__title">{app.roleTitle} @ {app.companyName}</div>
+                <div className="outreach-queue__title">
+                  <span className="outreach-queue__company">{app.companyName}</span>
+                  <span className="outreach-queue__role">{app.roleTitle}</span>
+                </div>
+
+                <div className="outreach-queue__status tracker-dotlist">
+                  <span className="tracker-card__stage" style={{ color: STAGE_COLOR[app.applicationStatus] }}>
+                    <i className="tracker-card__stage-dot" aria-hidden="true" />
+                    {APP_STATUS_LABELS[app.applicationStatus]}
+                  </span>
+                  <span>{outreachText(app)}</span>
+                </div>
 
                 {followUp && (
                   <div className={`outreach-queue__followup${followUp.overdue ? ' outreach-queue__followup--overdue' : ''}`}>
@@ -277,24 +296,10 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                   </div>
                 )}
 
-                <div className="outreach-queue__reasons tracker-dotlist">
-                  {scoring.reasons.map((reason, i) => {
-                    const { label, pts } = splitReason(reason);
-                    return (
-                      <span key={i}>
-                        {label}
-                        {pts && (
-                          <> <b className={`outreach-queue__reason-pts${pts === '+0' ? ' outreach-queue__reason-pts--zero' : ''}`}>{pts}</b></>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-
                 <div className="outreach-queue__contact" onClick={e => e.stopPropagation()}>
                   {hasContact ? (
                     <div className="outreach-queue__contact-line tracker-dotlist">
-                      <span>{app.contact!.name}</span>
+                      <span className="outreach-queue__contact-saved-name">{app.contact!.name}</span>
                       {app.contact!.role && <span>{app.contact!.role}</span>}
                       {app.contact!.email && <span>{app.contact!.email}</span>}
                       {app.contact!.source && <span>via {app.contact!.source}</span>}
@@ -303,12 +308,20 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                     <span className="text-secondary">No contact yet</span>
                   ) : pendingContact ? (
                     <div className="outreach-queue__contact-review">
-                      <div className="outreach-queue__contact-found">
+                      <span className="outreach-queue__contact-msg">
+                        Check this is the right person before saving
+                      </span>
+                      <div className="outreach-queue__contact-found tracker-dotlist">
                         <span className="outreach-queue__contact-name">{pendingContact.name}</span>
                         {pendingContact.role && <span className="outreach-queue__contact-role">{pendingContact.role}</span>}
                         {pendingContact.email && <span className="outreach-queue__contact-email">{pendingContact.email}</span>}
                         {verifyState === 'valid' && (
-                          <span className="outreach-queue__contact-verified">verified</span>
+                          <span className="outreach-queue__contact-verified">
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                              <path d="M13 4.5L6.5 11 3 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            verified
+                          </span>
                         )}
                         {pendingLinkedinUrl && (
                           <a
@@ -323,7 +336,8 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                         {pendingContact.source && <span className="outreach-queue__contact-source">via {pendingContact.source}</span>}
                       </div>
                       {verifyState === 'invalid' && (
-                        <span className="outreach-queue__contact-bounce">
+                        <span className="outreach-queue__contact-warn">
+                          {warnIcon}
                           {pendingLinkedinUrl
                             ? 'This address failed verification and will likely bounce. The LinkedIn profile is the better channel.'
                             : 'This address failed verification and will likely bounce.'}
@@ -335,14 +349,11 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                         </span>
                       )}
                       {pendingContact.lookupMethod === 'company' && (
-                        <span className="outreach-queue__contact-caution">
+                        <span className="outreach-queue__contact-warn">
+                          {warnIcon}
                           Matched by company name, which is fuzzy and may have found a different company with a similar name. If this looks wrong and you know the real domain, try it below.
                         </span>
                       )}
-                      <span className="outreach-queue__contact-msg">
-                        Check this is the right person before saving
-                      </span>
-                      {pendingContact.lookupMethod === 'company' && domainRetryRow}
                       <div className="outreach-queue__contact-review-actions">
                         <button
                           type="button"
@@ -361,6 +372,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                           Discard
                         </button>
                       </div>
+                      {pendingContact.lookupMethod === 'company' && domainRetryRow}
                     </div>
                   ) : (
                     <div className="outreach-queue__contact-find-block">
@@ -385,7 +397,7 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
                           </span>
                         )}
                         {lookup === 'error' && (
-                          <span className="outreach-queue__contact-msg outreach-queue__contact-msg--error">
+                          <span className="outreach-queue__contact-msg">
                             Lookup unavailable, try again later
                           </span>
                         )}
@@ -398,6 +410,19 @@ export function OutreachQueue({ applications, isSearching, isReadOnly, updateApp
               <div className="outreach-queue__score">
                 <b>{scoring.score}</b>
                 <span>outreach score</span>
+              </div>
+              <div className="outreach-queue__reasons tracker-dotlist">
+                {scoring.reasons.map((reason, i) => {
+                  const { label, pts } = splitReason(reason);
+                  return (
+                    <span key={i}>
+                      {label}
+                      {pts && (
+                        <> <b className={`outreach-queue__reason-pts${pts === '+0' ? ' outreach-queue__reason-pts--zero' : ''}`}>{pts}</b></>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             </li>
           );

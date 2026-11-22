@@ -34,7 +34,7 @@ const STATUS_LABELS: Record<Application['outreachStatus'], string> = {
   skipped: 'Skipped',
 };
 
-const APP_STATUS_LABELS: Record<Application['applicationStatus'], string> = {
+export const APP_STATUS_LABELS: Record<Application['applicationStatus'], string> = {
   not_applied: 'Not Applied',
   applied: 'Applied',
   screening: 'Screening',
