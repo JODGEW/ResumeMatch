@@ -238,6 +238,19 @@ function KanbanCard({
     onDragStart();
   };
 
+  // Spans, not divs, so the same markup can sit inside the title button.
+  const titleContent = (
+    <>
+      <span className="kanban__card-header">
+        <span className="kanban__card-company">{app.companyName}</span>
+        <span className="kanban__card-match">
+          {app.skillMatch.matchPercentage}%
+        </span>
+      </span>
+      <span className="kanban__card-role">{app.roleTitle}</span>
+    </>
+  );
+
   return (
     <div
       className={`kanban__card${isReadOnly ? ' kanban__card--readonly' : ''}${isDragging ? ' kanban__card--dragging' : ''}`}
@@ -249,13 +262,15 @@ function KanbanCard({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      <div className="kanban__card-header">
-        <span className="kanban__card-company">{app.companyName}</span>
-        <span className={`kanban__card-match`}>
-          {app.skillMatch.matchPercentage}%
-        </span>
-      </div>
-      <span className="kanban__card-role">{app.roleTitle}</span>
+      {onClick ? (
+        <button
+          type="button"
+          className="kanban__card-title-btn"
+          onClick={e => { e.stopPropagation(); onClick(); }}
+        >
+          {titleContent}
+        </button>
+      ) : titleContent}
       <div className="kanban__card-tags tracker-dotlist">
         <span>{outreachText(app)}</span>
         {scoring.worth && <span>Worth outreach</span>}
