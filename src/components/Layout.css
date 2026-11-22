@@ -340,7 +340,7 @@ body.interview-immersive .header-sticky {
   }
 
   .nav__title {
-    font-size: 0.9375rem;
+    display: none;
   }
 
   .nav__link {
