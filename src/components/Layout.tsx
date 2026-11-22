@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { LogoMark } from './LogoMark';
 import { ThemeToggle, ThemeIcon } from './ThemeToggle';
@@ -26,6 +26,7 @@ const COST_DASHBOARD_EMAIL = 'demo@resumeapp.com';
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const themePref = useThemePreference();
   const layoutRef = useRef<HTMLDivElement>(null);
@@ -89,6 +90,9 @@ export function Layout() {
   }
 
   const isDashboardVisible = user?.email === COST_DASHBOARD_EMAIL;
+  // The Interviews tab links to /interview/history, but it owns every interview
+  // route: setup and live (/interview), history and results.
+  const isInterviewRoute = pathname === '/interview' || pathname.startsWith('/interview/');
 
   return (
     <div className="layout" ref={layoutRef}>
@@ -119,7 +123,7 @@ export function Layout() {
                 </svg>
                 History
               </NavLink>
-              <NavLink to="/interview/history" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
+              <NavLink to="/interview/history" className={() => `nav__link ${isInterviewRoute ? 'nav__link--active' : ''}`}>
                 <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="5" y="1.75" width="5" height="7.5" rx="2.5" />
                   <path d="M3.25 7.25c0 2.35 1.9 4.25 4.25 4.25s4.25-1.9 4.25-4.25" />

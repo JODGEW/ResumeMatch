@@ -928,247 +928,189 @@ export function Interview() {
             Back
           </button>
 
-          <div className="interview-setup__card">
-            <div className="interview-setup__head">
-              <div className="interview-setup__icon">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
-                  <path d="M6 11a6 6 0 0 0 12 0M12 17v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-              </div>
+          <div className="interview-setup__head">
+            <p className="interview-setup__kicker">Mock Interview</p>
+            <h1 className="interview-setup__title">{setupJobTitle}</h1>
+            <p className="interview-setup__subtitle">
+              Practice a realistic interview tailored to this role, with live follow-up questions and instant feedback.
+            </p>
+            <p className="interview-setup__meta">25 min session · Full transcript · Instant feedback</p>
+          </div>
 
-              <h1 className="interview-setup__title">Mock Interview</h1>
-              <div className="interview-setup__eyebrow">Interviewing for</div>
-              <div className="interview-setup__role">{setupJobTitle}</div>
-              <p className="interview-setup__subtitle">
-                Practice a realistic interview tailored to this role, with live follow-up questions and instant feedback.
-              </p>
+          {error && (
+            <div className="interview-error interview-setup__error">
+              <p>{error}</p>
             </div>
+          )}
 
-            {error && (
-              <div className="interview-error interview-setup__error">
-                <p>{error}</p>
+          <div className="interview-setup__section">
+            <div className="interview-setup__label">Choose format</div>
+            <div className="interview-setup__toggle">
+              <button
+                type="button"
+                className={`interview-setup__option ${selectedType === 'behavioral' ? 'interview-setup__option--active' : ''}`}
+                aria-pressed={selectedType === 'behavioral'}
+                onClick={() => setSelectedType('behavioral')}
+              >
+                <strong>Behavioral</strong>
+                <span>STAR-based questions about past experience</span>
+              </button>
+              <button
+                type="button"
+                className={`interview-setup__option ${selectedType === 'technical' ? 'interview-setup__option--active' : ''}`}
+                aria-pressed={selectedType === 'technical'}
+                onClick={() => setSelectedType('technical')}
+              >
+                <strong>Technical</strong>
+                <span>System design and problem-solving questions</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="interview-setup__section">
+            <div className="interview-setup__label">Microphone</div>
+
+            {microphoneCheck.status === 'permission-needed' && (
+              <div className="interview-mic-check interview-mic-check--neutral">
+                <div className="interview-mic-check__icon">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <rect x="6.5" y="2" width="5" height="9" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M4 9.5c0 2.75 2.25 5 5 5s5-2.25 5-5M9 14.5V17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div className="interview-mic-check__body">
+                  <strong>Microphone access needed</strong>
+                  <p>Click below to allow microphone access and see your input level.</p>
+                </div>
+                <button
+                  type="button"
+                  className="interview-mic-check__action interview-mic-check__action--button"
+                  onClick={async () => {
+                    const ok = await micLevel.start();
+                    if (ok) {
+                      void microphoneCheck.recheck();
+                    } else {
+                      void microphoneCheck.requestPermission();
+                    }
+                  }}
+                >
+                  Test microphone
+                </button>
               </div>
             )}
 
-            <div className="interview-setup__section">
-              <div className="interview-setup__label">Choose format</div>
-              <div className="interview-setup__toggle">
+            {(microphoneCheck.status === 'idle' || microphoneCheck.status === 'checking') && (
+              <div className="interview-mic-check interview-mic-check--neutral">
+                <div className="interview-mic-check__spinner" />
+                <div className="interview-mic-check__body">
+                  <strong>Detecting microphone...</strong>
+                  <p>Checking your current input device.</p>
+                </div>
+              </div>
+            )}
+
+            {microphoneCheck.status === 'ready' && microphoneCheck.defaultMicKind === 'bluetooth' && (
+              <div className="interview-mic-check interview-mic-check--warning" aria-live="polite">
+                <div className="interview-mic-check__icon">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M9 2l7 13H2L9 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    <path d="M9 6.25v4M9 13.25h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div className="interview-mic-check__body">
+                  <strong>Bluetooth headphones detected ({microphoneCheck.defaultMicLabel})</strong>
+                  <p>
+                    Bluetooth microphones use a low-quality audio codec that can reduce transcription accuracy on technical terms. For best results, switch to your laptop&apos;s built-in microphone in your system sound settings, then recheck.
+                  </p>
+                </div>
+                <MicLevelMeter bins={micLevel.bins} active={micLevel.status === 'active'} />
                 <button
                   type="button"
-                  className={`interview-setup__option ${selectedType === 'behavioral' ? 'interview-setup__option--active' : ''}`}
-                  onClick={() => setSelectedType('behavioral')}
+                  className="interview-mic-check__action"
+                  onClick={() => void microphoneCheck.recheck()}
                 >
-                  <span className="interview-setup__option-icon">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <circle cx="10" cy="6.8" r="3.1" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M4.2 16.2a5.8 5.8 0 0 1 11.6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </span>
-                  <span className="interview-setup__option-text">
-                    <strong>Behavioral</strong>
-                    <span>STAR-based questions about past experience</span>
-                  </span>
-                  {selectedType === 'behavioral' && (
-                    <span className="interview-setup__option-check" aria-hidden="true">
-                      <svg width="12" height="12" viewBox="0 0 12 12">
-                        <polyline points="2.5,6.2 5,8.5 9.5,3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className={`interview-setup__option ${selectedType === 'technical' ? 'interview-setup__option--active' : ''}`}
-                  onClick={() => setSelectedType('technical')}
-                >
-                  <span className="interview-setup__option-icon">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <path d="M7.5 6.5L4 10l3.5 3.5M12.5 6.5L16 10l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
-                  <span className="interview-setup__option-text">
-                    <strong>Technical</strong>
-                    <span>System design and problem-solving questions</span>
-                  </span>
-                  {selectedType === 'technical' && (
-                    <span className="interview-setup__option-check" aria-hidden="true">
-                      <svg width="12" height="12" viewBox="0 0 12 12">
-                        <polyline points="2.5,6.2 5,8.5 9.5,3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                  )}
+                  Recheck
                 </button>
               </div>
-            </div>
+            )}
 
-            <div className="interview-setup__section">
-              <div className="interview-setup__label">Microphone</div>
-
-              {microphoneCheck.status === 'permission-needed' && (
-                <div className="interview-mic-check interview-mic-check--neutral">
-                  <div className="interview-mic-check__icon">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <rect x="6.5" y="2" width="5" height="9" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M4 9.5c0 2.75 2.25 5 5 5s5-2.25 5-5M9 14.5V17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div className="interview-mic-check__body">
-                    <strong>Microphone access needed</strong>
-                    <p>Click below to allow microphone access and see your input level.</p>
-                    <button
-                      type="button"
-                      className="interview-mic-check__action"
-                      onClick={async () => {
-                        const ok = await micLevel.start();
-                        if (ok) {
-                          void microphoneCheck.recheck();
-                        } else {
-                          void microphoneCheck.requestPermission();
-                        }
-                      }}
-                    >
-                      Test microphone
-                    </button>
-                  </div>
+            {microphoneCheck.status === 'ready' && microphoneCheck.defaultMicKind !== 'bluetooth' && (
+              <div className="interview-mic-check interview-mic-check--ok">
+                <div className="interview-mic-check__icon">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M15 5L7.5 12.5 3 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </div>
-              )}
-
-              {(microphoneCheck.status === 'idle' || microphoneCheck.status === 'checking') && (
-                <div className="interview-mic-check interview-mic-check--neutral">
-                  <div className="interview-mic-check__spinner" />
-                  <div className="interview-mic-check__body">
-                    <strong>Detecting microphone...</strong>
-                    <p>Checking your current input device.</p>
-                  </div>
+                <div className="interview-mic-check__body">
+                  <strong>{microphoneCheck.defaultMicLabel ?? 'Microphone detected'}</strong>
+                  <p>{microphoneCheck.defaultMicKind === 'wired' ? 'Speak to test — bars should move when sound is detected.' : 'Speak to test — bars should move when sound is detected.'}</p>
                 </div>
-              )}
+                <MicLevelMeter bins={micLevel.bins} active={micLevel.status === 'active'} />
+                <button
+                  type="button"
+                  className="interview-mic-check__action"
+                  onClick={() => void microphoneCheck.recheck()}
+                >
+                  Recheck
+                </button>
+              </div>
+            )}
 
-              {microphoneCheck.status === 'ready' && microphoneCheck.defaultMicKind === 'bluetooth' && (
-                <div className="interview-mic-check interview-mic-check--warning" aria-live="polite">
-                  <div className="interview-mic-check__icon">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <path d="M9 2l7 13H2L9 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                      <path d="M9 6.25v4M9 13.25h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div className="interview-mic-check__body">
-                    <strong>Bluetooth headphones detected ({microphoneCheck.defaultMicLabel})</strong>
-                    <p>
-                      Bluetooth microphones use a low-quality audio codec that can reduce transcription accuracy on technical terms. For best results, switch to your laptop&apos;s built-in microphone in your system sound settings, then recheck.
-                    </p>
-                    <MicLevelMeter bins={micLevel.bins} active={micLevel.status === 'active'} />
-                    <button
-                      type="button"
-                      className="interview-mic-check__action"
-                      onClick={() => void microphoneCheck.recheck()}
-                    >
-                      Recheck
-                    </button>
-                  </div>
+            {microphoneCheck.status === 'error' && (
+              <div className="interview-mic-check interview-mic-check--error">
+                <div className="interview-mic-check__icon">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M9 5.5v4M9 12.5h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
                 </div>
-              )}
-
-              {microphoneCheck.status === 'ready' && microphoneCheck.defaultMicKind !== 'bluetooth' && (
-                <div className="interview-mic-check interview-mic-check--ok">
-                  <div className="interview-mic-check__icon">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <path d="M15 5L7.5 12.5 3 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <div className="interview-mic-check__body">
-                    <strong>{microphoneCheck.defaultMicLabel ?? 'Microphone detected'}</strong>
-                    <p>{microphoneCheck.defaultMicKind === 'wired' ? 'Speak to test — bars should move when sound is detected.' : 'Speak to test — bars should move when sound is detected.'}</p>
-                    <MicLevelMeter bins={micLevel.bins} active={micLevel.status === 'active'} />
-                    <button
-                      type="button"
-                      className="interview-mic-check__action"
-                      onClick={() => void microphoneCheck.recheck()}
-                    >
-                      Recheck
-                    </button>
-                  </div>
+                <div className="interview-mic-check__body">
+                  <strong>Microphone access required</strong>
+                  <p>{microphoneCheck.error ?? 'Could not detect your microphone.'} Allow microphone access in your browser settings, then click Recheck.</p>
                 </div>
-              )}
+                <button
+                  type="button"
+                  className="interview-mic-check__action"
+                  onClick={() => void microphoneCheck.recheck()}
+                >
+                  Recheck
+                </button>
+              </div>
+            )}
 
-              {microphoneCheck.status === 'error' && (
-                <div className="interview-mic-check interview-mic-check--error">
-                  <div className="interview-mic-check__icon">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M9 5.5v4M9 12.5h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div className="interview-mic-check__body">
-                    <strong>Microphone access required</strong>
-                    <p>{microphoneCheck.error ?? 'Could not detect your microphone.'} Allow microphone access in your browser settings, then click Recheck.</p>
-                    <button
-                      type="button"
-                      className="interview-mic-check__action"
-                      onClick={() => void microphoneCheck.recheck()}
-                    >
-                      Recheck
-                    </button>
-                  </div>
+            {/* Low-quality input warning from the live track (narrowband sample rate
+                or headset/hands-free label). Non-blocking, and only shown when the
+                label-based Bluetooth card above isn't already covering it. */}
+            {microphoneCheck.status === 'ready'
+              && microphoneCheck.lowQualityWarning
+              && microphoneCheck.defaultMicKind !== 'bluetooth' && (
+              <div className="interview-mic-check interview-mic-check--warning" aria-live="polite">
+                <div className="interview-mic-check__icon">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M9 2l7 13H2L9 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    <path d="M9 6.25v4M9 13.25h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
                 </div>
-              )}
-
-              {/* Low-quality input warning from the live track (narrowband sample rate
-                  or headset/hands-free label). Non-blocking, and only shown when the
-                  label-based Bluetooth card above isn't already covering it. */}
-              {microphoneCheck.status === 'ready'
-                && microphoneCheck.lowQualityWarning
-                && microphoneCheck.defaultMicKind !== 'bluetooth' && (
-                <div className="interview-mic-check interview-mic-check--warning" aria-live="polite">
-                  <div className="interview-mic-check__icon">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <path d="M9 2l7 13H2L9 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                      <path d="M9 6.25v4M9 13.25h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div className="interview-mic-check__body">
-                    <strong>Low-quality microphone input detected</strong>
-                    <p>
-                      Your mic appears to be running in a narrowband or Bluetooth (hands-free) mode, which lowers transcription accuracy. Your laptop&apos;s built-in microphone or wired earbuds will produce more accurate transcripts. You can still continue.
-                    </p>
-                  </div>
+                <div className="interview-mic-check__body">
+                  <strong>Low-quality microphone input detected</strong>
+                  <p>
+                    Your mic appears to be running in a narrowband or Bluetooth (hands-free) mode, which lowers transcription accuracy. Your laptop&apos;s built-in microphone or wired earbuds will produce more accurate transcripts. You can still continue.
+                  </p>
                 </div>
-              )}
-            </div>
-
-            <button
-              className="interview-setup__start"
-              onClick={handleStartClick}
-              disabled={microphoneCheck.status === 'checking' || microphoneCheck.status === 'error'}
-            >
-              Start interview
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M3 8h9M9 5l3 3-3 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-
-            <div className="interview-setup__meta">
-              <span>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                </svg>
-                25 min session
-              </span>
-              <span>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                  <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                </svg>
-                Full transcript
-              </span>
-              <span>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 1.5l1.6 3.9 4.2.3-3.2 2.7 1 4.1L8 10.9 4.4 12.6l1-4.1L2.2 6.7l4.2-.3L8 1.5Z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round" />
-                </svg>
-                Instant feedback
-              </span>
-            </div>
+              </div>
+            )}
           </div>
+
+          <button
+            className="interview-setup__start"
+            onClick={handleStartClick}
+            disabled={microphoneCheck.status === 'checking' || microphoneCheck.status === 'error'}
+          >
+            Start interview
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 8h9M9 5l3 3-3 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
       </div>
     );
