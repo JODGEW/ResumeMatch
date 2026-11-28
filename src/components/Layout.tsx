@@ -138,6 +138,11 @@ export function Layout() {
   // The Interviews tab links to /interview/history, but it owns every interview
   // route: setup and live (/interview), history and results.
   const isInterviewRoute = pathname === '/interview' || pathname.startsWith('/interview/');
+  // Same for History: it owns the analysis result pages (/results/:analysisId).
+  const isHistoryRoute =
+    pathname === '/history' || pathname.startsWith('/history/') || pathname.startsWith('/results/');
+  // These two tabs are plain Links: NavLink only sets aria-current when its own `to`
+  // matches, so it could not mark them current on the routes they own.
 
   return (
     <div className="layout" ref={layoutRef}>
@@ -163,15 +168,23 @@ export function Layout() {
                 </svg>
                 Upload
               </NavLink>
-              <NavLink to="/history" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
+              <Link
+                to="/history"
+                className={`nav__link ${isHistoryRoute ? 'nav__link--active' : ''}`}
+                aria-current={isHistoryRoute ? 'page' : undefined}
+              >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
                   <path d="M3 3v5h5" />
                   <path d="M12 7v5l4 2" />
                 </svg>
                 History
-              </NavLink>
-              <NavLink to="/interview/history" className={() => `nav__link ${isInterviewRoute ? 'nav__link--active' : ''}`}>
+              </Link>
+              <Link
+                to="/interview/history"
+                className={`nav__link ${isInterviewRoute ? 'nav__link--active' : ''}`}
+                aria-current={isInterviewRoute ? 'page' : undefined}
+              >
                 <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="5" y="1.75" width="5" height="7.5" rx="2.5" />
                   <path d="M3.25 7.25c0 2.35 1.9 4.25 4.25 4.25s4.25-1.9 4.25-4.25" />
@@ -179,7 +192,7 @@ export function Layout() {
                   <path d="M5.5 13.25h4" />
                 </svg>
                 Interviews
-              </NavLink>
+              </Link>
               {isDashboardVisible && (
                 <NavLink to="/dashboard" className={({ isActive }) => `nav__link ${isActive ? 'nav__link--active' : ''}`}>
                   <svg width="17" height="17" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
