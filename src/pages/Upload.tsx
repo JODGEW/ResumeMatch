@@ -362,7 +362,7 @@ export function Upload() {
           {hint && <p className="upload-footer__hint" id="upload-submit-hint">{hint}</p>}
           <button
             type="submit"
-            className="upload-submit"
+            className="btn btn-primary upload-submit"
             disabled={!canSubmit || isSubmitting}
             aria-describedby={hint ? 'upload-submit-hint' : undefined}
           >

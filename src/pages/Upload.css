@@ -305,39 +305,25 @@
 }
 
 .upload-submit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
   min-width: 200px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 590;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 0.15s;
 }
 
-.upload-submit:not(:disabled):hover {
-  background: var(--accent-hover);
-}
-
-.upload-submit:disabled {
+/* .btn.upload-submit outranks .btn:disabled (opacity .45) and .btn-primary. */
+.btn.upload-submit:disabled {
   background: var(--surface-inset);
   color: var(--text-tertiary);
   border-color: var(--border-standard);
+  box-shadow: none;
   cursor: not-allowed;
+  opacity: 1;
 }
 
-.upload-submit:disabled:has(.loading-spinner) {
+.btn.upload-submit:disabled:has(.loading-spinner) {
   background: var(--accent);
   color: var(--text-on-accent);
   border-color: transparent;
   cursor: progress;
+  opacity: 1;
 }
 
 .upload-submit .loading-spinner {
