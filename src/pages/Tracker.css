@@ -594,6 +594,15 @@
   transition: background 0.12s, border-color 0.12s;
 }
 
+/* Light only (RM-33, WCAG 1.4.11): the border is the only thing that shows an
+   unchecked box, and --border-solid measured 1.22-1.46:1 on the surfaces it sits
+   on (page, bulk-bar tint, modal panel). --text-muted clears 4.3:1 on all three.
+   :where() keeps this at .tracker-check's specificity, so :hover, :checked and the
+   global input:focus still win. Dark keeps --border-solid. */
+:where([data-theme="light"]) .tracker-check {
+  border-color: var(--text-muted);
+}
+
 .tracker-check:hover {
   border-color: var(--accent);
 }
