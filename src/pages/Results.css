@@ -779,7 +779,7 @@
 }
 
 .results-no-rewrites__cta:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
   color: var(--text-on-accent);
 }
 

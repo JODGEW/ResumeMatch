@@ -804,7 +804,7 @@
 }
 
 .interview-stage__report:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
 }
 
 .interview-stage__report:disabled {
@@ -1250,7 +1250,7 @@
 }
 
 .interview-setup__start:not(:disabled):hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
 }
 
 .interview-setup__start:disabled {

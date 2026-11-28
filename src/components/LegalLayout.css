@@ -55,7 +55,7 @@
 
 .legal-btn--primary:hover,
 .legal-page a.legal-btn--primary:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
   color: #fff;
 }
 

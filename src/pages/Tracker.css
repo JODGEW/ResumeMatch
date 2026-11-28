@@ -68,8 +68,8 @@
 }
 
 .tracker-btn--brand:not(:disabled):hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--accent-hover-bg);
+  border-color: var(--accent-hover-bg);
 }
 
 .tracker-btn--ghost {
@@ -548,8 +548,8 @@
 }
 
 .tracker-bulk-bar__export:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--accent-hover-bg);
+  border-color: var(--accent-hover-bg);
 }
 
 .tracker-bulk-bar__delete {
@@ -835,8 +835,8 @@
 }
 
 .tracker-quick-btn--accent:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--accent-hover-bg);
+  border-color: var(--accent-hover-bg);
 }
 
 /* Neutral outline (Replied). Stage-moving actions reuse it with the target

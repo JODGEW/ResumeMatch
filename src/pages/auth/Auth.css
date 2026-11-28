@@ -272,7 +272,7 @@
 }
 
 .auth-btn--primary:not(:disabled):hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
 }
 
 .auth-btn--soft {

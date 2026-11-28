@@ -133,8 +133,8 @@
 }
 
 .ir-btn--primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--accent-hover-bg);
+  border-color: var(--accent-hover-bg);
   color: var(--text-on-accent);
 }
 

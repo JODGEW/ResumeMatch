@@ -298,7 +298,7 @@
 }
 
 .apc__cta:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
 }
 
 /* ── Animations ─────────────────────────────────────── */
