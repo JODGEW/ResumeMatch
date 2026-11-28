@@ -139,7 +139,7 @@ export function isAwaitingResponse(app: Application): boolean {
     && !TERMINAL_STAGES.has(app.applicationStatus);
 }
 
-export function getFollowUpDue(app: Application): { label: string; overdue: boolean; daysUntil: number } | null {
+export function getFollowUpDue(app: Pick<Application, 'outreachDate' | 'followUpDate' | 'followUpSent' | 'outreachStatus' | 'applicationStatus'>): { label: string; overdue: boolean; daysUntil: number } | null {
   if (!app.outreachDate || app.followUpSent || app.outreachStatus === 'replied' || app.outreachStatus === 'no_response' || app.outreachStatus === 'skipped' || TERMINAL_STAGES.has(app.applicationStatus)) return null;
   const due = app.followUpDate ? parseLocalDate(app.followUpDate) : new Date(parseLocalDate(app.outreachDate).getTime() + 7 * 86400000);
   const today = new Date();
@@ -457,7 +457,7 @@ function ApplicationModal({
 
   const outreachSummary = STATUS_LABELS[form.outreachStatus]
     + (form.outreachDate ? ` ${formatDate(form.outreachDate)}` : '')
-    + (form.followUpDate && getFollowUpDue(form as Application) ? ` · follow-up due ${formatDate(form.followUpDate)}` : '');
+    + (form.followUpDate && getFollowUpDue(form) ? ` · follow-up due ${formatDate(form.followUpDate)}` : '');
 
   const responseSummary = form.response && hasResponseData(form.response)
     ? RESPONSE_TYPE_LABELS[form.response.type] + (form.response.date ? ` · ${formatDate(form.response.date)}` : '')

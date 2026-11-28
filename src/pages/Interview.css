@@ -376,14 +376,6 @@
   cursor: default;
 }
 
-.interview-question__btn--icon {
-  padding: 6px 9px;
-}
-
-.interview-question__btn--off {
-  color: var(--text-tertiary);
-}
-
 .interview-question__spinner {
   width: 13px;
   height: 13px;
@@ -401,16 +393,7 @@
 }
 
 /* ── Follow-up / clarification indicators ────────────── */
-.interview-status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
 
-.interview-status__progress {
-  margin: 0;
-}
 
 .interview-question__body {
   flex: 1;
@@ -1333,21 +1316,6 @@
 
 /* ── Mobile ──────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .interview-header {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .interview-timer {
-    align-items: flex-start;
-    flex-direction: row;
-    gap: 0.5rem;
-  }
-
-  .interview-timer__stats {
-    gap: 0.5rem;
-  }
-
   .interview-question {
     padding: 1.125rem 1.125rem 1.25rem;
   }
@@ -1362,21 +1330,5 @@
 
   .interview-answer {
     padding: 1rem;
-  }
-
-  .interview-scratchpad {
-    padding: 1rem;
-  }
-
-  .interview-controls__hint {
-    font-size: 0.75rem;
-  }
-}
-
-/* ≤480px: keep the notes textarea at 16px so iOS Safari doesn't auto-zoom on
-   focus (matches the global input/textarea safeguard in index.css). */
-@media (max-width: 480px) {
-  .interview-scratchpad__input {
-    font-size: 1rem;
   }
 }

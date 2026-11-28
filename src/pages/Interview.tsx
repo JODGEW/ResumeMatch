@@ -859,8 +859,9 @@ export function Interview() {
     : `Question ${questionNumber || 1}`;
 
   // A follow-up/clarification only applies to a live, non-thinking, non-closing
-  // question. questionNumber intentionally does NOT advance on these (the backend
-  // keeps drilling the same main question), so "Question 3 of 10 · Follow-up" is correct.
+  // question. questionNumber advances on every interviewer turn, follow-ups
+  // included (same as the session-restore count), so a follow-up shows as
+  // "Question 4 of 10 · Follow-up".
   const currentQuestionKind: 'main' | 'followup' | 'clarification' =
     interviewState === 'thinking' || currentPromptIsClosing
       ? 'main'
@@ -876,8 +877,8 @@ export function Interview() {
         ? ' interview-question--clarification'
         : '';
 
-  // Progress strip. questionNumber does not advance on follow-ups (see above), so
-  // the active segment deliberately stays put while the interviewer drills deeper.
+  // Progress strip. Each interviewer turn, follow-ups included, fills the next
+  // segment (questionNumber advances on every turn, see above).
   const answeredSegments = currentPromptIsClosing
     ? totalQuestions
     : Math.max(0, questionNumber - 1);
