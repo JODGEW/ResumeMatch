@@ -39,6 +39,10 @@
 
   --accent: #5e6ad2;
   --accent-hover: #828fff;
+  /* Hover fill of solid accent buttons (white text). --accent-hover is lighter than
+     --accent here and stays the text/graphic hover colour; white on it is only 2.87.
+     #4852b8 darkens on hover like light: white 6.62, vs --accent 1.41 (RM-34). */
+  --accent-hover-bg: #4852b8;
   --accent-dim: rgba(113, 112, 255, 0.14);
   --accent-glow: rgba(113, 112, 255, 0.22);
   --accent-border: rgba(113, 112, 255, 0.34);
@@ -188,6 +192,7 @@
 
   --accent: #5e6ad2;
   --accent-hover: #4852b8;
+  --accent-hover-bg: #4852b8;
   --accent-dim: rgba(94, 106, 210, 0.1);
   --accent-glow: rgba(94, 106, 210, 0.18);
   --accent-border: rgba(94, 106, 210, 0.3);
@@ -468,8 +473,8 @@ label {
   color: var(--text-on-accent);
 }
 .btn-primary:not(:disabled):hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--accent-hover-bg);
+  border-color: var(--accent-hover-bg);
   color: var(--text-on-accent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), var(--shadow-glow);
 }
@@ -784,5 +789,5 @@ label {
 }
 
 .pagination__page--active:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
 }

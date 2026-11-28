@@ -62,7 +62,7 @@
 
 .landing-btn--primary:hover,
 .landing-page a.landing-btn--primary:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
   color: #fff;
 }
 
@@ -102,7 +102,7 @@
 
 [data-theme="dark"] .landing-btn--solid:hover,
 [data-theme="dark"] .landing-page a.landing-btn--solid:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
 }
 
 .landing-btn--nav { font-size: 13px; padding: 7px 14px; }

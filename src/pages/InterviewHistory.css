@@ -58,7 +58,7 @@
 }
 
 .ih-new-btn:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
   color: var(--text-on-accent);
 }
 
@@ -160,7 +160,7 @@
 }
 
 .ih-empty__cta:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
   color: var(--text-on-accent);
 }
 

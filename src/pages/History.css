@@ -55,7 +55,7 @@
 }
 
 .history-new-btn:hover {
-  background: var(--accent-hover);
+  background: var(--accent-hover-bg);
   color: var(--text-on-accent);
 }
 
