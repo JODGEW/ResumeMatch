@@ -28,6 +28,13 @@ export function ProgressRing({ score, size = 220, label }: Props) {
 
     arcEl.style.strokeDasharray = `${circumference}`;
     arcEl.style.strokeDashoffset = `${circumference}`;
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      arcEl.style.strokeDashoffset = `${circumference - (clampedScore / 100) * circumference}`;
+      setDisplayScore(clampedScore);
+      return;
+    }
+
     setDisplayScore(0);
 
     function animate(timestamp: number) {
